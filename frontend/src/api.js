@@ -7,17 +7,7 @@ export async function fetchTasks() {
 }
 
 export async function fetchProducts() {
-  const res = await fetch(`${API_BASE}/products/`);
+  const res = await fetch(`${API_BASE}/reasoning/products`);
   if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
-  return res.json();
-}
-
-export async function sendChatMessage(message) {
-  const res = await fetch(`${API_BASE}/chat/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
-  });
-  if (!res.ok) throw new Error(`Failed to send chat message: ${res.status}`);
   return res.json();
 }

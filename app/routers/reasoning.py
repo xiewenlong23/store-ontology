@@ -41,6 +41,15 @@ class ReasoningResponse(BaseModel):
     reasoning: str
     auto_create_task: bool = False
 
+@router.get("/products")
+def list_products():
+    """Return mock product list for the dashboard."""
+    return [
+        {"product_id": "P001", "name": "嫩豆腐", "category": "daily_fresh", "expiry_date": "2026-04-21", "stock": 50, "in_reduction": False},
+        {"product_id": "P002", "name": "现烤法式面包", "category": "bakery", "expiry_date": "2026-04-20", "stock": 30, "in_reduction": False},
+        {"product_id": "P003", "name": "红富士苹果", "category": "fresh", "expiry_date": "2026-04-22", "stock": 80, "in_reduction": False},
+    ]
+
 @router.post("/discount", response_model=ReasoningResponse)
 def recommend_discount(req: ReasoningRequest):
     today = date.today()

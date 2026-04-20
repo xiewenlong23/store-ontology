@@ -32,7 +32,7 @@ class ReductionTask(BaseModel):
     sell_through_rate: Optional[float] = None
     status: TaskStatus = TaskStatus.PENDING
     created_by: str
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
 
 class Product(BaseModel):
     product_id: str

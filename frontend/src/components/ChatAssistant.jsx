@@ -6,20 +6,20 @@ export default function ChatAssistant() {
 
   const send = async () => {
     if (!input.trim()) return;
-    const userMsg = { role: "user", text: input };
+    const userMsg = { id: crypto.randomUUID(), role: "user", text: input };
     setMessages(m => [...m, userMsg]);
     setInput("");
 
     // Simple mock responses for MVP
-    const resp = { role: "assistant", text: `收到: "${input}" - 正在处理...` };
+    const resp = { id: crypto.randomUUID(), role: "assistant", text: `收到: "${input}" - 正在处理...` };
     setMessages(m => [...m, resp]);
   };
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto space-y-3 mb-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`p-3 rounded-lg ${m.role === "user" ? "bg-blue-100 self-end ml-auto" : "bg-gray-100"} max-w-[80%]`}>
+        {messages.map((m) => (
+          <div key={m.id} className={`p-3 rounded-lg ${m.role === "user" ? "bg-blue-100 self-end ml-auto" : "bg-gray-100"} max-w-[80%]`}>
             {m.text}
           </div>
         ))}

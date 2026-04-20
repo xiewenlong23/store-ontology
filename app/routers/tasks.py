@@ -26,7 +26,7 @@ def list_tasks(store_id: str = None, status: TaskStatus = None):
 def create_task(task: ReductionTask):
     tasks = load_tasks()
     task_dict = task.model_dump()
-    task_dict["task_id"] = str(uuid.uuid4())[:8]
+    task_dict["task_id"] = str(uuid.uuid4())
     task_dict["created_at"] = datetime.now().isoformat()
     tasks.append(task_dict)
     save_tasks(tasks)

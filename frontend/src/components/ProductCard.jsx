@@ -1,7 +1,7 @@
 import React from "react";
 
 export default function ProductCard({product}) {
-  const today = new Date("2026-04-20");
+  const today = new Date();
   const expiry = new Date(product.expiry_date);
   const daysLeft = Math.ceil((expiry - today) / (1000*60*60*24));
   const urgency = daysLeft <= 1 ? "🔴" : daysLeft <= 3 ? "🟡" : "🟢";
