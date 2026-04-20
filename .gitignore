@@ -4,3 +4,4 @@ __pycache__/
 *.py.bak*
 *.ttl.bak*
 .venv/
+node_modules/
