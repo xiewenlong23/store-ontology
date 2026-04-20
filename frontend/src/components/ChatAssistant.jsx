@@ -1,5 +1,6 @@
 import React from "react";
 
+const API_BASE = "/api";
 const INTENT_RESPONSES = {
   create_task: "检测到创建任务意图。请提供门店ID、目标售罄率和截止日期，我将为您创建任务。",
   query_status: "检测到查询状态意图。正在为您查询当前任务列表...",
@@ -21,7 +22,7 @@ export default function ChatAssistant() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/tasks/chat/interpret", {
+      const res = await fetch(`${API_BASE}/tasks/chat/interpret`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: sentInput }),

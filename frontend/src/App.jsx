@@ -1,6 +1,8 @@
 import React from "react";
+import { createRoot } from "react-dom/client";
 import Dashboard from "./components/Dashboard";
 import ChatAssistant from "./components/ChatAssistant";
+import "./index.css";
 
 function App() {
   return (
@@ -19,4 +21,4 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(<App />);
