@@ -58,10 +58,10 @@ class ChatIntentRequest(BaseModel):
 @router.post("/chat/interpret")
 def interpret_chat(req: ChatIntentRequest):
     msg = req.message
-    if "创建" in msg or "帮我" in msg:
-        intent = "create_task"
-    elif "查询" in msg or "有哪些" in msg:
+    if "查询" in msg or "有哪些" in msg:
         intent = "query_status"
+    elif "创建" in msg or "帮我" in msg:
+        intent = "create_task"
     elif "售罄率" in msg or "结果" in msg:
         intent = "report_result"
     else:

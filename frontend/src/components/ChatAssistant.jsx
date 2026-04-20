@@ -26,6 +26,9 @@ export default function ChatAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: sentInput }),
       });
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
       const data = await res.json();
       const intent = data.intent;
       const replyText = INTENT_RESPONSES[intent] || INTENT_RESPONSES.unknown;
@@ -48,7 +51,7 @@ export default function ChatAssistant() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto space-y-3 mb-4">
+      <div className="flex flex-col flex-1 overflow-auto space-y-3 mb-4">
         {messages.map((m) => (
           <div
             key={m.id}
