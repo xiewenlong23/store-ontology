@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.models import ReductionTask, TaskStatus
+from pydantic import BaseModel
 from datetime import datetime
 import json, uuid
 
@@ -49,3 +50,20 @@ def update_task_status(task_id: str, status: TaskStatus):
             save_tasks(tasks)
             return t
     raise HTTPException(status_code=404, detail="Task not found")
+
+
+class ChatIntentRequest(BaseModel):
+    message: str
+
+@router.post("/chat/interpret")
+def interpret_chat(req: ChatIntentRequest):
+    msg = req.message
+    if "创建" in msg or "帮我" in msg:
+        intent = "create_task"
+    elif "查询" in msg or "有哪些" in msg:
+        intent = "query_status"
+    elif "售罄率" in msg or "结果" in msg:
+        intent = "report_result"
+    else:
+        intent = "unknown"
+    return {"intent": intent, "message": msg}
