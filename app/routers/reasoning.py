@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from app.models import ProductCategory
 from datetime import date
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -97,10 +100,15 @@ def agent_scan_products():
         expiry = date.fromisoformat(p["expiry_date"])
         days_left = (expiry - today).days
         if days_left <= 2 and not p.get("in_reduction"):
+            try:
+                category = ProductCategory(p["category"])
+            except ValueError:
+                logger.warning(f"Skipping product {p.get('product_id', 'unknown')}: invalid category '{p.get('category')}'")
+                continue
             req = ReasoningRequest(
                 product_id=p["product_id"],
                 product_name=p["name"],
-                category=ProductCategory(p["category"]),
+                category=category,
                 expiry_date=expiry,
                 stock=p["stock"]
             )
