@@ -40,7 +40,7 @@ class ReasoningRequest(BaseModel):
 class ReasoningResponse(BaseModel):
     product_id: str
     recommended_discount: float
-    discount_range: tuple[float, float]
+    discount_range: list[float]
     tier: int
     reasoning: str
     auto_create_task: bool = False
