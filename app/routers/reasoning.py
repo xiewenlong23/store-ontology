@@ -2,12 +2,16 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from app.models import ProductCategory
 from datetime import date
+from pathlib import Path
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+PRODUCTS_FILE = DATA_DIR / "products.json"
 
 DISCOUNT_TIERS = {
     1: (0.10, 0.50, 0.20),   # T1: 0-1 days -> 10-50%, rec 20%
@@ -91,7 +95,7 @@ def recommend_discount(req: ReasoningRequest):
 
 @router.post("/agent/scan")
 def agent_scan_products():
-    with open("app/data/products.json") as f:
+    with open(PRODUCTS_FILE) as f:
         products = json.load(f)
 
     tasks_to_create = []

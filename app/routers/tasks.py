@@ -2,16 +2,20 @@ from fastapi import APIRouter, HTTPException
 from app.models import ReductionTask, TaskStatus
 from pydantic import BaseModel
 from datetime import datetime
+from pathlib import Path
 import json, uuid
 
 router = APIRouter()
 
+DATA_DIR = Path(__file__).parent.parent / "data"
+TASKS_FILE = DATA_DIR / "tasks.json"
+
 def load_tasks():
-    with open("app/data/tasks.json") as f:
+    with open(TASKS_FILE) as f:
         return json.load(f)
 
 def save_tasks(tasks):
-    with open("app/data/tasks.json", "w") as f:
+    with open(TASKS_FILE, "w") as f:
         json.dump(tasks, f, indent=2, default=str)
 
 @router.get("/", response_model=list[ReductionTask])

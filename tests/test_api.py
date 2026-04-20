@@ -1,10 +1,12 @@
 from fastapi.testclient import TestClient
 from app.main import app
-import json, os
+import json
+from pathlib import Path
 
 client = TestClient(app)
 
-TASKS_FILE = "app/data/tasks.json"
+DATA_DIR = Path(__file__).parent.parent / "app" / "data"
+TASKS_FILE = DATA_DIR / "tasks.json"
 
 def test_health():
     r = client.get("/api/health")
