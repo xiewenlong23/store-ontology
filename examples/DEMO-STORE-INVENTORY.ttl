@@ -1,0 +1,186 @@
+# ============================================================
+# Demo A：门店库存实例数据
+# 用于验证推理链路：
+#   给定 SKU + 库存 + 生产日期 → AI 推理折扣 → 生成 WorkTask
+#
+# 场景：2026-04-19，某门店检测到以下商品临期
+# ============================================================
+
+@prefix so: <https://store-ontology.example.com/retail#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+# ------------------------------------------------------------
+# 门店实例
+# ------------------------------------------------------------
+so:StoreS001 a so:Store ;
+    so:storeCode "S001" ;
+    so:storeName "家家悦鲁东区域店" ;
+    so:region "鲁东" .
+
+# ------------------------------------------------------------
+# 员工实例
+# ------------------------------------------------------------
+so:Emp001 a so:Employee ;
+    so:employeeCode "E001" ;
+    so:employeeName "张店" ;
+    so:employeeRole so:RoleStoreManager ;
+    so:worksAt so:StoreS001 .
+
+so:Emp002 a so:Employee ;
+    so:employeeCode "E002" ;
+    so:employeeName "李店" ;
+    so:employeeRole so:RoleStoreManager ;
+    so:worksAt so:StoreS001 .
+
+# ------------------------------------------------------------
+# SKU 实例 × 6
+# 模拟 2026-04-19 的库存快照
+# ------------------------------------------------------------
+#
+# SKU1：蒙牛特仑苏（乳品）
+# 生产日期：2026-04-12，保质期到 2026-04-22（剩余3天 → T2）
+# 当前库存：24瓶
+so:SKU-MengniuTellmilk a so:SKU ;
+    so:skuCode "MN-690121000001" ;
+    so:skuName "蒙牛特仑苏有机纯牛奶 250ml*12" ;
+    so:productionDate "2026-04-12"^^xsd:date ;
+    so:expirationDate "2026-04-22"^^xsd:date ;
+    so:currentQuantity 24 ;
+    so:hasCategory so:Dairy ;
+    so:clearanceStatus so:ClearanceStatusPending .
+
+# SKU2：红富士苹果（生鲜）
+# 生产日期：2026-04-17，保质期标准3天（剩余1天 → T1）
+# 当前库存：50斤
+so:SKU-AppleRedFuji a so:SKU ;
+    so:skuCode "APP-690000100001" ;
+    so:skuName "红富士苹果 一级果 5斤装" ;
+    so:productionDate "2026-04-17"^^xsd:date ;
+    so:expirationDate "2026-04-20"^^xsd:date ;
+    so:currentQuantity 50 ;
+    so:hasCategory so:FreshProduce ;
+    so:clearanceStatus so:ClearanceStatusPending .
+
+# SKU3：现烤法式面包（烘焙）
+# 生产日期：2026-04-18，保质期到 2026-04-20（剩余1天 → T1）
+# 当前库存：15个
+so:SKU-FrenchBread a so:SKU ;
+    so:skuCode "BAK-690000200001" ;
+    so:skuName "现烤法式面包 原味 100g" ;
+    so:productionDate "2026-04-18"^^xsd:date ;
+    so:expirationDate "2026-04-20"^^xsd:date ;
+    so:currentQuantity 15 ;
+    so:hasCategory so:Bakery ;
+    so:clearanceStatus so:ClearanceStatusPending .
+
+# SKU4：嫩豆腐（日配）
+# 生产日期：2026-04-18，保质期到 2026-04-20（剩余1天 → T1）
+# 当前库存：30盒
+so:SKU-SofuTofu a so:SKU ;
+    so:skuCode "SOY-690000300001" ;
+    so:skuName "嫩豆腐 350g/盒" ;
+    so:productionDate "2026-04-18"^^xsd:date ;
+    so:expirationDate "2026-04-20"^^xsd:date ;
+    so:currentQuantity 30 ;
+    so:hasCategory so:DailyFresh ;
+    so:clearanceStatus so:ClearanceStatusPending .
+
+# SKU5：农夫山泉（饮品）
+# 生产日期：2025-10-01，保质期12个月（剩余约11个月 → 不临期）
+# 当前库存：200瓶（不临期，正常）
+so:SKU-NongfuSpring a so:SKU ;
+    so:skuCode "BVG-690000400001" ;
+    so:skuName "农夫山泉 550ml*24 饮用天然水" ;
+    so:productionDate "2025-10-01"^^xsd:date ;
+    so:expirationDate "2026-09-30"^^xsd:date ;
+    so:currentQuantity 200 ;
+    so:hasCategory so:Beverage ;
+    so:clearanceStatus so:ClearanceStatusNormal .
+
+# SKU6：奥利奥饼干（休闲食品）
+# 生产日期：2026-01-15，保质期6个月（剩余约2个月 → T5）
+# 当前库存：80盒
+so:SKU-OreoCookie a so:SKU ;
+    so:skuCode "SNK-690000500001" ;
+    so:skuName "奥利奥夹心饼干 原味 388g" ;
+    so:productionDate "2026-01-15"^^xsd:date ;
+    so:expirationDate "2026-07-15"^^xsd:date ;
+    so:currentQuantity 80 ;
+    so:hasCategory so:SnackFood ;
+    so:clearanceStatus so:ClearanceStatusPending .
+
+# ------------------------------------------------------------
+# 库存事件实例
+# 记录临期检测事件
+# ------------------------------------------------------------
+so:Event001 a so:InventoryEvent ;
+    so:eventType so:InventoryEventShelfLifeWarning ;
+    so:eventTime "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:quantityAtEvent 24 ;
+    so:relatedSKU so:SKU-MengniuTellmilk ;
+    so:atStore so:StoreS001 .
+
+so:Event002 a so:InventoryEvent ;
+    so:eventType so:InventoryEventShelfLifeCritical ;
+    so:eventTime "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:quantityAtEvent 50 ;
+    so:relatedSKU so:SKU-AppleRedFuji ;
+    so:atStore so:StoreS001 .
+
+so:Event003 a so:InventoryEvent ;
+    so:eventType so:InventoryEventShelfLifeCritical ;
+    so:eventTime "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:quantityAtEvent 15 ;
+    so:relatedSKU so:SKU-FrenchBread ;
+    so:atStore so:StoreS001 .
+
+so:Event004 a so:InventoryEvent ;
+    so:eventType so:InventoryEventShelfLifeCritical ;
+    so:eventTime "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:quantityAtEvent 30 ;
+    so:relatedSKU so:SKU-SofuTofu ;
+    so:atStore so:StoreS001 .
+
+so:Event005 a so:InventoryEvent ;
+    so:eventType so:InventoryEventShelfLifeWarning ;
+    so:eventTime "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:quantityAtEvent 80 ;
+    so:relatedSKU so:SKU-OreoCookie ;
+    so:atStore so:StoreS001 .
+
+# ------------------------------------------------------------
+# WorkTask 生成规则说明（供推理引擎参考）：
+#
+# 蒙牛特仑苏：
+#   品类：乳品（Dairy）→ RuleDairyClearance
+#   剩余天数：3天 → TierShelfLife2to3Days（T2）
+#   推荐折扣：40%
+#   规则：30%-60%，推荐40%
+#
+# 红富士苹果：
+#   品类：生鲜（FreshProduce）→ RuleFreshProduceClearance
+#   剩余天数：1天 → TierShelfLife1Day（T1）
+#   推荐折扣：20%
+#   规则：10%-50%，推荐20%
+#
+# 法式面包：
+#   品类：烘焙（Bakery）→ RuleBakeryClearance
+#   剩余天数：1天 → TierShelfLife1Day（T1）
+#   推荐折扣：20%
+#   规则：10%-50%，推荐20%
+#
+# 嫩豆腐：
+#   品类：日配（DailyFresh）→ RuleDailyFreshClearance
+#   剩余天数：1天 → TierShelfLife1Day（T1）
+#   推荐折扣：20%
+#   规则：10%-50%，推荐20%
+#
+# 农夫山泉：
+#   品类：饮品（Beverage）→ RuleBeverageClearance
+#   剩余天数：约164天 → 无需出清（超出所有Tiers）
+#
+# 奥利奥饼干：
+#   品类：休闲食品（SnackFood）→ RuleSnackFoodClearance
+#   剩余天数：约87天 → 无需出清（超出所有Tiers）
+# ------------------------------------------------------------

@@ -1,0 +1,338 @@
+# ============================================================
+# 品类出清规则示例数据
+# ============================================================
+# 场景：展示不同品类的商品在相同保质期下的折扣推荐差异
+# 
+# 示例SKU：
+#   SKU-MENGNIU-001  蒙牛特仑苏有机纯牛奶250ml    → 乳品(Dairy)
+#   SKU-APPLE-001    红富士苹果 500g              → 生鲜(FreshProduce)
+#   SKU-BREAD-001    现烤法式面包 200g           → 烘焙(Bakery)
+#   SKU-TOFU-001     嫩豆腐 300g                 → 日配(DailyFresh)
+#   SKU-WATER-001    农夫山泉550ml               → 饮品(Beverage)
+#   SKU-COOKIE-001   奥利奥饼干原味 120g         → 休闲食品(SnackFood)
+#
+# 保质期设置：
+#   假设各商品当前保质期剩余天数不同，对应不同折扣层级
+# ============================================================
+
+@prefix so: <https://store-ontology.example.com/retail#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ------------------------------------------------------------
+# 示例SKU实例
+# ------------------------------------------------------------
+
+# 蒙牛特仑苏有机纯牛奶 - 乳品，保质期剩余2天
+so:SKU-MENGNIU-001 a so:SKU ;
+    rdfs:label "蒙牛特仑苏有机纯牛奶250ml"@zh-CN ;
+    so:skuCode "MENGNIU-001" ;
+    so:barcode "6901234567890" ;
+    so:category so:Dairy ;
+    so:isImported false ;
+    so:isOrganic true ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 180 ;
+    so:currentShelfLifeRemainingDays 2 ;
+    so:currentInventoryQty 120 ;
+    so:arrivalDate "2026-04-17"^^xsd:date ;
+    so:productionDate "2026-04-15"^^xsd:date ;
+    so:expiryDate "2026-08-12"^^xsd:date .
+
+# 红富士苹果 - 生鲜，保质期剩余1天
+so:SKU-APPLE-001 a so:SKU ;
+    rdfs:label "红富士苹果 500g"@zh-CN ;
+    so:skuCode "APPLE-001" ;
+    so:barcode "6901234567891" ;
+    so:category so:FreshProduce ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 7 ;
+    so:currentShelfLifeRemainingDays 1 ;
+    so:currentInventoryQty 50 ;
+    so:arrivalDate "2026-04-18"^^xsd:date ;
+    so:productionDate "2026-04-18"^^xsd:date ;
+    so:expiryDate "2026-04-25"^^xsd:date .
+
+# 现烤法式面包 - 烘焙，保质期剩余0天（已过期当日）
+so:SKU-BREAD-001 a so:SKU ;
+    rdfs:label "现烤法式面包 200g"@zh-CN ;
+    so:skuCode "BREAD-001" ;
+    so:barcode "6901234567892" ;
+    so:category so:Bakery ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 2 ;
+    so:currentShelfLifeRemainingDays 0 ;
+    so:currentInventoryQty 30 ;
+    so:arrivalDate "2026-04-19"^^xsd:date ;
+    so:productionDate "2026-04-19"^^xsd:date ;
+    so:expiryDate "2026-04-21"^^xsd:date .
+
+# 嫩豆腐 - 日配，保质期剩余1天
+so:SKU-TOFU-001 a so:SKU ;
+    rdfs:label "嫩豆腐 300g"@zh-CN ;
+    so:skuCode "TOFU-001" ;
+    so:barcode "6901234567893" ;
+    so:category so:DailyFresh ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 1 ;
+    so:currentShelfLifeRemainingDays 1 ;
+    so:currentInventoryQty 80 ;
+    so:arrivalDate "2026-04-19"^^xsd:date ;
+    so:productionDate "2026-04-19"^^xsd:date ;
+    so:expiryDate "2026-04-20"^^xsd:date .
+
+# 农夫山泉 - 饮品，保质期剩余5天
+so:SKU-WATER-001 a so:SKU ;
+    rdfs:label "农夫山泉550ml"@zh-CN ;
+    so:skuCode "WATER-001" ;
+    so:barcode "6901234567894" ;
+    so:category so:Beverage ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 365 ;
+    so:currentShelfLifeRemainingDays 5 ;
+    so:currentInventoryQty 200 ;
+    so:arrivalDate "2026-04-14"^^xsd:date ;
+    so:productionDate "2026-01-15"^^xsd:date ;
+    so:expiryDate "2026-07-15"^^xsd:date .
+
+# 奥利奥饼干 - 休闲食品，保质期剩余10天
+so:SKU-COOKIE-001 a so:SKU ;
+    rdfs:label "奥利奥饼干原味 120g"@zh-CN ;
+    so:skuCode "COOKIE-001" ;
+    so:barcode "6901234567895" ;
+    so:category so:SnackFood ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isOnPromotion false ;
+    so:standardShelfLifeDays 300 ;
+    so:currentShelfLifeRemainingDays 10 ;
+    so:currentInventoryQty 150 ;
+    so:arrivalDate "2026-04-10"^^xsd:date ;
+    so:productionDate "2025-10-15"^^xsd:date ;
+    so:expiryDate "2026-08-11"^^xsd:date .
+
+# ------------------------------------------------------------
+# AI推理结果实例（展示AI根据本体规则推荐的折扣）
+# ------------------------------------------------------------
+
+# 推荐折扣记录1：蒙牛牛奶（剩余2天→乳品规则→T2层→建议4折）
+so:Recommendation-001 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：蒙牛特仑苏建议4折"@zh-CN ;
+    so:recommendationId "REC-20260419-001" ;
+    so:recommendedSKU so:SKU-MENGNIU-001 ;
+    so:applicableRule so:RuleDairyClearance ;
+    so:matchedTier so:TierShelfLife2to3Days ;
+    so:recommendedDiscountRate 0.4 ;
+    so:recommendedDiscountRateMin 0.3 ;
+    so:recommendedDiscountRateMax 0.6 ;
+    so:urgencyLevel so:UrgencyHigh ;
+    so:recommendationReason "保质期剩余2天，按乳品出清规则(T2层级)推荐折扣4折"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-001 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+# 豁免检查记录1：蒙牛是"有机"商品，检查是否有豁免
+so:ExemptionCheck-001 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：蒙牛有机牛奶"@zh-CN ;
+    so:skuChecked so:SKU-MENGNIU-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic true ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:hasAppliedExemption so:ExemptionOrganicGoods ;
+    so:exemptionOverrideable true ;
+    so:overrideReason "有机商品通常豁免，但若总部允许部分有机商品参与临期出清可覆盖"@zh-CN ;
+    so:checkResult so:ExemptionCheckResultPartialExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# 推荐折扣记录2：苹果（剩余1天→生鲜规则→T1层→建议2折）
+so:Recommendation-002 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：红富士苹果建议2折"@zh-CN ;
+    so:recommendationId "REC-20260419-002" ;
+    so:recommendedSKU so:SKU-APPLE-001 ;
+    so:applicableRule so:RuleFreshProduceClearance ;
+    so:matchedTier so:TierShelfLife1Day ;
+    so:recommendedDiscountRate 0.2 ;
+    so:recommendedDiscountRateMin 0.1 ;
+    so:recommendedDiscountRateMax 0.5 ;
+    so:urgencyLevel so:UrgencyCritical ;
+    so:recommendationReason "保质期仅剩1天，生鲜品类出清紧迫度极高，按T1层级推荐2折"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-002 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+so:ExemptionCheck-002 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：红富士苹果"@zh-CN ;
+    so:skuChecked so:SKU-APPLE-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic false ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:checkResult so:ExemptionCheckResultNoExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# 推荐折扣记录3：面包（剩余0天→烘焙规则→T1层→建议1折）
+so:Recommendation-003 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：法式面包建议1折"@zh-CN ;
+    so:recommendationId "REC-20260419-003" ;
+    so:recommendedSKU so:SKU-BREAD-001 ;
+    so:applicableRule so:RuleBakeryClearance ;
+    so:matchedTier so:TierShelfLife1Day ;
+    so:recommendedDiscountRate 0.1 ;
+    so:recommendedDiscountRateMin 0.1 ;
+    so:recommendedDiscountRateMax 0.5 ;
+    so:urgencyLevel so:UrgencyCritical ;
+    so:recommendationReason "烘焙商品保质期仅剩当日，已过最佳食用期，按T1层级建议1折强制出清"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-003 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+so:ExemptionCheck-003 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：法式面包"@zh-CN ;
+    so:skuChecked so:SKU-BREAD-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic false ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:checkResult so:ExemptionCheckResultNoExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# 推荐折扣记录4：豆腐（剩余1天→日配规则→T1层→建议2折）
+so:Recommendation-004 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：嫩豆腐建议2折"@zh-CN ;
+    so:recommendationId "REC-20260419-004" ;
+    so:recommendedSKU so:SKU-TOFU-001 ;
+    so:applicableRule so:RuleDailyFreshClearance ;
+    so:matchedTier so:TierShelfLife1Day ;
+    so:recommendedDiscountRate 0.2 ;
+    so:recommendedDiscountRateMin 0.1 ;
+    so:recommendedDiscountRateMax 0.5 ;
+    so:urgencyLevel so:UrgencyCritical ;
+    so:recommendationReason "日配商品保质期仅1天，当日必须出清，按T1层级建议2折"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-004 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+so:ExemptionCheck-004 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：嫩豆腐"@zh-CN ;
+    so:skuChecked so:SKU-TOFU-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic false ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:checkResult so:ExemptionCheckResultNoExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# 推荐折扣记录5：农夫山泉（剩余5天→饮品规则→T3层→建议7折）
+so:Recommendation-005 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：农夫山泉建议7折"@zh-CN ;
+    so:recommendationId "REC-20260419-005" ;
+    so:recommendedSKU so:SKU-WATER-001 ;
+    so:applicableRule so:RuleBeverageClearance ;
+    so:matchedTier so:TierShelfLife4to7Days ;
+    so:recommendedDiscountRate 0.7 ;
+    so:recommendedDiscountRateMin 0.5 ;
+    so:recommendedDiscountRateMax 0.8 ;
+    so:urgencyLevel so:UrgencyMedium ;
+    so:recommendationReason "饮品保质期剩余5天，按饮品出清规则(T3层级)推荐7折"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-005 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+so:ExemptionCheck-005 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：农夫山泉"@zh-CN ;
+    so:skuChecked so:SKU-WATER-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic false ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:checkResult so:ExemptionCheckResultNoExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# 推荐折扣记录6：奥利奥（剩余10天→休闲食品规则→T4层→建议9折）
+so:Recommendation-006 a owl:NamedIndividual ;
+    rdfs:label "折扣推荐：奥利奥饼干建议9折"@zh-CN ;
+    so:recommendationId "REC-20260419-006" ;
+    so:recommendedSKU so:SKU-COOKIE-001 ;
+    so:applicableRule so:RuleSnackFoodClearance ;
+    so:matchedTier so:TierShelfLife8to14Days ;
+    so:recommendedDiscountRate 0.9 ;
+    so:recommendedDiscountRateMin 0.7 ;
+    so:recommendedDiscountRateMax 0.9 ;
+    so:urgencyLevel so:UrgencyLow ;
+    so:recommendationReason "休闲食品保质期剩余10天，按休闲食品出清规则(T4层级)推荐9折"@zh-CN ;
+    so:hasExemptionCheck so:ExemptionCheck-006 ;
+    so:recommendedBy so:AIClarityAgent ;
+    so:recommendedAt "2026-04-19T08:00:00"^^xsd:dateTime ;
+    so:recommendationStatus so:RecommendationStatusPending .
+
+so:ExemptionCheck-006 a owl:NamedIndividual ;
+    rdfs:label "豁免检查：奥利奥饼干"@zh-CN ;
+    so:skuChecked so:SKU-COOKIE-001 ;
+    so:exemptionImported false ;
+    so:exemptionOrganic false ;
+    so:exemptionAlreadyPromoted false ;
+    so:exemptionNewArrival false ;
+    so:exemptionHeadquartersBan false ;
+    so:checkResult so:ExemptionCheckResultNoExemption ;
+    so:checkedAt "2026-04-19T08:00:01"^^xsd:dateTime .
+
+# ------------------------------------------------------------
+# 辅助枚举
+# ------------------------------------------------------------
+
+so:AIClarityAgent a owl:NamedIndividual ;
+    rdfs:label "AI Clarity 推理引擎"@zh-CN ;
+    rdfs:comment "门店大脑AI推理引擎，负责折扣推荐和豁免检查"@zh-CN .
+
+so:RecommendationStatusPending a owl:NamedIndividual ;
+    rdfs:label "待确认"@zh-CN ;
+    rdfs:subClassOf so:RecommendationStatus .
+
+so:RecommendationStatusApproved a owl:NamedIndividual ;
+    rdfs:label "已确认"@zh-CN ;
+    rdfs:subClassOf so:RecommendationStatus .
+
+so:RecommendationStatusRejected a owl:NamedIndividual ;
+    rdfs:label "已拒绝"@zh-CN ;
+    rdfs:subClassOf so:RecommendationStatus .
+
+so:RecommendationStatus a owl:Class ;
+    rdfs:label "推荐状态"@zh-CN .
+
+so:ExemptionCheckResultNoExemption a owl:NamedIndividual ;
+    rdfs:label "无豁免，正常参与出清"@zh-CN ;
+    rdfs:subClassOf so:ExemptionCheckResult .
+
+so:ExemptionCheckResultPartialExemption a owl:NamedIndividual ;
+    rdfs:label "部分豁免（可覆盖）"@zh-CN ;
+    rdfs:subClassOf so:ExemptionCheckResult .
+
+so:ExemptionCheckResultFullExemption a owl:NamedIndividual ;
+    rdfs:label "完全豁免，不参与出清"@zh-CN ;
+    rdfs:subClassOf so:ExemptionCheckResult .
+
+so:ExemptionCheckResult a owl:Class ;
+    rdfs:label "豁免检查结果"@zh-CN .
+
+########## END OF CLEARANCE RULE EXAMPLES ##########

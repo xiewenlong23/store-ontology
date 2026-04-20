@@ -1,0 +1,2504 @@
+# ============================================================
+# 门店本体论 module1：任务实体（WorkTask）
+# ============================================================
+# 版本: 0.1.0
+# 日期: 2026-04-19
+# 中心实体: WorkTask（作业任务）
+# 第一个场景: 商品临期打折
+#
+# 建模范式: 事件触发 → 系统推理推荐 → 自动/人工确认 → 执行 → POS数据闭环 → 复核
+#
+# 设计原则（参考 Palantir 官方文档）:
+#   - Object Type 代表现实世界实体，不是系统模块
+#   - Property 和 Link Type 语义明确，名称自解释
+#   - 枚举值使用 owl:NamedIndividual，通过 rdfs:subClassOf 归类
+#   - 每个类独立声明，不使用 owl:equivalentClass 避免循环
+#   - 逆属性（inverseOf）成对声明，确保推理一致性
+# ============================================================
+
+@prefix so:   <https://store-ontology.example.com/retail#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+@base <https://store-ontology.example.com/retail> .
+
+<https://store-ontology.example.com/retail> a owl:Ontology ;
+    owl:versionInfo "0.1.0" ;
+    rdfs:label "门店自动化运营本体 v0.1.0"@zh-CN ;
+    rdfs:label "Store Automation Ontology v0.1.0"@en ;
+    rdfs:comment "以任务实体（WorkTask）为中心的门店自动化运营本体。核心场景：商品临期打折。闭环：事件触发→系统推理推荐→人工/自动确认→执行→POS数据闭环→复核。"@zh-CN .
+
+# ============================================================
+# 第一部分：WorkTask Object Type
+# ============================================================
+
+so:WorkTask a owl:Class ;
+    rdfs:label "作业任务"@zh-CN ;
+    rdfs:label "Work Task"@en ;
+    rdfs:comment """系统自动生成或人工创建的业务作业任务，贯穿任务生成→确认→执行→复核→闭环全生命周期。
+以商品临期打折场景为例：系统检测到商品临期，自动生成打折执行任务，推荐折扣幅度，店长确认或系统自动确认，员工执行IF枪扫描并打印价签，POS数据回传后店长复核闭环。
+状态流转：待确认→已确认→执行中→已完成/已取消/已超时。"""@zh-CN .
+
+# --- WorkTask 数据类型属性（DatatypeProperty）---
+
+# 任务编号（唯一标识，主键）
+so:taskId a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "任务编号"@zh-CN ;
+    rdfs:label "task ID"@en ;
+    rdfs:comment "任务的唯一标识符，如 T-20260419-0001"@zh-CN .
+
+# 任务类型（枚举）
+so:taskType a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:TaskType ;
+    rdfs:label "任务类型"@zh-CN ;
+    rdfs:label "task type"@en ;
+    rdfs:comment "任务类型枚举，如 TaskTypeDiscountExecute（打折执行任务）"@zh-CN .
+
+# 任务状态（枚举）
+so:taskStatus a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:TaskStatus ;
+    rdfs:label "任务状态"@zh-CN ;
+    rdfs:label "task status"@en ;
+    rdfs:comment "任务状态枚举：待确认→已确认→执行中→已完成/已取消/已超时"@zh-CN .
+
+# 任务优先级（枚举）
+so:taskPriority a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:TaskPriority ;
+    rdfs:label "任务优先级"@zh-CN ;
+    rdfs:label "task priority"@en ;
+    rdfs:comment "任务优先级：高/中/低，影响任务排序和提醒"@zh-CN .
+
+# 创建时间
+so:createdAt a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "创建时间"@zh-CN ;
+    rdfs:label "created at"@en ;
+    rdfs:comment "任务被创建的时间戳"@zh-CN .
+
+# 截止时间
+so:dueTime a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "截止时间"@zh-CN ;
+    rdfs:label "due time"@en ;
+    rdfs:comment "任务必须完成的截止时间"@zh-CN .
+
+# 实际完成时间
+so:completedAt a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "完成时间"@zh-CN ;
+    rdfs:label "completed at"@en ;
+    rdfs:comment "任务实际完成的时间戳"@zh-CN .
+
+# 是否需要人工确认
+so:requiresConfirmation a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "是否需人工确认"@zh-CN ;
+    rdfs:label "requires human confirmation"@en ;
+    rdfs:comment "true=需店长人工审批，false=系统自动确认无需人工"@zh-CN .
+
+# 是否自动确认模式
+so:autoConfirm a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "自动确认模式"@zh-CN ;
+    rdfs:label "auto confirm mode"@en ;
+    rdfs:comment "true=无需人工操作，店长确认和执行可自动完成；false=需店长手工操作"@zh-CN .
+
+# 触发原因（触发规则编号或事件描述）
+so:triggerReason a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "触发原因"@zh-CN ;
+    rdfs:label "trigger reason"@en ;
+    rdfs:comment "触发任务的规则编号或事件描述，如 R-201（库存临期规则）"@zh-CN .
+
+# 推荐折扣幅度
+so:recommendedDiscountRate a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "推荐折扣幅度"@zh-CN ;
+    rdfs:label "recommended discount rate"@en ;
+    rdfs:comment "系统推理得出的推荐折扣，如3折、5折。参考保质期剩余天数和库存数量"@zh-CN .
+
+# 推荐理由
+so:recommendedReason a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "推荐理由"@zh-CN ;
+    rdfs:label "recommended reason"@en ;
+    rdfs:comment "系统推理依据，如保质期剩1天且库存200件，建议打3折"@zh-CN .
+
+# 确认折扣幅度
+so:confirmedDiscountRate a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "确认折扣幅度"@zh-CN ;
+    rdfs:label "confirmed discount rate"@en ;
+    rdfs:comment "店长最终确认的折扣幅度，或系统自动确认的值"@zh-CN .
+
+# 实际执行折扣
+so:executedDiscountRate a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "实际执行折扣"@zh-CN ;
+    rdfs:label "executed discount rate"@en ;
+    rdfs:comment "员工实际执行时的折扣，可能与确认折扣不同（如现场调整）"@zh-CN .
+
+# IF枪扫描条码
+so:scanBarcode a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "IF枪扫描条码"@zh-CN ;
+    rdfs:label "IF gun scan barcode"@en ;
+    rdfs:comment "员工使用IF枪扫描的商品条码，用于追溯验证"@zh-CN .
+
+# 价格标签已打印
+so:priceLabelPrinted a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "价格标签已打印"@zh-CN ;
+    rdfs:label "price label printed"@en ;
+    rdfs:comment "员工是否已打印新的价格标签并贴在商品上"@zh-CN .
+
+# 任务备注
+so:taskNotes a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range xsd:string ;
+    rdfs:label "任务备注"@zh-CN ;
+    rdfs:label "task notes"@en ;
+    rdfs:comment "任务相关备注信息"@zh-CN .
+
+# --- WorkTask 对象属性（Link Type）---
+
+# 触发事件
+so:triggeredByEvent a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Event ;
+    rdfs:label "触发事件"@zh-CN ;
+    rdfs:label "triggered by event"@en ;
+    rdfs:comment "触发本次任务的本体事件，如 InventoryExcessEvent（库存过剩事件）"@zh-CN .
+
+# 触发库存事件（库存临期专属）
+so:triggeredByInventoryEvent a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:InventoryEvent ;
+    rdfs:label "触发库存事件"@zh-CN ;
+    rdfs:label "triggered by inventory event"@en ;
+    rdfs:comment "触发打折任务的库存临期事件，关联商品和剩余保质期信息"@zh-CN .
+
+# 任务门店
+so:taskStore a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Store ;
+    rdfs:label "任务门店"@zh-CN ;
+    rdfs:label "task store"@en ;
+    rdfs:comment "任务执行的目标门店"@zh-CN .
+
+# 分配对象
+so:assignedTo a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Employee ;
+    rdfs:label "分配对象"@zh-CN ;
+    rdfs:label "assigned to"@en ;
+    rdfs:comment "被指定执行该任务的员工"@zh-CN .
+
+# 执行人
+so:executedBy a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Employee ;
+    rdfs:label "执行人"@zh-CN ;
+    rdfs:label "executed by"@en ;
+    rdfs:comment "实际完成任务签字确认的员工，可能与 assignedTo 不同"@zh-CN .
+
+# 确认人
+so:confirmedBy a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Employee ;
+    rdfs:label "确认人"@zh-CN ;
+    rdfs:label "confirmed by"@en ;
+    rdfs:comment "审批确认打折幅度的店长"@zh-CN .
+
+# 关联商品
+so:relatedSKU a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:SKU ;
+    rdfs:label "关联商品"@zh-CN ;
+    rdfs:label "related SKU"@en ;
+    rdfs:comment "打折任务关联的商品SKU"@zh-CN .
+
+# 关联促销
+so:relatedPromotion a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Promotion ;
+    rdfs:label "关联促销"@zh-CN ;
+    rdfs:label "related promotion"@en ;
+    rdfs:comment "打折任务关联的促销活动"@zh-CN .
+
+# 关联检查清单
+so:hasChecklist a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:WorkTaskCheckItem ;
+    rdfs:label "检查清单"@zh-CN ;
+    rdfs:label "has checklist"@en ;
+    rdfs:comment "任务执行前的检查清单，如商品保质期核查、陈列检查"@zh-CN .
+
+# 关联执行结果
+so:hasResult a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:WorkTaskResult ;
+    rdfs:label "执行结果"@zh-CN ;
+    rdfs:label "has result"@en ;
+    rdfs:comment "员工执行完成后的结果记录，包含POS出清数据"@zh-CN .
+
+# 关联复核记录
+so:hasReview a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:WorkTaskReview ;
+    rdfs:label "复核记录"@zh-CN ;
+    rdfs:label "has review"@en ;
+    rdfs:comment "店长复核后的结论记录"@zh-CN .
+
+# 下一任务
+so:nextTask a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "下一任务"@zh-CN ;
+    rdfs:label "next task"@en ;
+    rdfs:comment "复核通过后触发的后续任务，如整改任务"@zh-CN .
+
+# ============================================================
+# 第二部分：WorkTaskCheckItem Object Type（检查清单项）
+# ============================================================
+
+so:WorkTaskCheckItem a owl:Class ;
+    rdfs:label "检查项"@zh-CN ;
+    rdfs:label "Task Check Item"@en ;
+    rdfs:comment """任务检查清单中的单个检查项。
+例如打折场景的检查项包括：商品保质期核查、价格标签核查、陈列位置核查等。
+每个检查项可记录检查结果（合格/不合格/不适用）和照片证据。"""@zh-CN .
+
+so:checkItemSequence a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range xsd:integer ;
+    rdfs:label "检查项序号"@zh-CN ;
+    rdfs:label "check item sequence"@en ;
+    rdfs:comment "检查项在清单中的顺序号"@zh-CN .
+
+so:checkItemName a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range xsd:string ;
+    rdfs:label "检查项名称"@zh-CN ;
+    rdfs:label "check item name"@en ;
+    rdfs:comment "检查项的具体描述，如商品保质期是否≥5天"@zh-CN .
+
+so:checkItemResult a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range so:CheckResult ;
+    rdfs:label "检查结果"@zh-CN ;
+    rdfs:label "check result"@en ;
+    rdfs:comment "检查结果枚举：合格/不合格/不适用"@zh-CN .
+
+so:checkItemNotes a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range xsd:string ;
+    rdfs:label "检查备注"@zh-CN ;
+    rdfs:label "check item notes"@en ;
+    rdfs:comment "检查项的具体情况说明和拍照记录"@zh-CN .
+
+so:checkPhoto a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range xsd:anyURI ;
+    rdfs:label "检查照片"@zh-CN ;
+    rdfs:label "check photo URL"@en ;
+    rdfs:comment "检查项的现场照片URI"@zh-CN .
+
+# 所属任务（逆属性）
+so:checklistOfTask a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskCheckItem ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "所属任务"@zh-CN ;
+    rdfs:label "checklist of task"@en ;
+    owl:inverseOf so:hasChecklist ;
+    rdfs:comment "检查项所属的任务，逆属性"@zh-CN .
+
+# ============================================================
+# 第三部分：WorkTaskResult Object Type（执行结果）
+# ============================================================
+
+so:WorkTaskResult a owl:Class ;
+    rdfs:label "执行结果"@zh-CN ;
+    rdfs:label "Work Task Result"@en ;
+    rdfs:comment """员工完成任务后提交的执行结果记录。
+包含检查项结果、POS出清数据（出清率、销售数量、销售额）等核心闭环数据。
+Result 实体通过 hasResult 关联到 WorkTask。"""@zh-CN .
+
+so:resultId a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:string ;
+    rdfs:label "结果编号"@zh-CN ;
+    rdfs:label "result ID"@en ;
+    rdfs:comment "执行结果的唯一标识，如 R-TASK-20260419-0001"@zh-CN .
+
+so:submissionTime a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "提交时间"@zh-CN ;
+    rdfs:label "submission time"@en ;
+    rdfs:comment "员工提交结果的时间戳"@zh-CN .
+
+so:resultStatus a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range so:ResultStatus ;
+    rdfs:label "结果状态"@zh-CN ;
+    rdfs:label "result status"@en ;
+    rdfs:comment "结果状态枚举：已提交/已确认/已驳回"@zh-CN .
+
+so:overallResult a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range so:DiscountResult ;
+    rdfs:label "综合结论"@zh-CN ;
+    rdfs:label "overall result"@en ;
+    rdfs:comment "打折场景的综合结论：打折成功/部分处理/无法处理"@zh-CN .
+
+so:resultNotes a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:string ;
+    rdfs:label "结果备注"@zh-CN ;
+    rdfs:label "result notes"@en ;
+    rdfs:comment "执行结果备注说明"@zh-CN .
+
+# 原库存数量（打折前的库存总数）
+so:originalInventoryQty a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:integer ;
+    rdfs:label "原库存数量"@zh-CN ;
+    rdfs:label "original inventory quantity"@en ;
+    rdfs:comment "打折任务开始时的商品库存总数，用于计算出清率"@zh-CN .
+
+# 累计销售数量（从POS获取的打折后卖出数量）
+so:soldQty a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:integer ;
+    rdfs:label "累计销售数量"@zh-CN ;
+    rdfs:label "sold quantity"@en ;
+    rdfs:comment "从POS系统获取的打折后的累计销售数量"@zh-CN .
+
+# 剩余库存
+so:remainingQty a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:integer ;
+    rdfs:label "剩余库存"@zh-CN ;
+    rdfs:label "remaining quantity"@en ;
+    rdfs:comment "打折后还未卖出的商品数量"@zh-CN .
+
+# 出清率
+so:clearanceRate a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "出清率"@zh-CN ;
+    rdfs:label "clearance rate"@en ;
+    rdfs:comment "出清率 = 累计销售数量 ÷ 原库存数量 × 100%，如 0.75 表示75%出清率"@zh-CN .
+
+# 打折销售额
+so:discountedRevenue a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "打折销售额"@zh-CN ;
+    rdfs:label "discounted revenue"@en ;
+    rdfs:comment "打折后的实际销售收入金额"@zh-CN .
+
+# POS交易流水号
+so:posTransactionId a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:string ;
+    rdfs:label "POS交易流水号"@zh-CN ;
+    rdfs:label "POS transaction ID"@en ;
+    rdfs:comment "用于追溯POS系统的交易流水号"@zh-CN .
+
+# POS数据获取时间
+so:posFetchedAt a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "POS数据获取时间"@zh-CN ;
+    rdfs:label "POS data fetched at"@en ;
+    rdfs:comment "从POS系统拉取销售数据的时间戳"@zh-CN .
+
+# 提交人
+so:submittedBy a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range so:Employee ;
+    rdfs:label "提交人"@zh-CN ;
+    rdfs:label "submitted by"@en ;
+    rdfs:comment "提交执行结果的员工"@zh-CN .
+
+# 关联任务（逆属性）
+so:resultOfTask a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "关联任务"@zh-CN ;
+    rdfs:label "result of task"@en ;
+    owl:inverseOf so:hasResult ;
+    rdfs:comment "结果所属的任务，逆属性"@zh-CN .
+
+# 包含检查结果明细
+so:hasCheckResult a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskResult ;
+    rdfs:range so:WorkTaskCheckItem ;
+    rdfs:label "检查结果明细"@zh-CN ;
+    rdfs:label "has check result"@en ;
+    rdfs:comment "关联本次执行的所有检查项结果"@zh-CN .
+
+# ============================================================
+# 第四部分：WorkTaskReview Object Type（复核记录）
+# ============================================================
+
+so:WorkTaskReview a owl:Class ;
+    rdfs:label "任务复核"@zh-CN ;
+    rdfs:label "Work Task Review"@en ;
+    rdfs:comment """店长或区域经理对任务执行结果进行复核的记录。
+包含复核结论（通过/整改/驳回）和整改要求。
+复核结果触发后续整改任务或闭环归档。"""@zh-CN .
+
+so:reviewId a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "复核编号"@zh-CN ;
+    rdfs:label "review ID"@en ;
+    rdfs:comment "复核记录的唯一标识，如 RV-TASK-20260419-0001"@zh-CN .
+
+so:reviewTime a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "复核时间"@zh-CN ;
+    rdfs:label "review time"@en ;
+    rdfs:comment "店长复核的时间戳"@zh-CN .
+
+so:reviewStatus a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range so:ReviewStatus ;
+    rdfs:label "复核结论"@zh-CN ;
+    rdfs:label "review status"@en ;
+    rdfs:comment "复核结论枚举：待复核/复核通过/需整改/复核驳回"@zh-CN .
+
+so:reviewComment a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "复核意见"@zh-CN ;
+    rdfs:label "review comment"@en ;
+    rdfs:comment "店长的复核意见和具体要求"@zh-CN .
+
+so:rectificationRequired a owl:DatatypeProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "是否需整改"@zh-CN ;
+    rdfs:label "rectification required"@en ;
+    rdfs:comment "复核结论是否需要发起整改"@zh-CN .
+
+# 复核人
+so:reviewedBy a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range so:Employee ;
+    rdfs:label "复核人"@zh-CN ;
+    rdfs:label "reviewed by"@en ;
+    rdfs:comment "执行复核的店长或区域经理"@zh-CN .
+
+# 关联任务（逆属性）
+so:reviewOfTask a owl:ObjectProperty ;
+    rdfs:domain so:WorkTaskReview ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "关联任务"@zh-CN ;
+    rdfs:label "review of task"@en ;
+    owl:inverseOf so:hasReview ;
+    rdfs:comment "复核所属的任务，逆属性"@zh-CN .
+
+# ============================================================
+# 第五部分：枚举值定义（owl:NamedIndividual）
+# ============================================================
+
+# --- TaskType 枚举类 ---
+so:TaskType a owl:Class ;
+    rdfs:label "任务类型"@zh-CN ;
+    rdfs:label "Task Type"@en ;
+    rdfs:comment "任务类型枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:TaskTypeDiscountExecute a owl:NamedIndividual ;
+    rdfs:label "打折执行任务"@zh-CN ;
+    rdfs:label "Discount Execution Task"@en ;
+    rdfs:subClassOf so:TaskType .
+
+# --- TaskStatus 枚举类 ---
+so:TaskStatus a owl:Class ;
+    rdfs:label "任务状态"@zh-CN ;
+    rdfs:label "Task Status"@en ;
+    rdfs:comment "任务状态枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:TaskPending a owl:NamedIndividual ;
+    rdfs:label "待确认"@zh-CN ;
+    rdfs:label "Pending"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskConfirmed a owl:NamedIndividual ;
+    rdfs:label "已确认"@zh-CN ;
+    rdfs:label "Confirmed"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskInProgress a owl:NamedIndividual ;
+    rdfs:label "执行中"@zh-CN ;
+    rdfs:label "In Progress"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskCompleted a owl:NamedIndividual ;
+    rdfs:label "已完成"@zh-CN ;
+    rdfs:label "Completed"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskCancelled a owl:NamedIndividual ;
+    rdfs:label "已取消"@zh-CN ;
+    rdfs:label "Cancelled"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskOverdue a owl:NamedIndividual ;
+    rdfs:label "已超时"@zh-CN ;
+    rdfs:label "Overdue"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+# --- TaskPriority 枚举类 ---
+so:TaskPriority a owl:Class ;
+    rdfs:label "任务优先级"@zh-CN ;
+    rdfs:label "Task Priority"@en ;
+    rdfs:comment "任务优先级枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:PriorityHigh a owl:NamedIndividual ;
+    rdfs:label "高"@zh-CN ;
+    rdfs:label "High"@en ;
+    rdfs:subClassOf so:TaskPriority .
+
+so:PriorityMedium a owl:NamedIndividual ;
+    rdfs:label "中"@zh-CN ;
+    rdfs:label "Medium"@en ;
+    rdfs:subClassOf so:TaskPriority .
+
+so:PriorityLow a owl:NamedIndividual ;
+    rdfs:label "低"@zh-CN ;
+    rdfs:label "Low"@en ;
+    rdfs:subClassOf so:TaskPriority .
+
+# --- CheckResult 枚举类 ---
+so:CheckResult a owl:Class ;
+    rdfs:label "检查结果"@zh-CN ;
+    rdfs:label "Check Result"@en ;
+    rdfs:comment "检查项结果枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:ResultPass a owl:NamedIndividual ;
+    rdfs:label "合格"@zh-CN ;
+    rdfs:label "Pass"@en ;
+    rdfs:subClassOf so:CheckResult .
+
+so:ResultFail a owl:NamedIndividual ;
+    rdfs:label "不合格"@zh-CN ;
+    rdfs:label "Fail"@en ;
+    rdfs:subClassOf so:CheckResult .
+
+so:ResultNA a owl:NamedIndividual ;
+    rdfs:label "不适用"@zh-CN ;
+    rdfs:label "Not Applicable"@en ;
+    rdfs:subClassOf so:CheckResult .
+
+# --- ResultStatus 枚举类 ---
+so:ResultStatus a owl:Class ;
+    rdfs:label "结果状态"@zh-CN ;
+    rdfs:label "Result Status"@en ;
+    rdfs:comment "执行结果状态枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:ResultSubmitted a owl:NamedIndividual ;
+    rdfs:label "已提交"@zh-CN ;
+    rdfs:label "Submitted"@en ;
+    rdfs:subClassOf so:ResultStatus .
+
+so:ResultConfirmed a owl:NamedIndividual ;
+    rdfs:label "已确认"@zh-CN ;
+    rdfs:label "Confirmed"@en ;
+    rdfs:subClassOf so:ResultStatus .
+
+so:ResultRejected a owl:NamedIndividual ;
+    rdfs:label "已驳回"@zh-CN ;
+    rdfs:label "Rejected"@en ;
+    rdfs:subClassOf so:ResultStatus .
+
+# --- DiscountResult 枚举类（打折场景专用）---
+so:DiscountResult a owl:Class ;
+    rdfs:label "打折结论"@zh-CN ;
+    rdfs:label "Discount Result"@en ;
+    rdfs:comment "商品临期打折场景的综合结论枚举类"@zh-CN .
+
+so:DiscountSuccess a owl:NamedIndividual ;
+    rdfs:label "打折成功"@zh-CN ;
+    rdfs:label "Discount Success"@en ;
+    rdfs:subClassOf so:DiscountResult .
+
+so:DiscountPartial a owl:NamedIndividual ;
+    rdfs:label "部分处理"@zh-CN ;
+    rdfs:label "Partial Clearance"@en ;
+    rdfs:subClassOf so:DiscountResult .
+
+so:DiscountFail a owl:NamedIndividual ;
+    rdfs:label "无法处理"@zh-CN ;
+    rdfs:label "Cannot Process"@en ;
+    rdfs:subClassOf so:DiscountResult .
+
+# --- ReviewStatus 枚举类 ---
+so:ReviewStatus a owl:Class ;
+    rdfs:label "复核结论"@zh-CN ;
+    rdfs:label "Review Status"@en ;
+    rdfs:comment "复核结论枚举类，成员为 NamedIndividual"@zh-CN .
+
+so:ReviewPending a owl:NamedIndividual ;
+    rdfs:label "待复核"@zh-CN ;
+    rdfs:label "Pending Review"@en ;
+    rdfs:subClassOf so:ReviewStatus .
+
+so:ReviewPassed a owl:NamedIndividual ;
+    rdfs:label "复核通过"@zh-CN ;
+    rdfs:label "Passed"@en ;
+    rdfs:subClassOf so:ReviewStatus .
+
+so:RectificationRequired a owl:NamedIndividual ;
+    rdfs:label "需整改"@zh-CN ;
+    rdfs:label "Rectification Required"@en ;
+    rdfs:subClassOf so:ReviewStatus .
+
+so:ReviewRejected a owl:NamedIndividual ;
+    rdfs:label "复核驳回"@zh-CN ;
+    rdfs:label "Rejected"@en ;
+    rdfs:subClassOf so:ReviewStatus .
+
+# ============================================================
+# 第六部分：Placeholder 类（为本模块提供类型锚点）
+# ============================================================
+# 以下类在完整本体中由对应模块定义，此处声明为占位符
+# 使得本模块可以独立通过语法验证
+
+so:Event a owl:Class ;
+    rdfs:label "事件"@zh-CN ;
+    rdfs:label "Event"@en ;
+    rdfs:comment "占位符：完整定义在 events 模块"@zh-CN .
+
+# ============================================================
+# 补充部分：SKU / 门店 / 员工 / 库存事件（支持临期推理）
+# ============================================================
+# 补全占位符，支撑 Demo A 推理链路：
+#   给定 SKU + 当前库存 + 生产日期 → AI 推理折扣 → 生成 WorkTask
+
+# --- SKU（商品）---
+so:SKU a owl:Class ;
+    rdfs:label "商品SKU"@zh-CN ;
+    rdfs:label "SKU"@en ;
+    rdfs:comment "商品SKU实体，包含保质期信息、品类归属、当前库存数量"@zh-CN .
+
+so:skuCode a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "商品编码"@zh-CN ;
+    rdfs:label "SKU Code"@en .
+
+so:skuName a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "商品名称"@zh-CN ;
+    rdfs:label "SKU Name"@en .
+
+so:productionDate a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:date ;
+    rdfs:label "生产日期"@zh-CN ;
+    rdfs:label "Production Date"@en ;
+    rdfs:comment "商品生产日期"@zh-CN .
+
+so:expirationDate a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:date ;
+    rdfs:label "到期日期"@zh-CN ;
+    rdfs:label "Expiration Date"@en ;
+    rdfs:comment "商品保质期到期日"@zh-CN .
+
+so:currentQuantity a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:integer ;
+    rdfs:label "当前库存数量"@zh-CN ;
+    rdfs:label "Current Quantity"@en ;
+    rdfs:comment "当前库存数量（件）"@zh-CN .
+
+so:hasCategory a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:Category ;
+    rdfs:label "所属品类"@zh-CN ;
+    rdfs:label "Has Category"@en .
+
+so:clearanceStatus a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:ClearanceStatus ;
+    rdfs:label "出清状态"@zh-CN ;
+    rdfs:label "Clearance Status"@en .
+
+# --- ClearanceStatus 枚举 ---
+so:ClearanceStatus a owl:Class ;
+    rdfs:label "出清状态"@zh-CN ;
+    rdfs:comment "商品出清状态枚举"@zh-CN .
+
+so:ClearanceStatusNormal a owl:NamedIndividual ;
+    rdfs:label "正常"@zh-CN ;
+    rdfs:subClassOf so:ClearanceStatus .
+
+so:ClearanceStatusPending a owl:NamedIndividual ;
+    rdfs:label "待出清"@zh-CN ;
+    rdfs:subClassOf so:ClearanceStatus .
+
+so:ClearanceStatusInProgress a owl:NamedIndividual ;
+    rdfs:label "出清中"@zh-CN ;
+    rdfs:subClassOf so:ClearanceStatus .
+
+so:ClearanceStatusCompleted a owl:NamedIndividual ;
+    rdfs:label "已出清"@zh-CN ;
+    rdfs:subClassOf so:ClearanceStatus .
+
+so:ClearanceStatusExempted a owl:NamedIndividual ;
+    rdfs:label "豁免出清"@zh-CN ;
+    rdfs:subClassOf so:ClearanceStatus .
+
+# --- Store（门店）---
+so:Store a owl:Class ;
+    rdfs:label "门店"@zh-CN ;
+    rdfs:label "Store"@en ;
+    rdfs:comment "门店实体，包含门店编码、名称、地区信息"@zh-CN .
+
+so:storeCode a owl:DatatypeProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range xsd:string ;
+    rdfs:label "门店编码"@zh-CN ;
+    rdfs:label "Store Code"@en .
+
+so:storeName a owl:DatatypeProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range xsd:string ;
+    rdfs:label "门店名称"@zh-CN ;
+    rdfs:label "Store Name"@en .
+
+so:region a owl:DatatypeProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range xsd:string ;
+    rdfs:label "所属地区"@zh-CN ;
+    rdfs:label "Region"@en .
+
+# --- Employee（员工）---
+so:Employee a owl:Class ;
+    rdfs:label "员工"@zh-CN ;
+    rdfs:label "Employee"@en ;
+    rdfs:comment "员工实体，包含工号、姓名、角色信息"@zh-CN .
+
+so:employeeCode a owl:DatatypeProperty ;
+    rdfs:domain so:Employee ;
+    rdfs:range xsd:string ;
+    rdfs:label "工号"@zh-CN ;
+    rdfs:label "Employee Code"@en .
+
+so:employeeName a owl:DatatypeProperty ;
+    rdfs:domain so:Employee ;
+    rdfs:range xsd:string ;
+    rdfs:label "员工姓名"@zh-CN ;
+    rdfs:label "Employee Name"@en .
+
+so:employeeRole a owl:ObjectProperty ;
+    rdfs:domain so:Employee ;
+    rdfs:range so:EmployeeRole ;
+    rdfs:label "员工角色"@zh-CN ;
+    rdfs:label "Employee Role"@en .
+
+so:worksAt a owl:ObjectProperty ;
+    rdfs:domain so:Employee ;
+    rdfs:range so:Store ;
+    rdfs:label "所属门店"@zh-CN ;
+    rdfs:label "Works At"@en ;
+    owl:inverseOf so:hasEmployee .
+
+so:hasEmployee a owl:ObjectProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range so:Employee ;
+    rdfs:label "门店员工"@zh-CN ;
+    rdfs:label "Has Employee"@en .
+
+# --- EmployeeRole 枚举 ---
+so:EmployeeRole a owl:Class ;
+    rdfs:label "员工角色"@zh-CN ;
+    rdfs:comment "员工角色枚举"@zh-CN .
+
+so:RoleStoreManager a owl:NamedIndividual ;
+    rdfs:label "店长"@zh-CN ;
+    rdfs:subClassOf so:EmployeeRole .
+
+so:RoleAssistantManager a owl:NamedIndividual ;
+    rdfs:label "副店长"@zh-CN ;
+    rdfs:subClassOf so:EmployeeRole .
+
+so:RoleStaff a owl:NamedIndividual ;
+    rdfs:label "员工"@zh-CN ;
+    rdfs:subClassOf so:EmployeeRole .
+
+# --- InventoryEvent（库存事件）---
+so:InventoryEvent a owl:Class ;
+    rdfs:label "库存事件"@zh-CN ;
+    rdfs:label "Inventory Event"@en ;
+    rdfs:comment "库存事件：记录某商品在特定时间点的库存快照，用于临期检测和出清触发"@zh-CN .
+
+so:eventType a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:InventoryEventType ;
+    rdfs:label "事件类型"@zh-CN ;
+    rdfs:label "Event Type"@en .
+
+so:eventTime a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "事件时间"@zh-CN ;
+    rdfs:label "Event Time"@en .
+
+so:quantityAtEvent a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:integer ;
+    rdfs:label "事件时库存"@zh-CN ;
+    rdfs:label "Quantity at Event"@en .
+
+so:relatedSKU a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:SKU ;
+    rdfs:label "关联商品"@zh-CN ;
+    rdfs:label "Related SKU"@en ;
+    owl:inverseOf so:hasInventoryEvent .
+
+so:hasInventoryEvent a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:InventoryEvent ;
+    rdfs:label "库存事件记录"@zh-CN ;
+    rdfs:label "Has Inventory Event"@en .
+
+so:atStore a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:Store ;
+    rdfs:label "所属门店"@zh-CN ;
+    rdfs:label "At Store"@en .
+
+# --- InventoryEventType 枚举 ---
+so:InventoryEventType a owl:Class ;
+    rdfs:label "库存事件类型"@zh-CN ;
+    rdfs:comment "库存事件类型枚举"@zh-CN .
+
+so:InventoryEventShelfLifeWarning a owl:NamedIndividual ;
+    rdfs:label "临期预警"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:InventoryEventShelfLifeCritical a owl:NamedIndividual ;
+    rdfs:label "临期紧急"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:InventoryEventShelfLifeExpired a owl:NamedIndividual ;
+    rdfs:label "已过期"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:InventoryEventClearanceStart a owl:NamedIndividual ;
+    rdfs:label "出清开始"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:InventoryEventClearanceComplete a owl:NamedIndividual ;
+    rdfs:label "出清完成"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+# --- 补充已有 DatatypeProperty 的逆属性 ---
+so:relatedTask a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "关联任务"@zh-CN ;
+    rdfs:label "Related Task"@en .
+
+# --- Promotion 占位符（补充基础属性）---
+so:Promotion a owl:Class ;
+    rdfs:label "促销活动"@zh-CN ;
+    rdfs:label "Promotion"@en ;
+    rdfs:comment "促销活动实体，支持临期打折促销活动"@zh-CN .
+
+so:promotionType a owl:ObjectProperty ;
+    rdfs:domain so:Promotion ;
+    rdfs:range so:PromotionType ;
+    rdfs:label "促销类型"@zh-CN ;
+    rdfs:label "Promotion Type"@en .
+
+so:discountRate a owl:DatatypeProperty ;
+    rdfs:domain so:Promotion ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "折扣率"@zh-CN ;
+    rdfs:label "Discount Rate"@en .
+
+# --- PromotionType 枚举 ---
+so:PromotionType a owl:Class ;
+    rdfs:label "促销类型"@zh-CN .
+
+so:PromotionTypeClearance a owl:NamedIndividual ;
+    rdfs:label "临期出清"@zh-CN ;
+    rdfs:subClassOf so:PromotionType .
+
+so:PromotionTypeSeasonal a owl:NamedIndividual ;
+    rdfs:label "季节促销"@zh-CN ;
+    rdfs:subClassOf so:PromotionType .
+
+# ============================================================
+# 第六部分补充：ActionType 元属性声明
+# ============================================================
+# 本体声明所有用于描述 ActionType 结构的元属性（Meta-Property）
+# 这些 ObjectProperty 是 ActionType 语义层的构建基础
+# ============================================================
+
+# --- Action 操作要素 ---
+so:targetObjectType a owl:ObjectProperty ;
+    rdfs:label "目标对象类型"@zh-CN ;
+    rdfs:label "Target Object Type"@en ;
+    rdfs:comment "Action作用于哪个ObjectType（如WorkTask）"@zh-CN .
+
+so:actionOperation a owl:ObjectProperty ;
+    rdfs:label "操作类型"@zh-CN ;
+    rdfs:label "Action Operation"@en ;
+    rdfs:comment "Action的操作类型：Create/Modify/Delete"@zh-CN .
+
+so:hasParameter a owl:ObjectProperty ;
+    rdfs:label "Action参数"@zh-CN ;
+    rdfs:label "Action Parameter"@en ;
+    rdfs:comment "Action的输入参数定义"@zh-CN .
+
+so:writesProperty a owl:ObjectProperty ;
+    rdfs:label "写入属性"@zh-CN ;
+    rdfs:label "Writes Property"@en ;
+    rdfs:comment "Action执行时修改的目标属性"@zh-CN .
+
+so:writesLink a owl:ObjectProperty ;
+    rdfs:label "写入链接"@zh-CN ;
+    rdfs:label "Writes Link"@en ;
+    rdfs:comment "Action执行时创建/修改的目标链接（指向子对象）"@zh-CN .
+
+so:hasSideEffect a owl:ObjectProperty ;
+    rdfs:label "副作用"@zh-CN ;
+    rdfs:label "Side Effect"@en ;
+    rdfs:comment "Action执行后的附加效果（通知/链式Action/用户提示）"@zh-CN .
+
+so:submissionCriteria a owl:ObjectProperty ;
+    rdfs:label "提交条件"@zh-CN ;
+    rdfs:label "Submission Criteria"@en ;
+    rdfs:comment "Action允许执行的前置条件"@zh-CN .
+
+so:chainedAction a owl:ObjectProperty ;
+    rdfs:label "链式Action"@zh-CN ;
+    rdfs:label "Chained Action"@en ;
+    rdfs:comment "副作用触发：自动执行下一个Action"@zh-CN .
+
+# --- WriteProp 详情 ---
+so:targetProperty a owl:ObjectProperty ;
+    rdfs:label "目标属性"@zh-CN ;
+    rdfs:label "Target Property"@en ;
+    rdfs:comment "WriteProp要写入的目标属性"@zh-CN .
+
+so:writeOperation a owl:ObjectProperty ;
+    rdfs:label "写入操作类型"@zh-CN ;
+    rdfs:label "Write Operation"@en ;
+    rdfs:comment "写入操作类型：Set Value / Append / Create Object / Conditional"@zh-CN .
+
+so:writeValue a owl:ObjectProperty ;
+    rdfs:label "固定写入值"@zh-CN ;
+    rdfs:label "Fixed Write Value"@en ;
+    rdfs:comment "直接写入的固定值（如枚举值、固定字符串）"@zh-CN .
+
+so:writeValueParam a owl:ObjectProperty ;
+    rdfs:label "参数写入值"@zh-CN ;
+    rdfs:label "Parameter Write Value"@en ;
+    rdfs:comment "写入的值来自Action的某个输入参数"@zh-CN .
+
+# --- 条件写入 ---
+so:conditionWrite a owl:ObjectProperty ;
+    rdfs:label "条件写入分支"@zh-CN ;
+    rdfs:label "Conditional Write Branch"@en ;
+    rdfs:comment "条件写入的不同分支（when条件成立时执行）"@zh-CN .
+
+so:conditionParam a owl:ObjectProperty ;
+    rdfs:label "条件参数"@zh-CN ;
+    rdfs:label "Condition Parameter"@en ;
+    rdfs:comment "条件判断所引用的参数"@zh-CN .
+
+so:conditionValue a owl:ObjectProperty ;
+    rdfs:label "条件值"@zh-CN ;
+    rdfs:label "Condition Value"@en ;
+    rdfs:comment "条件比较的目标值"@zh-CN .
+
+# --- 提交条件详情 ---
+so:criteriaProperty a owl:ObjectProperty ;
+    rdfs:label "条件属性"@zh-CN ;
+    rdfs:label "Criteria Property"@en ;
+    rdfs:comment "提交条件所检查的对象属性"@zh-CN .
+
+so:criteriaOperator a owl:ObjectProperty ;
+    rdfs:label "条件运算符"@zh-CN ;
+    rdfs:label "Criteria Operator"@en ;
+    rdfs:comment "条件比较运算符：Equals / NotNull / LinkExists"@zh-CN .
+
+so:criteriaValue a owl:ObjectProperty ;
+    rdfs:label "条件目标值"@zh-CN ;
+    rdfs:label "Criteria Value"@en ;
+    rdfs:comment "条件比较的目标值（如枚举值）"@zh-CN .
+
+# --- 副作用详情 ---
+so:sideEffectType a owl:ObjectProperty ;
+    rdfs:label "副作用类型"@zh-CN ;
+    rdfs:label "Side Effect Type"@en ;
+    rdfs:comment "副作用类型：Notification / ChainAction / UserPrompt"@zh-CN .
+
+so:notificationTemplate a owl:DatatypeProperty ;
+    rdfs:label "通知模板"@zh-CN ;
+    rdfs:label "Notification Template"@en ;
+    rdfs:comment "通知消息模板，支持占位符替换"@zh-CN .
+
+so:promptMessage a owl:DatatypeProperty ;
+    rdfs:label "提示消息"@zh-CN ;
+    rdfs:label "Prompt Message"@en ;
+    rdfs:comment "用户提示内容"@zh-CN .
+
+so:writeLinkProperty a owl:ObjectProperty ;
+    rdfs:label "写入链接属性"@zh-CN ;
+    rdfs:label "Write Link Property"@en ;
+    rdfs:comment "WriteLink要创建链接的属性（如hasResult）"@zh-CN .
+
+so:autoPopulateProperties a owl:ObjectProperty ;
+    rdfs:label "自动填充属性列表"@zh-CN ;
+    rdfs:label "Auto Populate Properties"@en ;
+    rdfs:comment "自动填充的目标属性列表"@zh-CN .
+
+so:populatesProperty a owl:ObjectProperty ;
+    rdfs:label "填充属性"@zh-CN ;
+    rdfs:label "Populates Property"@en ;
+    rdfs:comment "自动填充的单个目标属性"@zh-CN .
+
+so:dataMapping a owl:DatatypeProperty ;
+    rdfs:label "数据映射"@zh-CN ;
+    rdfs:label "Data Mapping"@en ;
+    rdfs:comment "外部数据源字段与本体属性的映射关系"@zh-CN .
+
+so:derivedFrom a owl:ObjectProperty ;
+    rdfs:label "派生来源"@zh-CN ;
+    rdfs:label "Derived From"@en ;
+    rdfs:comment "属性值从哪个参数派生而来"@zh-CN .
+
+so:derivationLogic a owl:DatatypeProperty ;
+    rdfs:label "派生逻辑"@zh-CN ;
+    rdfs:label "Derivation Logic"@en ;
+    rdfs:comment "属性值派生的业务逻辑描述"@zh-CN .
+
+so:autoIDPrefix a owl:DatatypeProperty ;
+    rdfs:label "自动ID前缀"@zh-CN ;
+    rdfs:label "Auto ID Prefix"@en ;
+    rdfs:comment "自动生成ID的前缀（如REV-、TASK-）"@zh-CN .
+
+so:autoIDTimestamp a owl:DatatypeProperty ;
+    rdfs:label "自动ID时间戳"@zh-CN ;
+    rdfs:label "Auto ID Timestamp"@en ;
+    rdfs:comment "自动生成ID是否包含时间戳"@zh-CN .
+
+# --- Action 参数定义 ---
+so:paramSource a owl:ObjectProperty ;
+    rdfs:label "参数来源"@zh-CN ;
+    rdfs:label "Parameter Source"@en ;
+    rdfs:comment "参数值来源：UserInput / SystemDefault / Derived"@zh-CN .
+
+so:paramObjectType a owl:ObjectProperty ;
+    rdfs:label "参数对象类型"@zh-CN ;
+    rdfs:label "Parameter Object Type"@en ;
+    rdfs:comment "参数引用的对象类型（如Store、SKU）"@zh-CN .
+
+so:paramDataType a owl:ObjectProperty ;
+    rdfs:label "参数数据类型"@zh-CN ;
+    rdfs:label "Parameter Data Type"@en ;
+    rdfs:comment "参数值的XSD数据类型"@zh-CN .
+
+so:paramRequired a owl:DatatypeProperty ;
+    rdfs:label "参数是否必填"@zh-CN ;
+    rdfs:label "Parameter Required"@en ;
+    rdfs:comment "参数是否为必填项（true/false）"@zh-CN .
+
+so:paramOptions a owl:ObjectProperty ;
+    rdfs:label "参数选项"@zh-CN ;
+    rdfs:label "Parameter Options"@en ;
+    rdfs:comment "枚举型参数的可选值列表"@zh-CN .
+
+so:paramDefaultValue a owl:DatatypeProperty ;
+    rdfs:label "参数默认值"@zh-CN ;
+    rdfs:label "Parameter Default Value"@en ;
+    rdfs:comment "参数的默认值（字面量）"@zh-CN .
+
+so:paramDefaultValueParam a owl:ObjectProperty ;
+    rdfs:label "参数默认值引用"@zh-CN ;
+    rdfs:label "Parameter Default Value From Param"@en ;
+    rdfs:comment "默认值引用另一个参数的值"@zh-CN .
+
+# ============================================================
+# 第七部分：Action Type 定义（商品临期打折场景）
+# ============================================================
+# Palantir Foundry Action Type 核心要素：
+#   - targetObjectType : 作用于哪个 Object Type
+#   - actionOperation  : 操作类型（CREATE / MODIFY / DELETE）
+#   - parameters       : 输入参数（来自对象属性或用户输入）
+#   - edits           : 执行时修改哪些属性/链接
+#   - submissionCriteria : 提交条件（什么情况下允许执行）
+#   - sideEffects     : 副作用（通知、Webhook、自动化）
+#
+# 本体论实现：用 OWL Class 表示 Action Type，用 ObjectProperty
+# 表示参数关系，用 owl:Restriction 表示提交条件
+# ============================================================
+
+# ------------------------------------------------------------
+# Action Type 1: CreateDiscountTask — 创建打折任务
+# ------------------------------------------------------------
+# 触发时机：库存事件检测到商品临期，由系统或店长手工创建
+# 作用于：WorkTask 对象（CREATE 新建）
+# 输入参数：门店、商品SKU、触发原因
+# 自动写入：taskType=TaskTypeDiscountExecute, taskStatus=TaskPending,
+#           requiresConfirmation, triggerReason, recommendedDiscountRate,
+#           recommendedReason
+
+so:CreateDiscountTask a owl:Class ;
+    rdfs:label "创建打折任务"@zh-CN ;
+    rdfs:label "Create Discount Task"@en ;
+    rdfs:comment "商品临期时创建打折执行任务。触发时机：库存事件检测临期或店长手工创建"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationCreate ;
+    so:hasParameter so:ParamCreateTaskStore ;
+    so:hasParameter so:ParamCreateTaskSKU ;
+    so:hasParameter so:ParamCreateTaskTriggerReason ;
+    so:hasParameter so:ParamCreateRecommendedDiscountRate ;
+    so:hasParameter so:ParamCreateRecommendedReason ;
+    so:hasParameter so:ParamCreateRequiresConfirmation ;
+    so:writesProperty so:WritePropTaskType ;
+    so:writesProperty so:WritePropTaskStatus ;
+    so:writesProperty so:WritePropTriggerReason ;
+    so:writesProperty so:WritePropRecommendedDiscountRate ;
+    so:writesProperty so:WritePropRecommendedReason ;
+    so:writesProperty so:WritePropRequiresConfirmation ;
+    so:hasSideEffect so:SideEffectNotifyStoreManagerOnCreate .
+
+so:ParamCreateTaskStore a owl:Class ;
+    rdfs:label "任务归属门店"@zh-CN ;
+    rdfs:label "Store"@en ;
+    rdfs:comment "打折任务归属的门店"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramObjectType so:Store ;
+    so:paramRequired true .
+
+so:ParamCreateTaskSKU a owl:Class ;
+    rdfs:label "任务关联商品"@zh-CN ;
+    rdfs:label "Related SKU"@en ;
+    rdfs:comment "打折任务关联的商品SKU"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramObjectType so:SKU ;
+    so:paramRequired true .
+
+so:ParamCreateTaskTriggerReason a owl:Class ;
+    rdfs:label "触发原因"@zh-CN ;
+    rdfs:label "Trigger Reason"@en ;
+    rdfs:comment "触发打折任务的原因描述（如：保质期剩余3天）"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired true .
+
+so:ParamCreateRecommendedDiscountRate a owl:Class ;
+    rdfs:label "推荐打折幅度"@zh-CN ;
+    rdfs:label "Recommended Discount Rate"@en ;
+    rdfs:comment "系统推理的推荐打折幅度（如：7折）"@zh-CN ;
+    so:paramSource so:ParameterSourceSystemDefault ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false ;
+    so:paramDefaultValue "7折"@zh-CN .
+
+so:ParamCreateRecommendedReason a owl:Class ;
+    rdfs:label "推荐理由"@zh-CN ;
+    rdfs:label "Recommended Reason"@en ;
+    rdfs:comment "系统推理推荐打折幅度的理由（保质期+库存量综合）"@zh-CN ;
+    so:paramSource so:ParameterSourceSystemDefault ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false .
+
+so:ParamCreateRequiresConfirmation a owl:Class ;
+    rdfs:label "需店长确认"@zh-CN ;
+    rdfs:label "Requires Manager Confirmation"@en ;
+    rdfs:comment "打折幅度是否需要店长手工确认（true=需确认，false=系统自动确认）"@zh-CN ;
+    so:paramSource so:ParameterSourceSystemDefault ;
+    so:paramDataType xsd:boolean ;
+    so:paramRequired false ;
+    so:paramDefaultValue "true"^^xsd:boolean .
+
+so:WritePropTaskType a owl:Class ;
+    rdfs:label "写入：任务类型"@zh-CN ;
+    rdfs:comment "Action执行时写入taskType=TaskTypeDiscountExecute"@zh-CN ;
+    so:targetProperty so:taskType ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:TaskTypeDiscountExecute .
+
+so:WritePropTaskStatus a owl:Class ;
+    rdfs:label "写入：任务状态"@zh-CN ;
+    rdfs:comment "Action执行时写入taskStatus=TaskPending"@zh-CN ;
+    so:targetProperty so:taskStatus ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:TaskPending .
+
+so:WritePropTriggerReason a owl:Class ;
+    rdfs:label "写入：触发原因"@zh-CN ;
+    rdfs:comment "Action执行时写入triggerReason属性"@zh-CN ;
+    so:targetProperty so:triggerReason ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamCreateTaskTriggerReason .
+
+so:WritePropRecommendedDiscountRate a owl:Class ;
+    rdfs:label "写入：推荐折扣率"@zh-CN ;
+    rdfs:comment "Action执行时写入recommendedDiscountRate属性"@zh-CN ;
+    so:targetProperty so:recommendedDiscountRate ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamCreateRecommendedDiscountRate .
+
+so:WritePropRecommendedReason a owl:Class ;
+    rdfs:label "写入：推荐理由"@zh-CN ;
+    rdfs:comment "Action执行时写入recommendedReason属性"@zh-CN ;
+    so:targetProperty so:recommendedReason ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamCreateRecommendedReason .
+
+so:WritePropRequiresConfirmation a owl:Class ;
+    rdfs:label "写入：需确认标记"@zh-CN ;
+    rdfs:comment "Action执行时写入requiresConfirmation属性"@zh-CN ;
+    so:targetProperty so:requiresConfirmation ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamCreateRequiresConfirmation .
+
+so:SideEffectNotifyStoreManagerOnCreate a owl:Class ;
+    rdfs:label "副作用：通知店长"@zh-CN ;
+    rdfs:comment "打折任务创建后，自动通知店长进行确认"@zh-CN ;
+    so:sideEffectType so:SideEffectTypeNotification ;
+    so:notifyRole so:RoleStoreManager ;
+    so:notificationTemplate "新打折任务已创建，商品【{skuName}】剩余{shelfLifeDays}天保质期，系统推荐{discountRate}折扣，请确认执行"@zh-CN .
+
+# ------------------------------------------------------------
+# Action Type 2: ConfirmDiscount — 店长确认打折幅度
+# ------------------------------------------------------------
+# 触发时机：requiresConfirmation=true时，店长确认最终打折幅度
+# 作用于：WorkTask对象（MODIFY修改）
+# 输入参数：confirmedDiscountRate（店长决定的折扣）
+# 自动写入：taskStatus=TaskConfirmed, confirmedDiscountRate, confirmedBy
+
+so:ConfirmDiscount a owl:Class ;
+    rdfs:label "店长确认打折幅度"@zh-CN ;
+    rdfs:label "Confirm Discount Rate"@en ;
+    rdfs:comment "店长确认打折任务的最终折扣幅度"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationModify ;
+    so:submissionCriteria so:CriteriaTaskStatusIsPending ;
+    so:submissionCriteria so:CriteriaHasRecommendedDiscountRate ;
+    so:hasParameter so:ParamConfirmDiscountRate ;
+    so:hasParameter so:ParamConfirmNotes ;
+    so:writesProperty so:WritePropTaskStatusConfirmed ;
+    so:writesProperty so:WritePropConfirmedDiscountRate ;
+    so:writesProperty so:WritePropConfirmedBy ;
+    so:hasSideEffect so:SideEffectAutoAssignOnConfirm .
+
+so:CriteriaTaskStatusIsPending a owl:Class ;
+    rdfs:label "条件：任务状态为待确认"@zh-CN ;
+    rdfs:comment "只有taskStatus=TaskPending的任务才能执行确认操作"@zh-CN ;
+    so:criteriaProperty so:taskStatus ;
+    so:criteriaOperator so:OperatorEquals ;
+    so:criteriaValue so:TaskPending .
+
+so:CriteriaHasRecommendedDiscountRate a owl:Class ;
+    rdfs:label "条件：已有推荐折扣率"@zh-CN ;
+    rdfs:comment "任务必须已有recommendedDiscountRate才能确认"@zh-CN ;
+    so:criteriaProperty so:recommendedDiscountRate ;
+    so:criteriaOperator so:OperatorNotNull .
+
+so:ParamConfirmDiscountRate a owl:Class ;
+    rdfs:label "确认折扣幅度"@zh-CN ;
+    rdfs:label "Confirmed Discount Rate"@en ;
+    rdfs:comment "店长确认的最终打折幅度（如：6折、5折）"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired true ;
+    so:paramDefaultValueParam so:ParamCreateRecommendedDiscountRate .
+
+so:ParamConfirmNotes a owl:Class ;
+    rdfs:label "确认备注"@zh-CN ;
+    rdfs:label "Confirmation Notes"@en ;
+    rdfs:comment "店长确认时的备注说明"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false .
+
+so:WritePropTaskStatusConfirmed a owl:Class ;
+    rdfs:label "写入：任务状态为已确认"@zh-CN ;
+    rdfs:comment "Action执行时写入taskStatus=TaskConfirmed"@zh-CN ;
+    so:targetProperty so:taskStatus ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:TaskConfirmed .
+
+so:WritePropConfirmedDiscountRate a owl:Class ;
+    rdfs:label "写入：确认的折扣幅度"@zh-CN ;
+    rdfs:comment "Action执行时写入confirmedDiscountRate"@zh-CN ;
+    so:targetProperty so:confirmedDiscountRate ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamConfirmDiscountRate .
+
+so:WritePropConfirmedBy a owl:Class ;
+    rdfs:label "写入：确认人"@zh-CN ;
+    rdfs:comment "Action执行时写入confirmedBy（当前用户/店长）"@zh-CN ;
+    so:targetProperty so:confirmedBy ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:CurrentActor .
+
+so:SideEffectAutoAssignOnConfirm a owl:Class ;
+    rdfs:label "副作用：自动分配执行员工"@zh-CN ;
+    rdfs:comment "店长确认后，自动触发AssignAndStart分配执行员工"@zh-CN ;
+    so:sideEffectType so:SideEffectTypeChainAction ;
+    so:chainedAction so:AssignAndStart .
+
+# ------------------------------------------------------------
+# Action Type 3: AssignAndStart — 分配员工+开始执行
+# ------------------------------------------------------------
+# 触发时机：店长确认后（或autoConfirm=true时系统自动执行）
+# 作用于：WorkTask对象（MODIFY修改）
+# 输入参数：assignedTo（分配给哪个员工）
+# 自动写入：taskStatus=TaskInProgress, assignedTo, dueTime
+
+so:AssignAndStart a owl:Class ;
+    rdfs:label "分配员工并开始执行"@zh-CN ;
+    rdfs:label "Assign Employee and Start Task"@en ;
+    rdfs:comment "将打折任务分配给员工，开始执行。店长确认后或系统自动确认后触发"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationModify ;
+    so:submissionCriteria so:CriteriaTaskStatusIsConfirmed ;
+    so:hasParameter so:ParamAssignEmployee ;
+    so:hasParameter so:ParamAssignDueTime ;
+    so:writesProperty so:WritePropTaskStatusInProgress ;
+    so:writesProperty so:WritePropAssignedTo ;
+    so:writesProperty so:WritePropDueTime ;
+    so:hasSideEffect so:SideEffectNotifyEmployeeOnAssign .
+
+so:CriteriaTaskStatusIsConfirmed a owl:Class ;
+    rdfs:label "条件：任务状态为已确认"@zh-CN ;
+    rdfs:comment "只有taskStatus=TaskConfirmed的任务才能分配执行"@zh-CN ;
+    so:criteriaProperty so:taskStatus ;
+    so:criteriaOperator so:OperatorEquals ;
+    so:criteriaValue so:TaskConfirmed .
+
+so:ParamAssignEmployee a owl:Class ;
+    rdfs:label "执行员工"@zh-CN ;
+    rdfs:label "Assigned Employee"@en ;
+    rdfs:comment "负责执行此打折任务的员工"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramObjectType so:Employee ;
+    so:paramRequired true ;
+    so:paramDefaultValueParam so:ParamDefaultAssignToRoleEmployee .
+
+so:ParamAssignDueTime a owl:Class ;
+    rdfs:label "截止时间"@zh-CN ;
+    rdfs:label "Due Time"@en ;
+    rdfs:comment "任务完成的截止时间（默认当天营业结束）"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:dateTime ;
+    so:paramRequired false ;
+    so:paramDefaultValue "当天23:59:59"@zh-CN .
+
+so:ParamDefaultAssignToRoleEmployee a owl:Class ;
+    rdfs:label "默认值：值班员工"@zh-CN ;
+    rdfs:comment "默认分配给当前班次的值班员工"@zh-CN ;
+    so:paramSource so:ParameterSourceSystemDefault ;
+    so:paramObjectType so:Employee ;
+    so:systemDefaultLogic so:LogicCurrentShiftEmployee .
+
+so:WritePropTaskStatusInProgress a owl:Class ;
+    rdfs:label "写入：任务状态为执行中"@zh-CN ;
+    rdfs:comment "Action执行时写入taskStatus=TaskInProgress"@zh-CN ;
+    so:targetProperty so:taskStatus ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:TaskInProgress .
+
+so:WritePropAssignedTo a owl:Class ;
+    rdfs:label "写入：分配员工"@zh-CN ;
+    rdfs:comment "Action执行时写入assignedTo"@zh-CN ;
+    so:targetProperty so:assignedTo ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamAssignEmployee .
+
+so:WritePropDueTime a owl:Class ;
+    rdfs:label "写入：截止时间"@zh-CN ;
+    rdfs:comment "Action执行时写入dueTime"@zh-CN ;
+    so:targetProperty so:dueTime ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamAssignDueTime .
+
+so:SideEffectNotifyEmployeeOnAssign a owl:Class ;
+    rdfs:label "副作用：通知执行员工"@zh-CN ;
+    rdfs:comment "任务分配给员工后，自动通知该员工"@zh-CN ;
+    so:sideEffectType so:SideEffectTypeNotification ;
+    so:notifyRole so:RoleFrontline ;
+    so:notificationTemplate "打折任务通知：商品【{skuName}】需执行折扣{discountRate}，请前往门店处理，截止时间{dueTime}"@zh-CN .
+
+# ------------------------------------------------------------
+# Action Type 4: ExecuteDiscount — 员工执行（IF枪扫描+打印价签）
+# ------------------------------------------------------------
+# 触发时机：员工到现场完成操作后，IF枪扫描条码
+# 作用于：WorkTask对象（MODIFY修改）
+# 输入参数：scanBarcode（IF枪扫描结果）, priceLabelPrinted（是否已打印价签）
+# 自动写入：scanBarcode, priceLabelPrinted, taskNotes
+
+so:ExecuteDiscount a owl:Class ;
+    rdfs:label "员工执行打折操作"@zh-CN ;
+    rdfs:label "Execute Discount (Scan & Print)"@en ;
+    rdfs:comment "员工现场执行：用IF枪扫描商品条码，打印并贴上新价格标签"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationModify ;
+    so:submissionCriteria so:CriteriaTaskStatusIsInProgress ;
+    so:submissionCriteria so:CriteriaAssignedToCurrentEmployee ;
+    so:hasParameter so:ParamExecuteScanBarcode ;
+    so:hasParameter so:ParamExecutePriceLabelPrinted ;
+    so:hasParameter so:ParamExecuteNotes ;
+    so:writesProperty so:WritePropScanBarcode ;
+    so:writesProperty so:WritePropPriceLabelPrinted ;
+    so:writesProperty so:WritePropExecutedBy ;
+    so:writesProperty so:WritePropTaskNotesExecute ;
+    so:hasSideEffect so:SideEffectPromptSubmitResult .
+
+so:CriteriaTaskStatusIsInProgress a owl:Class ;
+    rdfs:label "条件：任务状态为执行中"@zh-CN ;
+    rdfs:comment "只有taskStatus=TaskInProgress的任务才能执行操作"@zh-CN ;
+    so:criteriaProperty so:taskStatus ;
+    so:criteriaOperator so:OperatorEquals ;
+    so:criteriaValue so:TaskInProgress .
+
+so:CriteriaAssignedToCurrentEmployee a owl:Class ;
+    rdfs:label "条件：当前员工被分配"@zh-CN ;
+    rdfs:comment "只有assignedTo=当前登录员工的任务才能执行"@zh-CN ;
+    so:criteriaProperty so:assignedTo ;
+    so:criteriaOperator so:OperatorEquals ;
+    so:criteriaValue so:CurrentActor .
+
+so:ParamExecuteScanBarcode a owl:Class ;
+    rdfs:label "IF枪扫描条码"@zh-CN ;
+    rdfs:label "Scanned Barcode"@en ;
+    rdfs:comment "员工用IF枪扫描商品条码，系统校验与任务商品一致"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired true ;
+    so:validationRule so:RuleBarcodeMustMatchSKU .
+
+so:ParamExecutePriceLabelPrinted a owl:Class ;
+    rdfs:label "已打印价格标签"@zh-CN ;
+    rdfs:label "Price Label Printed"@en ;
+    rdfs:comment "员工确认已在商品上贴上新价格标签"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:boolean ;
+    so:paramRequired true ;
+    so:paramDefaultValue "true"^^xsd:boolean .
+
+so:ParamExecuteNotes a owl:Class ;
+    rdfs:label "执行备注"@zh-CN ;
+    rdfs:label "Execution Notes"@en ;
+    rdfs:comment "员工执行时的备注（如：部分商品无法贴标）"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false .
+
+so:RuleBarcodeMustMatchSKU a owl:Class ;
+    rdfs:label "校验：条码与SKU匹配"@zh-CN ;
+    rdfs:comment "IF枪扫描的条码必须与任务关联的SKU条码一致"@zh-CN ;
+    so:ruleType so:RuleTypeValidation ;
+    so:ruleLogic "扫描条码必须等于关联SKU的条码"@zh-CN .
+
+so:WritePropScanBarcode a owl:Class ;
+    rdfs:label "写入：扫描条码"@zh-CN ;
+    rdfs:comment "Action执行时写入scanBarcode"@zh-CN ;
+    so:targetProperty so:scanBarcode ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamExecuteScanBarcode .
+
+so:WritePropPriceLabelPrinted a owl:Class ;
+    rdfs:label "写入：价签已打印"@zh-CN ;
+    rdfs:comment "Action执行时写入priceLabelPrinted"@zh-CN ;
+    so:targetProperty so:priceLabelPrinted ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValueParam so:ParamExecutePriceLabelPrinted .
+
+so:WritePropExecutedBy a owl:Class ;
+    rdfs:label "写入：执行人"@zh-CN ;
+    rdfs:comment "Action执行时写入executedBy（当前登录员工）"@zh-CN ;
+    so:targetProperty so:executedBy ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:CurrentActor .
+
+so:WritePropTaskNotesExecute a owl:Class ;
+    rdfs:label "写入：执行备注"@zh-CN ;
+    rdfs:comment "Action执行时追加写入taskNotes"@zh-CN ;
+    so:targetProperty so:taskNotes ;
+    so:writeOperation so:WriteOperationAppend ;
+    so:writeValueParam so:ParamExecuteNotes .
+
+so:SideEffectPromptSubmitResult a owl:Class ;
+    rdfs:label "副作用：提示提交结果"@zh-CN ;
+    rdfs:comment "员工执行完成后，提示需要提交执行结果（从POS拉取数据）"@zh-CN ;
+    so:sideEffectType so:SideEffectTypePrompt ;
+    so:promptMessage "请提交执行结果，系统将从POS拉取销售数据"@zh-CN .
+
+# ------------------------------------------------------------
+# Action Type 5: SubmitResult — 提交执行结果（POS闭环）
+# ------------------------------------------------------------
+# 触发时机：员工完成操作后，从POS系统拉取实际销售数据
+# 作用于：WorkTask对象（MODIFY修改 + 创建WorkTaskResult链接）
+# 输入参数：resultNotes（结果备注）
+# 自动写入WorkTaskResult：originalInventoryQty, soldQty, remainingQty,
+#                         clearanceRate, discountedRevenue（从POS拉取）
+
+so:SubmitResult a owl:Class ;
+    rdfs:label "提交执行结果"@zh-CN ;
+    rdfs:label "Submit Execution Result"@en ;
+    rdfs:comment "员工执行完成后提交结果。系统从POS拉取实际销售数据，形成闭环"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationModify ;
+    so:submissionCriteria so:CriteriaHasScannedBarcode ;
+    so:submissionCriteria so:CriteriaPriceLabelPrinted ;
+    so:hasParameter so:ParamSubmitNotes ;
+    so:writesProperty so:WritePropResultStatusSubmitted ;
+    so:writesProperty so:WritePropSubmissionTime ;
+    so:writesProperty so:WritePropSubmittedBy ;
+    so:writesLink so:WriteLinkHasResult ;
+    so:hasSideEffect so:SideEffectNotifyManagerOnSubmit .
+
+so:CriteriaHasScannedBarcode a owl:Class ;
+    rdfs:label "条件：已完成条码扫描"@zh-CN ;
+    rdfs:comment "只有scanBarcode不为空的任务才能提交结果"@zh-CN ;
+    so:criteriaProperty so:scanBarcode ;
+    so:criteriaOperator so:OperatorNotNull .
+
+so:CriteriaPriceLabelPrinted a owl:Class ;
+    rdfs:label "条件：已打印价签"@zh-CN ;
+    rdfs:comment "只有priceLabelPrinted=true的任务才能提交结果"@zh-CN ;
+    so:criteriaProperty so:priceLabelPrinted ;
+    so:criteriaOperator so:OperatorEquals ;
+    so:criteriaValue "true"^^xsd:boolean .
+
+so:ParamSubmitNotes a owl:Class ;
+    rdfs:label "结果备注"@zh-CN ;
+    rdfs:label "Result Notes"@en ;
+    rdfs:comment "员工提交结果时的备注说明"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false .
+
+so:WritePropResultStatusSubmitted a owl:Class ;
+    rdfs:label "写入：结果状态为已提交"@zh-CN ;
+    rdfs:comment "写入resultStatus=ResultSubmitted"@zh-CN ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:ResultSubmitted .
+
+so:WritePropSubmissionTime a owl:Class ;
+    rdfs:label "写入：提交时间"@zh-CN ;
+    rdfs:comment "写入提交时间为当前时间戳"@zh-CN ;
+    so:targetProperty so:submissionTime ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:CurrentTimestamp .
+
+so:WritePropSubmittedBy a owl:Class ;
+    rdfs:label "写入：提交人"@zh-CN ;
+    rdfs:comment "写入submittedBy=当前登录员工"@zh-CN ;
+    so:targetProperty so:submittedBy ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:CurrentActor .
+
+so:WriteLinkHasResult a owl:Class ;
+    rdfs:label "写入链接：创建执行结果"@zh-CN ;
+    rdfs:comment "创建新的WorkTaskResult对象实例并建立hasResult链接"@zh-CN ;
+    so:targetObjectType so:WorkTaskResult ;
+    so:writeOperation so:WriteOperationCreate ;
+    so:writeLinkProperty so:hasResult ;
+    so:autoPopulateProperties so:AutoPopulatePOSData .
+
+so:AutoPopulatePOSData a owl:Class ;
+    rdfs:label "POS数据自动填充"@zh-CN ;
+    rdfs:comment "WorkTaskResult创建时自动从POS系统拉取：原库存、销售数量、剩余库存、出清率、销售额"@zh-CN ;
+    so:populatesProperty so:originalInventoryQty ;
+    so:populatesProperty so:soldQty ;
+    so:populatesProperty so:remainingQty ;
+    so:populatesProperty so:clearanceRate ;
+    so:populatesProperty so:discountedRevenue ;
+    so:populatesProperty so:posTransactionId ;
+    so:populatesProperty so:posFetchedAt ;
+    so:dataSource so:POSSystem ;
+    so:dataMapping "originalInventoryQty=init_stock_qty, soldQty=sold_qty, remainingQty=remaining_qty, clearanceRate=sold_qty/init_stock_qty, discountedRevenue=revenue, posTransactionId=txn_id"@zh-CN .
+
+so:SideEffectNotifyManagerOnSubmit a owl:Class ;
+    rdfs:label "副作用：通知店长复核"@zh-CN ;
+    rdfs:comment "员工提交结果后，自动通知店长进行复核"@zh-CN ;
+    so:sideEffectType so:SideEffectTypeNotification ;
+    so:notifyRole so:RoleStoreManager ;
+    so:notificationTemplate "打折任务执行结果已提交：商品【{skuName}】，出清率{clearanceRate}，请复核"@zh-CN .
+
+# ------------------------------------------------------------
+# Action Type 6: ReviewResult — 店长复核
+# ------------------------------------------------------------
+# 触发时机：店长看到POS数据后，复核执行结果是否达标
+# 作用于：WorkTask对象（MODIFY修改）
+# 输入参数：reviewStatus（复核结论）, reviewComment（复核意见）
+# 自动写入WorkTaskReview：reviewStatus, reviewComment, reviewTime, reviewedBy
+# 最终更新WorkTask：taskStatus, overallResult
+
+so:ReviewResult a owl:Class ;
+    rdfs:label "店长复核执行结果"@zh-CN ;
+    rdfs:label "Review Execution Result"@en ;
+    rdfs:comment "店长复核员工提交的执行结果，决定通过或驳回"@zh-CN ;
+    so:targetObjectType so:WorkTask ;
+    so:actionOperation so:ActionOperationModify ;
+    so:submissionCriteria so:CriteriaResultStatusIsSubmitted ;
+    so:hasParameter so:ParamReviewStatus ;
+    so:hasParameter so:ParamReviewComment ;
+    so:hasParameter so:ParamReviewRectificationRequired ;
+    so:writesLink so:WriteLinkHasReview ;
+    so:writesProperty so:WritePropOverallResult ;
+    so:writesProperty so:WritePropTaskStatusCompleted ;
+    so:hasSideEffect so:SideEffectNotifyEmployeeOnReview .
+
+so:CriteriaResultStatusIsSubmitted a owl:Class ;
+    rdfs:label "条件：结果状态为已提交"@zh-CN ;
+    rdfs:comment "只有resultStatus=ResultSubmitted的任务才能复核"@zh-CN ;
+    so:criteriaProperty so:hasResult ;
+    so:criteriaOperator so:OperatorLinkExists ;
+    so:criteriaTargetProperty so:resultStatus ;
+    so:criteriaValue so:ResultSubmitted .
+
+so:ParamReviewStatus a owl:Class ;
+    rdfs:label "复核结论"@zh-CN ;
+    rdfs:label "Review Status"@en ;
+    rdfs:comment "店长复核结论：通过/驳回/需整改"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramObjectType so:ReviewStatus ;
+    so:paramRequired true ;
+    so:paramOptions so:ReviewPassed, so:RectificationRequired, so:ReviewRejected .
+
+so:ParamReviewComment a owl:Class ;
+    rdfs:label "复核意见"@zh-CN ;
+    rdfs:label "Review Comment"@en ;
+    rdfs:comment "店长复核的具体意见"@zh-CN ;
+    so:paramSource so:ParameterSourceUserInput ;
+    so:paramDataType xsd:string ;
+    so:paramRequired false .
+
+so:ParamReviewRectificationRequired a owl:Class ;
+    rdfs:label "需整改"@zh-CN ;
+    rdfs:label "Rectification Required"@en ;
+    rdfs:comment "复核驳回时是否要求员工整改"@zh-CN ;
+    so:paramSource so:ParameterSourceDerived ;
+    so:paramDataType xsd:boolean ;
+    so:paramRequired false ;
+    so:paramDefaultValue "false"^^xsd:boolean ;
+    so:derivedFrom so:ParamReviewStatus ;
+    so:derivationLogic "当reviewStatus=ReviewRejected时为true"@zh-CN .
+
+so:WriteLinkHasReview a owl:Class ;
+    rdfs:label "写入链接：创建复核记录"@zh-CN ;
+    rdfs:comment "创建新的WorkTaskReview对象实例并建立hasReview链接"@zh-CN ;
+    so:targetObjectType so:WorkTaskReview ;
+    so:writeOperation so:WriteOperationCreate ;
+    so:writeLinkProperty so:hasReview ;
+    so:autoPopulateProperties so:AutoPopulateReviewData .
+
+so:AutoPopulateReviewData a owl:Class ;
+    rdfs:label "复核数据自动填充"@zh-CN ;
+    rdfs:comment "WorkTaskReview创建时自动填充：reviewId, reviewTime, reviewedBy, reviewStatus, reviewComment"@zh-CN ;
+    so:populatesProperty so:reviewId ;
+    so:populatesProperty so:reviewTime ;
+    so:populatesProperty so:reviewedBy ;
+    so:populatesProperty so:reviewStatus ;
+    so:populatesProperty so:reviewComment ;
+    so:populatesProperty so:rectificationRequired ;
+    so:autoIDPrefix "REV-" ;
+    so:autoIDTimestamp true .
+
+so:WritePropOverallResult a owl:Class ;
+    rdfs:label "写入：综合结论"@zh-CN ;
+    rdfs:comment "根据复核结论写入overallResult：ReviewPassed→DiscountSuccess，ReviewRejected→DiscountFail"@zh-CN ;
+    so:targetProperty so:overallResult ;
+    so:writeOperation so:WriteOperationConditional ;
+    so:conditionWrite so:ConditionReviewPassed ;
+    so:conditionWrite so:ConditionReviewRejected .
+
+so:ConditionReviewPassed a owl:Class ;
+    rdfs:label "条件：通过时"@zh-CN ;
+    rdfs:comment "复核通过时写入DiscountSuccess"@zh-CN ;
+    so:conditionParam so:ParamReviewStatus ;
+    so:conditionValue so:ReviewPassed ;
+    so:writeValue so:DiscountSuccess .
+
+so:ConditionReviewRejected a owl:Class ;
+    rdfs:label "条件：驳回时"@zh-CN ;
+    rdfs:comment "复核驳回时写入DiscountFail"@zh-CN ;
+    so:conditionParam so:ParamReviewStatus ;
+    so:conditionValue so:ReviewRejected ;
+    so:writeValue so:DiscountFail .
+
+so:WritePropTaskStatusCompleted a owl:Class ;
+    rdfs:label "写入：任务状态为已完成"@zh-CN ;
+    rdfs:comment "复核完成后写入taskStatus=TaskCompleted"@zh-CN ;
+    so:targetProperty so:taskStatus ;
+    so:writeOperation so:WriteOperationSet ;
+    so:writeValue so:TaskCompleted .
+
+so:SideEffectNotifyEmployeeOnReview a owl:Class ;
+    rdfs:label "副作用：通知员工复核结果"@zh-CN ;
+    rdfs:comment "店长复核后通知执行员工结果"@zh-CN ;
+    so:sideEffectType so:SideEffectTypeNotification ;
+    so:notifyRole so:RoleFrontline ;
+    so:notificationTemplate "打折任务【{taskId}】复核结果：{reviewStatus}，意见：{reviewComment}"@zh-CN .
+
+# ------------------------------------------------------------
+# 辅助类：操作类型
+# ------------------------------------------------------------
+so:ActionOperation a owl:Class ;
+    rdfs:label "Action操作类型"@zh-CN ;
+    rdfs:comment "Action Type的操作类型枚举"@zh-CN .
+
+so:ActionOperationCreate a owl:NamedIndividual ;
+    rdfs:label "新建"@zh-CN ;
+    rdfs:label "Create"@en ;
+    rdfs:subClassOf so:ActionOperation .
+
+so:ActionOperationModify a owl:NamedIndividual ;
+    rdfs:label "修改"@zh-CN ;
+    rdfs:label "Modify"@en ;
+    rdfs:subClassOf so:ActionOperation .
+
+so:ActionOperationDelete a owl:NamedIndividual ;
+    rdfs:label "删除"@zh-CN ;
+    rdfs:label "Delete"@en ;
+    rdfs:subClassOf so:ActionOperation .
+
+# ------------------------------------------------------------
+# 辅助类：参数来源
+# ------------------------------------------------------------
+so:ParameterSource a owl:Class ;
+    rdfs:label "参数来源"@zh-CN ;
+    rdfs:comment "Action参数的数据来源"@zh-CN .
+
+so:ParameterSourceUserInput a owl:NamedIndividual ;
+    rdfs:label "用户输入"@zh-CN ;
+    rdfs:label "User Input"@en ;
+    rdfs:subClassOf so:ParameterSource .
+
+so:ParameterSourceSystemDefault a owl:NamedIndividual ;
+    rdfs:label "系统默认值"@zh-CN ;
+    rdfs:label "System Default"@en ;
+    rdfs:subClassOf so:ParameterSource .
+
+so:ParameterSourceDerived a owl:NamedIndividual ;
+    rdfs:label "派生值"@zh-CN ;
+    rdfs:label "Derived Value"@en ;
+    rdfs:subClassOf so:ParameterSource .
+
+# ------------------------------------------------------------
+# 辅助类：写入操作类型
+# ------------------------------------------------------------
+so:WriteOperation a owl:Class ;
+    rdfs:label "写入操作类型"@zh-CN ;
+    rdfs:comment "Action写入属性时的操作类型"@zh-CN .
+
+so:WriteOperationSet a owl:NamedIndividual ;
+    rdfs:label "设置值"@zh-CN ;
+    rdfs:label "Set Value"@en ;
+    rdfs:subClassOf so:WriteOperation .
+
+so:WriteOperationAppend a owl:NamedIndividual ;
+    rdfs:label "追加值"@zh-CN ;
+    rdfs:label "Append Value"@en ;
+    rdfs:subClassOf so:WriteOperation .
+
+so:WriteOperationCreate a owl:NamedIndividual ;
+    rdfs:label "新建对象"@zh-CN ;
+    rdfs:label "Create Object"@en ;
+    rdfs:subClassOf so:WriteOperation .
+
+so:WriteOperationConditional a owl:NamedIndividual ;
+    rdfs:label "条件写入"@zh-CN ;
+    rdfs:label "Conditional Write"@en ;
+    rdfs:subClassOf so:WriteOperation .
+
+# ------------------------------------------------------------
+# 辅助类：条件运算符
+# ------------------------------------------------------------
+so:Operator a owl:Class ;
+    rdfs:label "条件运算符"@zh-CN ;
+    rdfs:comment "提交条件的比较运算符"@zh-CN .
+
+so:OperatorEquals a owl:NamedIndividual ;
+    rdfs:label "等于"@zh-CN ;
+    rdfs:label "Equals"@en ;
+    rdfs:subClassOf so:Operator .
+
+so:OperatorNotNull a owl:NamedIndividual ;
+    rdfs:label "不为空"@zh-CN ;
+    rdfs:label "Not Null"@en ;
+    rdfs:subClassOf so:Operator .
+
+so:OperatorLinkExists a owl:NamedIndividual ;
+    rdfs:label "链接存在"@zh-CN ;
+    rdfs:label "Link Exists"@en ;
+    rdfs:subClassOf so:Operator .
+
+# ------------------------------------------------------------
+# 辅助类：副作用类型
+# ------------------------------------------------------------
+so:SideEffectType a owl:Class ;
+    rdfs:label "副作用类型"@zh-CN ;
+    rdfs:comment "Action副作用的类型"@zh-CN .
+
+so:SideEffectTypeNotification a owl:NamedIndividual ;
+    rdfs:label "通知"@zh-CN ;
+    rdfs:label "Notification"@en ;
+    rdfs:subClassOf so:SideEffectType .
+
+so:SideEffectTypeChainAction a owl:NamedIndividual ;
+    rdfs:label "链式Action"@zh-CN ;
+    rdfs:label "Chain to Another Action"@en ;
+    rdfs:subClassOf so:SideEffectType .
+
+so:SideEffectTypePrompt a owl:NamedIndividual ;
+    rdfs:label "用户提示"@zh-CN ;
+    rdfs:label "User Prompt"@en ;
+    rdfs:subClassOf so:SideEffectType .
+
+# ------------------------------------------------------------
+# 辅助类：角色
+# ------------------------------------------------------------
+so:Role a owl:Class ;
+    rdfs:label "角色"@zh-CN ;
+    rdfs:comment "通知或权限相关的角色"@zh-CN .
+
+so:RoleStoreManager a owl:NamedIndividual ;
+    rdfs:label "店长"@zh-CN ;
+    rdfs:label "Store Manager"@en ;
+    rdfs:subClassOf so:Role .
+
+so:RoleFrontline a owl:NamedIndividual ;
+    rdfs:label "一线员工"@zh-CN ;
+    rdfs:label "Frontline Employee"@en ;
+    rdfs:subClassOf so:Role .
+
+# ------------------------------------------------------------
+# 辅助常量
+# ------------------------------------------------------------
+so:CurrentActor a owl:NamedIndividual ;
+    rdfs:label "当前操作者"@zh-CN ;
+    rdfs:label "Current Actor"@en ;
+    rdfs:comment "指向当前登录用户/员工的系统引用"@zh-CN .
+
+so:CurrentTimestamp a owl:NamedIndividual ;
+    rdfs:label "当前时间戳"@zh-CN ;
+    rdfs:label "Current Timestamp"@en ;
+    rdfs:comment "指向当前时间的系统引用"@zh-CN .
+
+so:POSSystem a owl:NamedIndividual ;
+    rdfs:label "POS系统"@zh-CN ;
+    rdfs:label "Point of Sale System"@en ;
+    rdfs:comment "POS销售系统数据源"@zh-CN .
+
+so:LogicCurrentShiftEmployee a owl:NamedIndividual ;
+    rdfs:label "当前班次员工逻辑"@zh-CN ;
+    rdfs:label "Current Shift Employee Logic"@en ;
+    rdfs:comment "系统默认逻辑：返回当前班次值班员工"@zh-CN .
+
+so:RuleTypeValidation a owl:NamedIndividual ;
+    rdfs:label "校验规则"@zh-CN ;
+    rdfs:label "Validation Rule"@en ;
+    rdfs:subClassOf so:Rule .
+
+so:Rule a owl:Class ;
+    rdfs:label "规则"@zh-CN ;
+    rdfs:comment "Action参数校验或业务规则"@zh-CN .
+
+########## END OF CLEARANCE RULE MODULE ##########
+
+########## END OF WORKTASK MODULE ##########
+# ============================================================
+# 补充部分：品类出清促销规则本体
+# ============================================================
+# 前缀声明（与主文件保持一致）
+@prefix so: <https://store-ontology.example.com/retail#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+# 本体建模：超市行业商品出清促销规则
+# 
+# 核心概念：
+#   Category          - 品类分类（9大类，含层级结构）
+#   DiscountTier      - 折扣层级（按保质期剩余天数定义折扣区间）
+#   ClearanceRule     - 出清规则（品类+折扣层级+约束）
+#   ExemptionRule     - 豁免规则（哪些商品不能打折）
+#
+# 知识库用途：
+#   AI 推理：给定 SKU + 保质期 + 库存 → 推荐折扣
+#   SPARQL 查询：按品类查规则、按紧迫度排序
+# ============================================================
+
+# ------------------------------------------------------------
+# 第七部分：品类分类（Category）
+# ------------------------------------------------------------
+# 品类紧迫度：高=立即出清，中=尽快出清，低=常规出清
+
+so:FreshProduce a owl:Class ;
+    rdfs:label "生鲜"@zh-CN ;
+    rdfs:label "Fresh Produce"@en ;
+    rdfs:comment "生鲜品类：包括蔬菜、水果等，保质期短，出清紧迫度最高"@zh-CN ;
+    so:categoryType so:CategoryTypeFresh ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 3 .
+
+so:MeatPoultry a owl:Class ;
+    rdfs:label "肉禽"@zh-CN ;
+    rdfs:label "Meat & Poultry"@en ;
+    rdfs:comment "肉禽品类：鲜肉、冷鲜肉、冷冻肉，保质期短"@zh-CN ;
+    so:categoryType so:CategoryTypeFresh ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 5 .
+
+so:Seafood a owl:Class ;
+    rdfs:label "水产"@zh-CN ;
+    rdfs:label "Seafood"@en ;
+    rdfs:comment "水产品类：活鲜、冰鲜、冷冻海鲜"@zh-CN ;
+    so:categoryType so:CategoryTypeFresh ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 3 .
+
+so:Dairy a owl:Class ;
+    rdfs:label "乳品"@zh-CN ;
+    rdfs:label "Dairy"@en ;
+    rdfs:comment "乳品品类：牛奶、酸奶、乳饮料，保质期较短"@zh-CN ;
+    so:categoryType so:CategoryTypeChilled ;
+    so:clearanceUrgency so:UrgencyMedium ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 7 .
+
+so:Bakery a owl:Class ;
+    rdfs:label "烘焙"@zh-CN ;
+    rdfs:label "Bakery"@en ;
+    rdfs:comment "烘焙品类：面包、蛋糕、西点，保质期极短"@zh-CN ;
+    so:categoryType so:CategoryTypeFresh ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 2 .
+
+so:FrozenFood a owl:Class ;
+    rdfs:label "冷冻食品"@zh-CN ;
+    rdfs:label "Frozen Food"@en ;
+    rdfs:comment "冷冻品类：速冻米面、冰淇淋等，需冷冻保存"@zh-CN ;
+    so:categoryType so:CategoryTypeFrozen ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 30 .
+
+so:Beverage a owl:Class ;
+    rdfs:label "饮品"@zh-CN ;
+    rdfs:label "Beverage"@en ;
+    rdfs:comment "饮品类：饮料、瓶装水、果汁等"@zh-CN ;
+    so:categoryType so:CategoryTypeAmbient ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 60 .
+
+so:SnackFood a owl:Class ;
+    rdfs:label "休闲食品"@zh-CN ;
+    rdfs:label "Snack Food"@en ;
+    rdfs:comment "休闲食品品类：饼干、糖果、坚果等"@zh-CN ;
+    so:categoryType so:CategoryTypeAmbient ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 90 .
+
+so:RiceGrainOil a owl:Class ;
+    rdfs:label "米面粮油"@zh-CN ;
+    rdfs:label "Rice, Grain & Cooking Oil"@en ;
+    rdfs:comment "米面粮油品类：大米、面粉、食用油等，保质期较长"@zh-CN ;
+    so:categoryType so:CategoryTypeAmbient ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 180 .
+
+so:DailyFresh a owl:Class ;
+    rdfs:label "日配"@zh-CN ;
+    rdfs:label "Daily Fresh"@en ;
+    rdfs:comment "日配品类：豆腐、豆制品、卤味等，需当日消耗"@zh-CN ;
+    so:categoryType so:CategoryTypeFresh ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:parentCategory so:CategoryRoot ;
+    so:standardShelfLifeDays 1 .
+
+so:CategoryRoot a owl:Class ;
+    rdfs:label "根品类"@zh-CN ;
+    rdfs:label "Root Category"@en ;
+    rdfs:comment "品类分类根节点"@zh-CN .
+
+# ------------------------------------------------------------
+# 第八部分：折扣层级（DiscountTier）
+# ------------------------------------------------------------
+# 折扣层级定义：按保质期剩余天数划分折扣区间
+# 折扣率：0.0=免费送，1.0=原价，0.3=3折
+
+# 层级1：保质期剩余1天（最紧急）
+so:TierShelfLife1Day a owl:Class ;
+    rdfs:label "T1-临期1天"@zh-CN ;
+    rdfs:label "Tier 1: 1 Day Remaining"@en ;
+    rdfs:comment "保质期剩余1天，强制出清"@zh-CN ;
+    so:tierMinDays 0 ;
+    so:tierMaxDays 1 ;
+    so:minDiscountRate 0.1 ;
+    so:maxDiscountRate 0.5 ;
+    so:recommendedDiscountRate 0.2 ;
+    so:tierOrder 1 ;
+    so:tierUrgency so:UrgencyCritical .
+
+# 层级2：保质期剩余2-3天
+so:TierShelfLife2to3Days a owl:Class ;
+    rdfs:label "T2-临期2-3天"@zh-CN ;
+    rdfs:label "Tier 2: 2-3 Days Remaining"@en ;
+    rdfs:comment "保质期剩余2-3天，积极出清"@zh-CN ;
+    so:tierMinDays 2 ;
+    so:tierMaxDays 3 ;
+    so:minDiscountRate 0.3 ;
+    so:maxDiscountRate 0.6 ;
+    so:recommendedDiscountRate 0.4 ;
+    so:tierOrder 2 ;
+    so:tierUrgency so:UrgencyHigh .
+
+# 层级3：保质期剩余4-7天
+so:TierShelfLife4to7Days a owl:Class ;
+    rdfs:label "T3-临期4-7天"@zh-CN ;
+    rdfs:label "Tier 3: 4-7 Days Remaining"@en ;
+    rdfs:comment "保质期剩余4-7天，常规出清"@zh-CN ;
+    so:tierMinDays 4 ;
+    so:tierMaxDays 7 ;
+    so:minDiscountRate 0.5 ;
+    so:maxDiscountRate 0.8 ;
+    so:recommendedDiscountRate 0.7 ;
+    so:tierOrder 3 ;
+    so:tierUrgency so:UrgencyMedium .
+
+# 层级4：保质期剩余8-14天
+so:TierShelfLife8to14Days a owl:Class ;
+    rdfs:label "T4-临期8-14天"@zh-CN ;
+    rdfs:label "Tier 4: 8-14 Days Remaining"@en ;
+    rdfs:comment "保质期剩余8-14天，预防性出清"@zh-CN ;
+    so:tierMinDays 8 ;
+    so:tierMaxDays 14 ;
+    so:minDiscountRate 0.7 ;
+    so:maxDiscountRate 0.9 ;
+    so:recommendedDiscountRate 0.85 ;
+    so:tierOrder 4 ;
+    so:tierUrgency so:UrgencyLow .
+
+# 层级5：保质期剩余15-30天
+so:TierShelfLife15to30Days a owl:Class ;
+    rdfs:label "T5-临期15-30天"@zh-CN ;
+    rdfs:label "Tier 5: 15-30 Days Remaining"@en ;
+    rdfs:comment "保质期剩余15-30天，预警提醒"@zh-CN ;
+    so:tierMinDays 15 ;
+    so:tierMaxDays 30 ;
+    so:minDiscountRate 0.9 ;
+    so:maxDiscountRate 1.0 ;
+    so:recommendedDiscountRate 0.95 ;
+    so:tierOrder 5 ;
+    so:tierUrgency so:UrgencyPreventive .
+
+# ------------------------------------------------------------
+# 第九部分：出清规则（ClearanceRule）
+# ------------------------------------------------------------
+# 每个品类 × 紧迫度 = 一条出清规则
+# 规则定义了适用的折扣层级序列
+
+# 生鲜出清规则（高紧迫度：1天→1折，2-3天→3折，4-7天→6折）
+so:RuleFreshProduceClearance a owl:Class ;
+    rdfs:label "生鲜出清规则"@zh-CN ;
+    rdfs:comment "生鲜品类出清规则：保质期短，出清紧迫度最高"@zh-CN ;
+    so:appliesToCategory so:FreshProduce ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 肉禽出清规则
+so:RuleMeatPoultryClearance a owl:Class ;
+    rdfs:label "肉禽出清规则"@zh-CN ;
+    rdfs:comment "肉禽品类出清规则：保质期短，需冷链管理"@zh-CN ;
+    so:appliesToCategory so:MeatPoultry ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 水产出清规则
+so:RuleSeafoodClearance a owl:Class ;
+    rdfs:label "水产出清规则"@zh-CN ;
+    rdfs:comment "水产品类出清规则：活鲜保质期极短，冰鲜次之"@zh-CN ;
+    so:appliesToCategory so:Seafood ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 乳品出清规则（中紧迫度）
+so:RuleDairyClearance a owl:Class ;
+    rdfs:label "乳品出清规则"@zh-CN ;
+    rdfs:comment "乳品品类出清规则：保质期较短，出清紧迫度中等"@zh-CN ;
+    so:appliesToCategory so:Dairy ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:hasDiscountTier so:TierShelfLife15to30Days ;
+    so:clearanceUrgency so:UrgencyMedium ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 烘焙出清规则（最高紧迫度）
+so:RuleBakeryClearance a owl:Class ;
+    rdfs:label "烘焙出清规则"@zh-CN ;
+    rdfs:comment "烘焙品类出清规则：保质期极短（通常1-2天），需当日出清"@zh-CN ;
+    so:appliesToCategory so:Bakery ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:clearanceUrgency so:UrgencyHigh ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 冷冻食品出清规则（低紧迫度）
+so:RuleFrozenFoodClearance a owl:Class ;
+    rdfs:label "冷冻食品出清规则"@zh-CN ;
+    rdfs:comment "冷冻食品品类出清规则：保质期较长，出清紧迫度低"@zh-CN ;
+    so:appliesToCategory so:FrozenFood ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:hasDiscountTier so:TierShelfLife15to30Days ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 饮品出清规则（低紧迫度）
+so:RuleBeverageClearance a owl:Class ;
+    rdfs:label "饮品出清规则"@zh-CN ;
+    rdfs:comment "饮品类出清规则：保质期较长，出清紧迫度低"@zh-CN ;
+    so:appliesToCategory so:Beverage ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:hasDiscountTier so:TierShelfLife15to30Days ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 休闲食品出清规则（低紧迫度）
+so:RuleSnackFoodClearance a owl:Class ;
+    rdfs:label "休闲食品出清规则"@zh-CN ;
+    rdfs:comment "休闲食品品类出清规则：保质期较长，出清紧迫度低"@zh-CN ;
+    so:appliesToCategory so:SnackFood ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:hasDiscountTier so:TierShelfLife15to30Days ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 米面粮油出清规则（最低紧迫度）
+so:RuleRiceGrainOilClearance a owl:Class ;
+    rdfs:label "米面粮油出清规则"@zh-CN ;
+    rdfs:comment "米面粮油品类出清规则：保质期长，出清紧迫度最低"@zh-CN ;
+    so:appliesToCategory so:RiceGrainOil ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:hasDiscountTier so:TierShelfLife4to7Days ;
+    so:hasDiscountTier so:TierShelfLife8to14Days ;
+    so:hasDiscountTier so:TierShelfLife15to30Days ;
+    so:clearanceUrgency so:UrgencyLow ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# 日配出清规则（最高紧迫度，当日必须出清）
+so:RuleDailyFreshClearance a owl:Class ;
+    rdfs:label "日配出清规则"@zh-CN ;
+    rdfs:comment "日配品类出清规则：保质期仅1天，当日必须出清"@zh-CN ;
+    so:appliesToCategory so:DailyFresh ;
+    so:hasDiscountTier so:TierShelfLife1Day ;
+    so:hasDiscountTier so:TierShelfLife2to3Days ;
+    so:clearanceUrgency so:UrgencyCritical ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleEffectiveDate "2024-01-01"^^xsd:date ;
+    so:storeScope so:StoreScopeAll .
+
+# ------------------------------------------------------------
+# 第十部分：豁免规则（ExemptionRule）
+# ------------------------------------------------------------
+# 豁免规则：定义哪些情况下商品不参与打折
+
+# 进口商品不参与临期打折（品质要求高）
+so:ExemptionImportedGoods a owl:Class ;
+    rdfs:label "进口商品豁免"@zh-CN ;
+    rdfs:comment "进口商品因追溯要求和品质标准，不参与临期打折"@zh-CN ;
+    so:exemptionType so:ExemptionTypeImported ;
+    so:exemptionReason "进口商品须确保品质，不参与临期打折"@zh-CN ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories false .
+
+# 有机/绿色食品不参与打折（品牌保护）
+so:ExemptionOrganicGoods a owl:Class ;
+    rdfs:label "有机绿色食品豁免"@zh-CN ;
+    rdfs:comment "有机食品、绿色食品因品牌保护，不参与临期打折"@zh-CN ;
+    so:exemptionType so:ExemptionTypeOrganic ;
+    so:exemptionReason "有机/绿色食品品牌价值高，不参与临期打折"@zh-CN ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories false .
+
+# 促销商品有价格保护（已有折扣，不再叠加）
+so:ExemptionAlreadyPromoted a owl:Class ;
+    rdfs:label "促销中商品豁免"@zh-CN ;
+    rdfs:comment "正在参与总部促销活动的商品，不叠加临期折扣"@zh-CN ;
+    so:exemptionType so:ExemptionTypeAlreadyPromoted ;
+    so:exemptionReason "已参与促销的商品不叠加折扣，保护价格体系"@zh-CN ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories true .
+
+# 新上架商品不打折（定价策略）
+so:ExemptionNewArrival a owl:Class ;
+    rdfs:label "新上架商品豁免"@zh-CN ;
+    rdfs:comment "新到货商品（到货日期7天内）不参与临期打折，维护价格形象"@zh-CN ;
+    so:exemptionType so:ExemptionTypeNewArrival ;
+    so:exemptionReason "新上架商品不参与临期打折"@zh-CN ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:minDaysSinceArrival 0 ;
+    so:maxDaysSinceArrival 7 ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories true .
+
+# 总部强制禁止打折品类
+so:ExemptionHeadquartersBan a owl:Class ;
+    rdfs:label "总部禁止打折"@zh-CN ;
+    rdfs:comment "总部强制指定不得打折的品类或单品"@zh-CN ;
+    so:exemptionType so:ExemptionTypeHeadquartersBan ;
+    so:exemptionReason "总部强制禁止打折"@zh-CN ;
+    so:ruleSource so:RuleSourceHeadquarters ;
+    so:ruleStatus so:RuleStatusActive ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories false .
+
+# 门店级别豁免（门店可申请的特殊豁免，需总部审批）
+so:ExemptionStoreLocal a owl:Class ;
+    rdfs:label "门店本地豁免"@zh-CN ;
+    rdfs:comment "门店因特殊原因（场地限制/客群差异）申请的本地豁免规则"@zh-CN ;
+    so:exemptionType so:ExemptionTypeStoreLocal ;
+    so:exemptionReason "门店本地特殊原因"@zh-CN ;
+    so:ruleSource so:RuleSourceStore ;
+    so:ruleStatus so:RuleStatusPendingApproval ;
+    so:maxDiscountRate 1.0 ;
+    so:appliesToAllCategories false ;
+    so:requiresApproval true ;
+    so:approvalStatus so:ApprovalStatusPending .
+
+# ------------------------------------------------------------
+# 第十一部分：枚举值（NamedIndividual）
+# ------------------------------------------------------------
+
+# 紧迫度
+so:UrgencyCritical a owl:NamedIndividual ;
+    rdfs:label "紧急"@zh-CN ;
+    rdfs:label "Critical"@en ;
+    rdfs:subClassOf so:UrgencyLevel .
+
+so:UrgencyHigh a owl:NamedIndividual ;
+    rdfs:label "高"@zh-CN ;
+    rdfs:label "High"@en ;
+    rdfs:subClassOf so:UrgencyLevel .
+
+so:UrgencyMedium a owl:NamedIndividual ;
+    rdfs:label "中"@zh-CN ;
+    rdfs:label "Medium"@en ;
+    rdfs:subClassOf so:UrgencyLevel .
+
+so:UrgencyLow a owl:NamedIndividual ;
+    rdfs:label "低"@zh-CN ;
+    rdfs:label "Low"@en ;
+    rdfs:subClassOf so:UrgencyLevel .
+
+so:UrgencyPreventive a owl:NamedIndividual ;
+    rdfs:label "预防性"@zh-CN ;
+    rdfs:label "Preventive"@en ;
+    rdfs:subClassOf so:UrgencyLevel .
+
+so:UrgencyLevel a owl:Class ;
+    rdfs:label "紧迫度等级"@zh-CN ;
+    rdfs:comment "商品出清的紧迫程度分级"@zh-CN .
+
+# 品类类型
+so:CategoryTypeFresh a owl:NamedIndividual ;
+    rdfs:label "鲜品类"@zh-CN ;
+    rdfs:subClassOf so:CategoryType .
+
+so:CategoryTypeChilled a owl:NamedIndividual ;
+    rdfs:label "冷藏品类"@zh-CN ;
+    rdfs:subClassOf so:CategoryType .
+
+so:CategoryTypeFrozen a owl:NamedIndividual ;
+    rdfs:label "冷冻品类"@zh-CN ;
+    rdfs:subClassOf so:CategoryType .
+
+so:CategoryTypeAmbient a owl:NamedIndividual ;
+    rdfs:label "常温品类"@zh-CN ;
+    rdfs:subClassOf so:CategoryType .
+
+so:CategoryType a owl:Class ;
+    rdfs:label "品类类型"@zh-CN ;
+    rdfs:comment "品类的温度保存类型分类"@zh-CN .
+
+# 规则状态
+so:RuleStatusActive a owl:NamedIndividual ;
+    rdfs:label "生效中"@zh-CN ;
+    rdfs:subClassOf so:RuleStatus .
+
+so:RuleStatusInactive a owl:NamedIndividual ;
+    rdfs:label "已失效"@zh-CN ;
+    rdfs:subClassOf so:RuleStatus .
+
+so:RuleStatusPendingApproval a owl:NamedIndividual ;
+    rdfs:label "待审批"@zh-CN ;
+    rdfs:subClassOf so:RuleStatus .
+
+so:RuleStatus a owl:Class ;
+    rdfs:label "规则状态"@zh-CN .
+
+# 规则来源
+so:RuleSourceHeadquarters a owl:NamedIndividual ;
+    rdfs:label "总部规则"@zh-CN ;
+    rdfs:label "Headquarters"@en ;
+    rdfs:subClassOf so:RuleSource .
+
+so:RuleSourceStore a owl:NamedIndividual ;
+    rdfs:label "门店规则"@zh-CN ;
+    rdfs:label "Store"@en ;
+    rdfs:subClassOf so:RuleSource .
+
+so:RuleSource a owl:Class ;
+    rdfs:label "规则来源"@zh-CN .
+
+# 豁免类型
+so:ExemptionTypeImported a owl:NamedIndividual ;
+    rdfs:label "进口商品"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionTypeOrganic a owl:NamedIndividual ;
+    rdfs:label "有机绿色"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionTypeAlreadyPromoted a owl:NamedIndividual ;
+    rdfs:label "促销中商品"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionTypeNewArrival a owl:NamedIndividual ;
+    rdfs:label "新上架商品"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionTypeHeadquartersBan a owl:NamedIndividual ;
+    rdfs:label "总部禁止"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionTypeStoreLocal a owl:NamedIndividual ;
+    rdfs:label "门店本地"@zh-CN ;
+    rdfs:subClassOf so:ExemptionType .
+
+so:ExemptionType a owl:Class ;
+    rdfs:label "豁免类型"@zh-CN .
+
+# 审批状态
+so:ApprovalStatusPending a owl:NamedIndividual ;
+    rdfs:label "待审批"@zh-CN ;
+    rdfs:subClassOf so:ApprovalStatus .
+
+so:ApprovalStatusApproved a owl:NamedIndividual ;
+    rdfs:label "已批准"@zh-CN ;
+    rdfs:subClassOf so:ApprovalStatus .
+
+so:ApprovalStatusRejected a owl:NamedIndividual ;
+    rdfs:label "已拒绝"@zh-CN ;
+    rdfs:subClassOf so:ApprovalStatus .
+
+so:ApprovalStatus a owl:Class ;
+    rdfs:label "审批状态"@zh-CN .
+
+# 适用范围
+so:StoreScopeAll a owl:NamedIndividual ;
+    rdfs:label "全部门店"@zh-CN ;
+    rdfs:subClassOf so:StoreScope .
+
+so:StoreScope a owl:Class ;
+    rdfs:label "门店适用范围"@zh-CN .
+
+########## END OF CLEARANCE RULE MODULE ##########
