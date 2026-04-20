@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from app.models import ProductCategory
 from datetime import date
+import json
 
 router = APIRouter()
 
@@ -84,3 +85,31 @@ def recommend_discount(req: ReasoningRequest):
         reasoning=reasoning,
         auto_create_task=auto_create
     )
+
+@router.post("/agent/scan")
+def agent_scan_products():
+    with open("app/data/products.json") as f:
+        products = json.load(f)
+
+    tasks_to_create = []
+    today = date.today()
+    for p in products:
+        expiry = date.fromisoformat(p["expiry_date"])
+        days_left = (expiry - today).days
+        if days_left <= 2 and not p.get("in_reduction"):
+            req = ReasoningRequest(
+                product_id=p["product_id"],
+                product_name=p["name"],
+                category=ProductCategory(p["category"]),
+                expiry_date=expiry,
+                stock=p["stock"]
+            )
+            resp = recommend_discount(req)
+            if resp.auto_create_task:
+                tasks_to_create.append({
+                    "product_id": p["product_id"],
+                    "recommended_discount": resp.recommended_discount,
+                    "reasoning": resp.reasoning
+                })
+
+    return {"tasks_to_create": tasks_to_create}
