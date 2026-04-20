@@ -1,5 +1,6 @@
 import React from "react";
 import ProductCard from "./ProductCard";
+import { fetchProducts } from "../api";
 
 export default function Dashboard() {
   const [products, setProducts] = React.useState([]);
@@ -10,11 +11,9 @@ export default function Dashboard() {
       .then(r => r.json())
       .then(setTasks)
       .catch(console.error);
-    setProducts([
-      {product_id: "P001", name: "嫩豆腐", category: "daily_fresh", expiry_date: "2026-04-21", stock: 50, in_reduction: false},
-      {product_id: "P002", name: "现烤法式面包", category: "bakery", expiry_date: "2026-04-20", stock: 30, in_reduction: false},
-      {product_id: "P003", name: "红富士苹果", category: "fresh", expiry_date: "2026-04-22", stock: 80, in_reduction: false},
-    ]);
+    fetchProducts()
+      .then(setProducts)
+      .catch(console.error);
   }, []);
 
   const grouped = products.reduce((acc, p) => {
