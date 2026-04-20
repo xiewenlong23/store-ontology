@@ -1,0 +1,51 @@
+from fastapi import APIRouter, HTTPException
+from app.models import ReductionTask, TaskStatus
+from datetime import datetime
+import json, uuid
+
+router = APIRouter()
+
+def load_tasks():
+    with open("app/data/tasks.json") as f:
+        return json.load(f)
+
+def save_tasks(tasks):
+    with open("app/data/tasks.json", "w") as f:
+        json.dump(tasks, f, indent=2, default=str)
+
+@router.get("/", response_model=list[ReductionTask])
+def list_tasks(store_id: str = None, status: TaskStatus = None):
+    tasks = load_tasks()
+    if store_id:
+        tasks = [t for t in tasks if t["store_id"] == store_id]
+    if status:
+        tasks = [t for t in tasks if t["status"] == status.value]
+    return tasks
+
+@router.post("/", response_model=ReductionTask)
+def create_task(task: ReductionTask):
+    tasks = load_tasks()
+    task_dict = task.model_dump()
+    task_dict["task_id"] = str(uuid.uuid4())[:8]
+    task_dict["created_at"] = datetime.now().isoformat()
+    tasks.append(task_dict)
+    save_tasks(tasks)
+    return task_dict
+
+@router.get("/{task_id}", response_model=ReductionTask)
+def get_task(task_id: str):
+    tasks = load_tasks()
+    for t in tasks:
+        if t["task_id"] == task_id:
+            return t
+    raise HTTPException(status_code=404, detail="Task not found")
+
+@router.patch("/{task_id}/status")
+def update_task_status(task_id: str, status: TaskStatus):
+    tasks = load_tasks()
+    for t in tasks:
+        if t["task_id"] == task_id:
+            t["status"] = status.value
+            save_tasks(tasks)
+            return t
+    raise HTTPException(status_code=404, detail="Task not found")
