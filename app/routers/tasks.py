@@ -49,6 +49,15 @@ def update_task_status(task_id: str, status: TaskStatus):
             t["status"] = status.value
             save_tasks(tasks)
             return t
+    @router.patch("/{task_id}/complete")
+def complete_task(task_id: str, sold_qty: int):
+    tasks = load_tasks()
+    for t in tasks:
+        if t["task_id"] == task_id:
+            t["status"] = TaskStatus.COMPLETED.value
+            t["sell_through_rate"] = sold_qty / t["original_stock"]
+            save_tasks(tasks)
+            return t
     raise HTTPException(status_code=404, detail="Task not found")
 
 
