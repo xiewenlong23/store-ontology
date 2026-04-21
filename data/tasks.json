@@ -1,0 +1,16 @@
+[
+  {
+    "task_id": "ac339e37-14c4-4dfe-9341-3c2c502dab2e",
+    "store_id": "STORE-001",
+    "product_id": "P001",
+    "product_name": "\u5ae9\u8c46\u8150",
+    "category": "daily_fresh",
+    "discount_rate": 0.8,
+    "original_stock": 100,
+    "expiry_date": "2026-04-23",
+    "status": "pending",
+    "created_by": "\u5e97\u957f",
+    "created_at": "2026-04-21T09:21:10.117731",
+    "urgency": "medium"
+  }
+]

@@ -13,8 +13,8 @@
 输出：推荐结果 + WorkTask 实例 TTL
 """
 
-import sys
 import os
+import sys
 from datetime import date, datetime
 from rdflib import Graph, Namespace, URIRef, Literal
 from rdflib.namespace import RDF, RDFS, OWL
@@ -192,7 +192,7 @@ so:{task_id} a so:WorkTask ;
     so:taskStatus so:TaskStatusPending ;
     so:taskPriority so:{priority} ;
     so:createdAt "{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}"^^xsd:dateTime ;
-    so:dueTime "2026-04-19T23:59:59"^^xsd:dateTime ;
+    so:dueTime "{exp}T23:59:59"^^xsd:dateTime ;
     so:triggerReason "保质期临期"@zh-CN ;
     so:triggeredByInventoryEvent so:{sku_data["event_uri"]} ;
     so:hasSKU so:{sku_code} ;
@@ -230,9 +230,10 @@ def main():
     print("=" * 60)
     print()
 
-    # 模拟日期：2026-04-19
-    REF_DATE = date(2026, 4, 19)
-    print(f"[INFO] 模拟日期: {REF_DATE}")
+    # 参考日期：默认今天，可通过环境变量覆写（用于回溯测试）
+    _ref_date_env = os.environ.get("CLEARANCE_REF_DATE")
+    REF_DATE = date.fromisoformat(_ref_date_env) if _ref_date_env else date.today()
+    print(f"[INFO] 参考日期: {REF_DATE}")
     print()
 
     # Step 1：加载本体

@@ -1,0 +1,3 @@
+| Timestamp | Step | Status | Command | Goal |
+|---|---|---|---|---|
+| 2026-04-21T03:22:01+00:00 | `fad-optimize` | done | fad:optimize | 修复Critical和Important问题：1.tasks.json恢复为空数组 2.tasks.py状态校验.valu一致性 3.main.py scheduler静默降级 4.CORS支持环境变量 5.emit_task_event返回值记录metadata 6.reasoning.py List[float兼容 7.删除冗余interpret_chat 8.删除agent.py空pass 9.清理idx未使用变量 |

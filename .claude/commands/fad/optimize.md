@@ -1,7 +1,7 @@
 ---
 name: fad:optimize
-description: review 后必须执行的优化阶段
-argument-hint: "[--run-id <id>] [可选范围]"
+description: review 之后的代码质量和性能优化
+argument-hint: "[可选：优化范围]"
 allowed-tools:
   - Read
   - Write
@@ -12,37 +12,49 @@ allowed-tools:
 ---
 
 <objective>
-在保持产品行为不变的前提下，改善可维护性和性能信号。
+在保持行为不变的前提下，改善代码质量和性能。
 </objective>
 
 <context>
-范围: $ARGUMENTS
+项目：store-ontology
+根目录：/mnt/d/ObsidianVault/store-ontology
 
-References:
+参考：
 - @.claude/commands/review.md
-- @.claude/rules/code-style.md
-- @.claude/rules/project-structure.md
 - @.planning/pm/current/RISK-IMPACT.md
 - @.claude/scripts/audit_log.py
 </context>
 
 <process>
-1. 从参数或变更文件解析范围
-2. 读取最新 review 发现和风险影响记录
-3. 运行仅优化的编辑：
-   - 删除重复和死代码
-   - 改善命名和模块边界
-   - 降低高风险路径复杂度
-   - 应用低风险性能修复（N+1 查询、不必要循环、明显内存问题）
-4. 优化期间不改变行为/需求：
-   - 如果需要行为变更，停止并请求新的范围任务
-5. 重新验证：
-   - 针对触及模块的定向测试
-   - 代码质量门禁
-6. 写审计日志
-7. 返回简洁输出：
-   - 优化区域
-   - 行为不变保证
-   - 质量门禁结果
-   - 剩余技术债务
+## Step 1：确定优化范围
+从变更文件或参数中确定本次优化的范围。
+
+## Step 2：Review 结果回顾
+读取最新 review 发现的问题和 RISK-IMPACT.md 中的风险项。
+
+## Step 3：执行优化
+聚焦以下方向：
+1. **删除重复代码** — 相同逻辑出现多次的地方合并
+2. **移除死分支** — 永远不走的 if/else 分支删除
+3. **改善命名** — 让变量/函数名自解释
+4. **改进模块边界** — 职责不清的模块重新划分
+5. **性能热点** — N+1 查询、不必要的循环、明显的内存浪费
+
+## Step 4：保持行为不变
+- 优化期间不得改变功能行为
+- 如发现行为需要改变，停止并请求新的 scoped 任务
+
+## Step 5：验证
+1. TTL 语法验证：`rapper -i turtle -o ntriples file://<ttl_path>`
+2. Python 测试：`PYTHONPATH=/mnt/d/ObsidianVault/store-ontology pytest`
+3. 质量门：`python3 .claude/scripts/code_quality_gate.py --repo-root /mnt/d/ObsidianVault/store-ontology`
+
+## Step 6：写审计日志
+`python3 .claude/scripts/audit_log.py --step fad-optimize --command "fad:optimize" --status done --goal "$ARGUMENTS"`
+
+## 输出
+- 优化了哪些区域
+- 行为不变的保证
+- 质量门结果
+- 剩余技术债
 </process>

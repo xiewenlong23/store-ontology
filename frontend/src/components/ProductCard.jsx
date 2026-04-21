@@ -1,9 +1,13 @@
-import React from "react";
+import React, { useMemo } from "react";
 
 export default function ProductCard({product}) {
-  const today = new Date();
-  const expiry = new Date(product.expiry_date);
-  const daysLeft = Math.ceil((expiry - today) / (1000*60*60*24));
+  const daysLeft = useMemo(() => {
+    const today = new Date();
+    const expiry = new Date(product.expiry_date || today);
+    if (isNaN(expiry.getTime())) return 999;
+    return Math.ceil((expiry - today) / (1000*60*60*24));
+  }, [product.expiry_date]);
+
   const urgency = daysLeft <= 1 ? "🔴" : daysLeft <= 3 ? "🟡" : "🟢";
 
   return (

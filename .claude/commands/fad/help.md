@@ -1,26 +1,38 @@
 ---
 name: fad:help
-description: 显示 FAD 命令概览
+description: 显示 FAD 命令列表和使用指南
 ---
 
-<context>
-References:
-- @CLAUDE.md
-</context>
+<objective>
+提供 FAD 工作流的简洁入口说明。
+</objective>
 
-<process>
-展示 FAD 命令主界面：
+## FAD 命令
 
-- `/fad:pipeline` - 默认端到端流程
-- `/fad:help` - 命令概览
-- `/fad:map-codebase` - 项目架构/约定映射
-- `/fad:optimize` - review 后优化
-- `/fad:quality-gate` - 严格发布门禁
-- `/fad:pr-branch` - 准备干净的 PR 分支
-- `/fad:ship` - 最终发布流程
-- `/review` - 代码审查
+| 命令 | 说明 |
+|------|------|
+| `/fad:pipeline` | 端到端交付流水线（发现→计划→构建→review→优化→质量门） |
+| `/fad:optimize` | review 之后的代码质量/性能优化 |
+| `/fad:help` | 本帮助 |
 
-推荐起始命令：`/fad:map-codebase`（首次）或 `/fad:pipeline`（新任务）
+## 支持命令
 
-审计日志目录：`.planning/audit/`
-</process>
+| 命令 | 说明 |
+|------|------|
+| `/review` | 严重级别优先的代码审查 |
+| `/code-quality-gate` | lint + test 质量门检查 |
+
+## 工作目录
+
+- 项目根目录：`/mnt/d/ObsidianVault/store-ontology`
+- FAD 命令目录：`.claude/commands/fad/`
+- 审计日志：`.planning/audit/runs/`
+- 风险文档：`.planning/pm/current/RISK-IMPACT.md`
+
+## 快速开始
+
+```
+/fad:pipeline <任务描述>  # 新功能/需求
+/fad:optimize            # 优化现有代码
+/review                   # 审查代码变更
+```

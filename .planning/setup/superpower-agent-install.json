@@ -1,0 +1,28 @@
+{
+  "tool": "superpower-agent",
+  "version": "0.2.1",
+  "installed_at": "2026-04-20T11:37:10.248Z",
+  "bundle": "standard",
+  "runtimes": [
+    "claude"
+  ],
+  "copied_files": 126,
+  "skipped_files": 19,
+  "features": [
+    "fad_pipeline",
+    "pm_handoff",
+    "brownfield_guardrails",
+    "qc_verify",
+    "strict_quality_gate",
+    "audit_logging",
+    "ops_runbooks",
+    "pr_feedback",
+    "doc_export",
+    "runtime_adapters"
+  ],
+  "summary": {
+    "files": 741,
+    "bytes": 33304572,
+    "estimated_tokens": 1638020
+  }
+}

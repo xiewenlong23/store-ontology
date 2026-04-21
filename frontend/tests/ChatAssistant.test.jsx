@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ChatAssistant from '../src/components/ChatAssistant';
@@ -6,7 +7,7 @@ describe('ChatAssistant', () => {
   it('renders input field and send button', () => {
     render(<ChatAssistant />);
 
-    const input = screen.getByPlaceholderText('输入问题或指令...');
+    const input = screen.getByPlaceholderText(/输入问题或指令/);
     expect(input).toBeDefined();
 
     const button = screen.getByRole('button', { name: '发送' });

@@ -1,55 +1,77 @@
-# Store-Ontology AI Delivery Pipeline
+# store-ontology
+
+门店自动化运营本体论项目（飞书小程序 + TTL 本体 + AI 对话）
 
 ## 项目概述
 
-门店大脑 AI 原生应用本体论项目 —— 飞书小程序为前端，TTL 本体为业务语义层，AI 通过 SPARQL 查询本体 + 推理执行任务。
+本体论驱动的"门店大脑"AI应用——飞书小程序为前端，TTL 本体为业务语义层，AI 通过 SPARQL 查询本体 + 推理执行任务。
 
-核心场景：**临期打折**（当前唯一），后续扩展补货/盘点/排班。
+## 技术栈
 
-## 架构
+- **后端**：Python FastAPI + RDFLib
+- **前端**：React + Vite
+- **本体**：Turtle (TTL) / OWL2 DL
+- **数据**：JSON 配置文件
+- **部署**：飞书小程序
 
-- `app/` — FastAPI 后端（任务管理、折扣推理）
-- `frontend/` — React 前端（飞书小程序）
-- `modules/` — TTL 本体模块（OWL/Turtle）
-- `examples/` — 示例数据和规则引擎
-- `validation/` — 本体验证工具
-- `tests/` — API 和业务逻辑测试
+## 关键路径
 
-## 核心命令
+```
+app/                    # FastAPI 后端
+  routers/
+    tasks.py          # 任务 CRUD
+    reasoning.py      # 对话 + 推理
+  main.py             # FastAPI 入口
+  models.py           # Pydantic 模型
+  data/
+    products.json     # 商品数据
+    tasks.json        # 任务数据
 
-| 命令 | 说明 |
-|------|------|
-| `/fad:pipeline` | 端到端交付流程 |
-| `/fad:optimize` | 编码后优化 |
-| `/fad:quality-gate` | 严格质量门禁 |
-| `/fad:map-codebase` | 项目架构/约定映射 |
-| `/review` | 代码审查 |
-| `/pm-to-build` | PM 交付物转执行 |
+modules/               # TTL 本体模块
+  module1-worktask/
+    WORKTASK-MODULE.ttl  # 临期打折本体（1256 triples）
 
-## 交付物规范
+examples/
+  clearance_engine.py  # TTL 推理引擎（CLI）
+  DEMO-DISCOUNT-001.ttl # 示例实例数据
+  products.json         # 示例商品
 
-PM 交付包存于 `.planning/pm/current/`:
-- `PRD.md` — 产品需求（含需求 ID）
-- `SPRINT.md` — 当前 Sprint 范围
-- `STORIES.md` — 用户故事和验收标准
-- `HANDOFF.md` — 工程约束、设计输入、风险
-- `RISK-IMPACT.md` — 风险登记和影响地图
+frontend/src/          # React 前端
+  components/
+    ChatAssistant.jsx  # AI 对话组件
+    ProductCard.jsx    # 商品卡片
+  api.js              # API 调用
 
-## 质量门禁
+validation/
+  validate_ontology.py  # TTL 验证脚本
+```
 
-- 每次实现后必须运行 `review`
-- `fad:optimize` 必须在 review 之后
-- `fad:quality-gate` 是发布的硬性门禁
-- 高危/阻塞风险未解决不得发布
+## FAD 工作流
 
-## 代码规范
+```
+/fad:pipeline <任务>   # 端到端交付
+/fad:optimize          # 代码优化
+/review                # 代码审查
+```
 
-- Python: Pydantic models, Enum, type hints
-- React: functional components, hooks
-- TTL: OWL2 DL, 标准本体建模
-- 测试: pytest, 隔离数据
+## 常用命令
 
-## 审计规则
+```bash
+# TTL 语法验证
+rapper -i turtle -o ntriples file://modules/module1-worktask/WORKTASK-MODULE.ttl
 
-每个关键步骤必须写入审计日志：
-`.planning/audit/runs/<run-id>/`
+# Python 测试
+PYTHONPATH=/mnt/d/ObsidianVault/store-ontology pytest tests/ -v
+
+# 质量门
+python3 .claude/scripts/code_quality_gate.py --repo-root .
+
+# 审计日志
+python3 .claude/scripts/audit_log.py --step test-step --command "test" --status done --goal "测试"
+```
+
+## 注意事项
+
+- TTL 本体修改后用 `rapper` 验证语法
+- FastAPI 路由已配置 Vite 代理（开发环境），生产需配 CORS
+- clearance_engine.py 假设从 `examples/` 目录运行

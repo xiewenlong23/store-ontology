@@ -1,17 +1,32 @@
-# RISK-IMPACT.md
+# 风险与影响评估
 
-## 风险登记
+## 当前风险项
 
-| ID | 风险 | 严重性 | 状态 | 修复措施 |
-|----|------|--------|------|----------|
-| R-001 | TTL 本体文件被覆盖为空文件 | Critical | ✅ 已修复 | 从 GitHub 旧 commit 恢复（2504行） |
-| R-002 | api.js 缺少 fetchTasks 函数 | Critical | ✅ 已修复 | 补充完整函数定义 |
-| R-003 | 硬编码相对路径 | Medium | ✅ 已修复 | 用 Path 模块重构（tasks.py, reasoning.py） |
-| R-004 | 前端无测试覆盖 | Medium | ✅ 已修复 | 添加 Vitest + React Testing Library 测试 |
+### 高风险 (High)
+| ID | 模块 | 风险描述 | 影响 | 状态 |
+|----|------|----------|------|------|
+| R-01 | FastAPI | 无 CORS 配置，直接 API 调用会失败 | 前端无法调用后端 | 待修复 |
+| R-02 | reasoning.py | `/products` 返回 mock 数据而非真实 JSON | 数据不一致 | 待修复 |
 
-## 修复验证
+### 中风险 (Medium)
+| ID | 模块 | 风险描述 | 影响 | 状态 |
+|----|------|----------|------|------|
+| R-03 | clearance_engine.py | 硬编码日期 `REF_DATE = date(2026, 4, 19)` | 2026年后无法正常工作 | 待修复 |
+| R-04 | reasoning.py | 文件不存在时返回 500 无友好错误 | 用户体验差 | 待修复 |
+| R-05 | 意图识别 | 纯字符串包含匹配，措辞变化即失效 | 实际使用受限 | 待改进 |
 
-- Python 测试：7 passed
-- api.js：已添加 fetchTasks
-- 路径重构：DATA_DIR + TASKS_FILE/PRODUCTS_FILE
-- 前端测试：3 个测试文件（ProductCard, ChatAssistant, Dashboard）
+### 低风险 (Low)
+| ID | 模块 | 风险描述 | 影响 | 状态 |
+|----|------|----------|------|------|
+| R-06 | frontend | 每帧重算 `daysLeft`，无 useMemo | 性能微损 | 优化项 |
+| R-07 | 多处 | 空 `__init__.py` 文件 | 风格不一致 | 清理项 |
+
+## 技术债
+
+- 缺少 GitHub Actions CI/CD
+- 前端缺少错误边界（ErrorBoundary）
+- 无 API 路由前缀统一处理
+
+## 上次 Review
+- 日期：2026-04-20
+- 发现：Critical 1 项，Important 6 项，Minor 2 项

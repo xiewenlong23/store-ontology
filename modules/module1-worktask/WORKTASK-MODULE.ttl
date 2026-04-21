@@ -126,7 +126,7 @@ so:triggerReason a owl:DatatypeProperty ;
 # 推荐折扣幅度
 so:recommendedDiscountRate a owl:DatatypeProperty ;
     rdfs:domain so:WorkTask ;
-    rdfs:range xsd:string ;
+    rdfs:range xsd:decimal ;
     rdfs:label "推荐折扣幅度"@zh-CN ;
     rdfs:label "recommended discount rate"@en ;
     rdfs:comment "系统推理得出的推荐折扣，如3折、5折。参考保质期剩余天数和库存数量"@zh-CN .
@@ -142,7 +142,7 @@ so:recommendedReason a owl:DatatypeProperty ;
 # 确认折扣幅度
 so:confirmedDiscountRate a owl:DatatypeProperty ;
     rdfs:domain so:WorkTask ;
-    rdfs:range xsd:string ;
+    rdfs:range xsd:decimal ;
     rdfs:label "确认折扣幅度"@zh-CN ;
     rdfs:label "confirmed discount rate"@en ;
     rdfs:comment "店长最终确认的折扣幅度，或系统自动确认的值"@zh-CN .
@@ -150,7 +150,7 @@ so:confirmedDiscountRate a owl:DatatypeProperty ;
 # 实际执行折扣
 so:executedDiscountRate a owl:DatatypeProperty ;
     rdfs:domain so:WorkTask ;
-    rdfs:range xsd:string ;
+    rdfs:range xsd:decimal ;
     rdfs:label "实际执行折扣"@zh-CN ;
     rdfs:label "executed discount rate"@en ;
     rdfs:comment "员工实际执行时的折扣，可能与确认折扣不同（如现场调整）"@zh-CN .

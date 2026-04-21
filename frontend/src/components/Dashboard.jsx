@@ -11,23 +11,29 @@ const CATEGORY_NAMES = {
 export default function Dashboard() {
   const [products, setProducts] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
+    let cancelled = false;
     fetchProducts()
-      .then(setProducts)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .then((data) => { if (!cancelled) setProducts(data); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
-
-  const grouped = products.reduce((acc, p) => {
-    if (!acc[p.category]) acc[p.category] = [];
-    acc[p.category].push(p);
-    return acc;
-  }, {});
 
   if (loading) {
     return <div className="text-center py-8 text-gray-500">加载中...</div>;
   }
+  if (error) {
+    return <div className="text-center py-8 text-red-500">加载失败：{error}</div>;
+  }
+
+  const grouped = useMemo(() => products.reduce((acc, p) => {
+    if (!acc[p.category]) acc[p.category] = [];
+    acc[p.category].push(p);
+    return acc;
+  }, {}), [products]);
 
   return (
     <div className="space-y-4">

@@ -1,7 +1,7 @@
 ---
 name: fad:pipeline
-description: 统一 FAD 交付流水线，从需求到交付，严格 review/optimize 门禁
-argument-hint: "<需求或阶段> [--mode brownfield|greenfield]"
+description: 端到端交付流水线，从需求到完成交付
+argument-hint: "<任务描述>"
 allowed-tools:
   - Read
   - Write
@@ -9,63 +9,64 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Task
 ---
 
 <objective>
-运行一个端到端流水线，包含明确的阶段、严格的质量门禁和完整的审计跟踪。
+跑一个完整的端到端流水线，包含明确的阶段、严格的质量门、完整的审计追踪。
 </objective>
 
 <context>
-输入: $ARGUMENTS
+项目：store-ontology（门店自动化运营本体）
+根目录：/mnt/d/ObsidianVault/store-ontology
+技术栈：Python (FastAPI) + React + TTL/RDF 本体论
 
-阶段命令:
-- @.claude/commands/fad/optimize.md
-- @.claude/commands/fad/quality-gate.md
-- @.claude/commands/fad/ship.md
-- @.claude/commands/fad/pr-branch.md
+关键参考：
 - @.claude/commands/review.md
-
-审计/日志:
+- @.claude/commands/fad/optimize.md
 - @.claude/scripts/audit_log.py
-- @.planning/pm/current/
-
-交付物:
-- @.planning/pm/current/
+- @.planning/pm/current/RISK-IMPACT.md
 </context>
 
 <process>
-1. 解析输入，确定运行模式（brownfield 或 greenfield）
-2. 生成 run ID 并创建审计记录：
-   - 运行 `python3 .claude/scripts/audit_log.py --step fad-pipeline-start --command "fad:pipeline" --goal "$ARGUMENTS" --status done`
-   - 捕获 `run_id` 并用于每个阶段的日志
-3. 理解需求阶段：
-   - 明确需求范围
-   - 确定是 greenfield 新功能还是 brownfield 改进
-4. 规划/执行阶段：
-   - brownfield 模式：先运行 `fad:map-codebase` 了解项目结构
-   - 拆分任务，编写实现计划
-5. 验证阶段：
-   - 运行基础测试验证
-6. Review 阶段（严格）：
-   - 运行 `review`
-   - 阻塞级问题必须解决
-7. 优化阶段（发布前必须）：
-   - 运行 `fad:optimize`
-   - 保持行为稳定
-8. 质量门禁阶段（严格）：
-   - 运行 `fad:quality-gate`
-   - lint/类型检查/测试失败或高危风险未解决则阻塞
-9. 结束分支阶段：
-   - 如果所有门禁通过，提供：
-     - 创建干净 PR 分支 (`fad:pr-branch`)
-     - 打开 PR / 发布流程 (`fad:ship`)
-     - 继续开发
-10. 为每个阶段追加 markdown 审计日志到 `.planning/audit/runs/<run_id>/`
-11. 返回简洁流水线报告：
-    - run_id
-    - 各阶段状态
-    - 门禁结果
-    - 阻塞/风险
-    - 推荐下一步命令
+## Phase 1：理解需求
+1. 解析用户输入，生成 run_id
+2. 运行：`python3 .claude/scripts/audit_log.py --step fad-pipeline-start --command "fad:pipeline" --goal "$ARGUMENTS" --status done`
+3. 确认工作范围和边界
+
+## Phase 2：发现与分析
+1. 分析现有代码结构（TTL 本体、FastAPI、React）
+2. 检查相关模块的现状
+3. 识别风险和依赖
+
+## Phase 3：规划与执行
+1. 制定实现计划
+2. TDD 方式实现（先写测试）
+3. TTL 本体修改需用 rapper 验证语法
+4. Python 代码需保持向后兼容
+
+## Phase 4：Review
+1. 运行 `/review` 进行严重级别优先审查
+2. blocker 级别问题必须修复后才能继续
+
+## Phase 5：优化（必须）
+1. 运行 `/fad:optimize`
+2. 消除重复代码、死分支
+3. 改善命名和模块边界
+4. 不得改变行为/需求
+
+## Phase 6：质量门（必须）
+1. 运行 `python3 .claude/scripts/code_quality_gate.py --repo-root /mnt/d/ObsidianVault/store-ontology`
+2. TTL 语法检查：`rapper -i turtle -o ntriples`
+3. Python 测试（如有）：`PYTHONPATH=/mnt/d/ObsidianVault/store-ontology pytest`
+4. 安全扫描：`python3 .claude/scripts/secrets_scan.py`
+
+## Phase 7：交付
+1. 所有质量门通过后，提供：
+   - 变更摘要
+   - 测试结果
+   - 剩余风险
+2. 询问是否创建 PR 或保留分支继续开发
+
+## 审计日志
+每个阶段完成后追加日志到 `.planning/audit/runs/<run_id>/`
 </process>
