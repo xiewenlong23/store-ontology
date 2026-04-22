@@ -141,41 +141,27 @@ class SPARQLService:
         查询豁免规则
 
         Args:
-            category_uri: 可选，限定品类URI
+            category_uri: 可选，限定品类URI（目前未使用，保留参数兼容）
 
         Returns:
             豁免规则列表，每条包含 exemption_type, exemption_reason, rule_source
         """
-        if category_uri:
-            query = f"""
-            PREFIX so: <https://store-ontology.example.com/retail#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        # 修复：使用 so:exemptionType 属性路径查询 NamedIndividual，
+        # 而非错误地通过 rdfs:subClassOf 查找 ExemptionType 类
+        query = """
+        PREFIX so: <https://store-ontology.example.com/retail#>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-            SELECT ?exemptionType ?exemptionReason ?ruleSource ?ruleStatus
-            WHERE {{
-                ?rule a ?exemptionType .
-                ?exemptionType rdfs:subClassOf so:ExemptionType .
-                OPTIONAL {{ ?rule so:exemptionReason ?exemptionReason }}
-                OPTIONAL {{ ?rule so:ruleSource ?ruleSource }}
-                OPTIONAL {{ ?rule so:ruleStatus ?ruleStatus }}
-                FILTER(STRSTARTS(STR(?exemptionType), "https://store-ontology.example.com/retail#Exemption"))
-            }}
-            """
-        else:
-            query = """
-            PREFIX so: <https://store-ontology.example.com/retail#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-            SELECT ?rule ?exemptionType ?exemptionReason ?ruleSource ?ruleStatus
-            WHERE {
-                ?rule a ?exemptionClass .
-                ?exemptionClass rdfs:subClassOf so:ExemptionType .
-                BIND(REPLACE(STR(?exemptionClass), "https://store-ontology.example.com/retail#", "") AS ?exemptionType)
-                OPTIONAL { ?rule so:exemptionReason ?exemptionReason }
-                OPTIONAL { ?rule so:ruleSource ?ruleSource }
-                OPTIONAL { ?rule so:ruleStatus ?ruleStatus }
-            }
-            """
+        SELECT ?rule ?exemptionType ?exemptionReason ?ruleSource ?ruleStatus
+        WHERE {
+            ?rule so:exemptionType ?exemptionType .
+            OPTIONAL { ?rule so:exemptionReason ?exemptionReason }
+            OPTIONAL { ?rule so:ruleSource ?ruleSource }
+            OPTIONAL { ?rule so:ruleStatus ?ruleStatus }
+            # 过滤确保是本体中定义的 ExemptionType NamedIndividual
+            FILTER(STRSTARTS(STR(?exemptionType), "https://store-ontology.example.com/retail#ExemptionType"))
+        }
+        """
         return self.query(query)
 
     def check_product_exemption(

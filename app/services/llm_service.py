@@ -13,9 +13,9 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
-MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
-MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY", "")
-MODEL_NAME = "MiniMax-Text-01"  # MiniMax Text 模型
+MINIMAX_BASE_URL = "https://api.minimaxi.com/anthropic"
+MINIMAX_API_KEY=os.getenv("MINIMAX_API_KEY", "")
+MODEL_NAME = "MiniMax-M2.7"  # MiniMax M2.7 模型
 
 
 class MiniMaxLLM:

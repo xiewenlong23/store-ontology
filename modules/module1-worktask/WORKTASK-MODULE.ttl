@@ -573,6 +573,16 @@ so:TaskOverdue a owl:NamedIndividual ;
     rdfs:label "Overdue"@en ;
     rdfs:subClassOf so:TaskStatus .
 
+so:TaskExecuted a owl:NamedIndividual ;
+    rdfs:label "已执行"@zh-CN ;
+    rdfs:label "Executed"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
+so:TaskReviewed a owl:NamedIndividual ;
+    rdfs:label "已复核"@zh-CN ;
+    rdfs:label "Reviewed"@en ;
+    rdfs:subClassOf so:TaskStatus .
+
 # --- TaskPriority 枚举类 ---
 so:TaskPriority a owl:Class ;
     rdfs:label "任务优先级"@zh-CN ;
@@ -750,6 +760,82 @@ so:clearanceStatus a owl:ObjectProperty ;
     rdfs:range so:ClearanceStatus ;
     rdfs:label "出清状态"@zh-CN ;
     rdfs:label "Clearance Status"@en .
+
+# 所属门店（SKU 归属哪个门店）
+so:store a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:Store ;
+    rdfs:label "所属门店"@zh-CN ;
+    rdfs:label "Store"@en ;
+    rdfs:comment "SKU 所属的门店，关联 so:Store 实体"@zh-CN ;
+    owl:inverseOf so:hasSKU .
+
+# 门店拥有的 SKU（逆属性）
+so:hasSKU a owl:ObjectProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range so:SKU ;
+    rdfs:label "门店商品"@zh-CN ;
+    rdfs:label "Has SKU"@en ;
+    owl:inverseOf so:store .
+
+# 商品ID（JSON product_id 映射到 TTL）
+so:productId a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "商品ID"@zh-CN ;
+    rdfs:label "Product ID"@en ;
+    rdfs:comment "商品唯一标识，映射自 products.json 的 product_id 字段"@zh-CN .
+
+# 库存（件）
+so:stock a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:integer ;
+    rdfs:label "库存数量"@zh-CN ;
+    rdfs:label "Stock Quantity"@en ;
+    rdfs:comment "当前库存件数"@zh-CN .
+
+# 原价
+so:originalPrice a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "原价"@zh-CN ;
+    rdfs:label "Original Price"@en .
+
+# 当前售价
+so:currentPrice a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "当前售价"@zh-CN ;
+    rdfs:label "Current Price"@en .
+
+# 是否进口
+so:isImported a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "是否进口"@zh-CN ;
+    rdfs:label "Is Imported"@en .
+
+# 是否有机
+so:isOrganic a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "是否有机"@zh-CN ;
+    rdfs:label "Is Organic"@en .
+
+# 是否促销中
+so:isPromoted a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "是否促销"@zh-CN ;
+    rdfs:label "Is Promoted"@en .
+
+# 到货天数
+so:arrivalDays a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:integer ;
+    rdfs:label "到货天数"@zh-CN ;
+    rdfs:label "Days Since Arrival"@en ;
+    rdfs:comment "商品到货至今的天数"@zh-CN .
 
 # --- ClearanceStatus 枚举 ---
 so:ClearanceStatus a owl:Class ;
@@ -1942,12 +2028,6 @@ so:Rule a owl:Class ;
 # ============================================================
 # 补充部分：品类出清促销规则本体
 # ============================================================
-# 前缀声明（与主文件保持一致）
-@prefix so: <https://store-ontology.example.com/retail#> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 # 本体建模：超市行业商品出清促销规则
 # 
 # 核心概念：
@@ -2138,6 +2218,40 @@ so:TierShelfLife15to30Days a owl:Class ;
 # 每个品类 × 紧迫度 = 一条出清规则
 # 规则定义了适用的折扣层级序列
 
+# --- ClearanceRule ObjectProperty 声明 ---
+so:appliesToCategory a owl:ObjectProperty ;
+    rdfs:domain so:ClearanceRule ;
+    rdfs:range so:Category ;
+    rdfs:label "适用于品类"@zh-CN ;
+    rdfs:label "Applies to Category"@en .
+
+so:hasDiscountTier a owl:ObjectProperty ;
+    rdfs:domain so:ClearanceRule ;
+    rdfs:range so:DiscountTier ;
+    rdfs:label "折扣层级"@zh-CN ;
+    rdfs:label "Has Discount Tier"@en .
+
+so:minimumExpiryDaysForClearance a owl:DatatypeProperty ;
+    rdfs:domain so:ClearanceRule ;
+    rdfs:range xsd:integer ;
+    rdfs:label "最低临期天数"@zh-CN ;
+    rdfs:label "Minimum Expiry Days for Clearance"@en ;
+    rdfs:comment "触发出清的最低临期天数阈值，低于此天数则激活出清规则"@zh-CN .
+
+# --- ClearanceRule Class ---
+so:ClearanceRule a owl:Class ;
+    rdfs:label "出清规则"@zh-CN ;
+    rdfs:label "Clearance Rule"@en ;
+    rdfs:comment "定义某品类的临期出清折扣规则，包含适用的折扣层级序列"@zh-CN .
+
+# --- DiscountTier Class (层级基类) ---
+so:DiscountTier a owl:Class ;
+    rdfs:label "折扣层级"@zh-CN ;
+    rdfs:label "Discount Tier"@en ;
+    rdfs:comment "按保质期剩余天数划分的折扣层级"@zh-CN .
+
+# --- (UrgencyLevel moved to 第十一部分) ---
+
 # 生鲜出清规则（高紧迫度：1天→1折，2-3天→3折，4-7天→6折）
 so:RuleFreshProduceClearance a owl:Class ;
     rdfs:label "生鲜出清规则"@zh-CN ;
@@ -2292,6 +2406,32 @@ so:RuleDailyFreshClearance a owl:Class ;
 # ------------------------------------------------------------
 # 第十部分：豁免规则（ExemptionRule）
 # ------------------------------------------------------------
+
+# --- ExemptionRule ObjectProperty 声明 ---
+so:exemptionType a owl:ObjectProperty ;
+    rdfs:domain so:ExemptionRule ;
+    rdfs:range so:ExemptionType ;
+    rdfs:label "豁免类型"@zh-CN ;
+    rdfs:label "Exemption Type"@en .
+
+so:exemptionReason a owl:DatatypeProperty ;
+    rdfs:domain so:ExemptionRule ;
+    rdfs:range xsd:string ;
+    rdfs:label "豁免原因"@zh-CN ;
+    rdfs:label "Exemption Reason"@en .
+
+so:ruleSource a owl:ObjectProperty ;
+    rdfs:domain so:ExemptionRule ;
+    rdfs:range so:RuleSource ;
+    rdfs:label "规则来源"@zh-CN ;
+    rdfs:label "Rule Source"@en .
+
+so:ruleStatus a owl:ObjectProperty ;
+    rdfs:domain so:ExemptionRule ;
+    rdfs:range so:RuleStatus ;
+    rdfs:label "规则状态"@zh-CN ;
+    rdfs:label "Rule Status"@en .
+
 # 豁免规则：定义哪些情况下商品不参与打折
 
 # 进口商品不参与临期打折（品质要求高）
@@ -2369,6 +2509,10 @@ so:ExemptionStoreLocal a owl:Class ;
 # ------------------------------------------------------------
 
 # 紧迫度
+so:UrgencyLevel a owl:Class ;
+    rdfs:label "紧迫度等级"@zh-CN ;
+    rdfs:comment "商品出清的紧迫程度分级"@zh-CN .
+
 so:UrgencyCritical a owl:NamedIndividual ;
     rdfs:label "紧急"@zh-CN ;
     rdfs:label "Critical"@en ;
@@ -2394,11 +2538,11 @@ so:UrgencyPreventive a owl:NamedIndividual ;
     rdfs:label "Preventive"@en ;
     rdfs:subClassOf so:UrgencyLevel .
 
-so:UrgencyLevel a owl:Class ;
-    rdfs:label "紧迫度等级"@zh-CN ;
-    rdfs:comment "商品出清的紧迫程度分级"@zh-CN .
-
 # 品类类型
+so:CategoryType a owl:Class ;
+    rdfs:label "品类类型"@zh-CN ;
+    rdfs:comment "品类的温度保存类型分类"@zh-CN .
+
 so:CategoryTypeFresh a owl:NamedIndividual ;
     rdfs:label "鲜品类"@zh-CN ;
     rdfs:subClassOf so:CategoryType .
@@ -2415,11 +2559,10 @@ so:CategoryTypeAmbient a owl:NamedIndividual ;
     rdfs:label "常温品类"@zh-CN ;
     rdfs:subClassOf so:CategoryType .
 
-so:CategoryType a owl:Class ;
-    rdfs:label "品类类型"@zh-CN ;
-    rdfs:comment "品类的温度保存类型分类"@zh-CN .
-
 # 规则状态
+so:RuleStatus a owl:Class ;
+    rdfs:label "规则状态"@zh-CN .
+
 so:RuleStatusActive a owl:NamedIndividual ;
     rdfs:label "生效中"@zh-CN ;
     rdfs:subClassOf so:RuleStatus .
@@ -2432,10 +2575,10 @@ so:RuleStatusPendingApproval a owl:NamedIndividual ;
     rdfs:label "待审批"@zh-CN ;
     rdfs:subClassOf so:RuleStatus .
 
-so:RuleStatus a owl:Class ;
-    rdfs:label "规则状态"@zh-CN .
-
 # 规则来源
+so:RuleSource a owl:Class ;
+    rdfs:label "规则来源"@zh-CN .
+
 so:RuleSourceHeadquarters a owl:NamedIndividual ;
     rdfs:label "总部规则"@zh-CN ;
     rdfs:label "Headquarters"@en ;
@@ -2446,10 +2589,10 @@ so:RuleSourceStore a owl:NamedIndividual ;
     rdfs:label "Store"@en ;
     rdfs:subClassOf so:RuleSource .
 
-so:RuleSource a owl:Class ;
-    rdfs:label "规则来源"@zh-CN .
-
 # 豁免类型
+so:ExemptionType a owl:Class ;
+    rdfs:label "豁免类型"@zh-CN .
+
 so:ExemptionTypeImported a owl:NamedIndividual ;
     rdfs:label "进口商品"@zh-CN ;
     rdfs:subClassOf so:ExemptionType .
@@ -2474,10 +2617,10 @@ so:ExemptionTypeStoreLocal a owl:NamedIndividual ;
     rdfs:label "门店本地"@zh-CN ;
     rdfs:subClassOf so:ExemptionType .
 
-so:ExemptionType a owl:Class ;
-    rdfs:label "豁免类型"@zh-CN .
-
 # 审批状态
+so:ApprovalStatus a owl:Class ;
+    rdfs:label "审批状态"@zh-CN .
+
 so:ApprovalStatusPending a owl:NamedIndividual ;
     rdfs:label "待审批"@zh-CN ;
     rdfs:subClassOf so:ApprovalStatus .
@@ -2490,15 +2633,12 @@ so:ApprovalStatusRejected a owl:NamedIndividual ;
     rdfs:label "已拒绝"@zh-CN ;
     rdfs:subClassOf so:ApprovalStatus .
 
-so:ApprovalStatus a owl:Class ;
-    rdfs:label "审批状态"@zh-CN .
-
 # 适用范围
+so:StoreScope a owl:Class ;
+    rdfs:label "门店适用范围"@zh-CN .
+
 so:StoreScopeAll a owl:NamedIndividual ;
     rdfs:label "全部门店"@zh-CN ;
     rdfs:subClassOf so:StoreScope .
-
-so:StoreScope a owl:Class ;
-    rdfs:label "门店适用范围"@zh-CN .
 
 ########## END OF CLEARANCE RULE MODULE ##########

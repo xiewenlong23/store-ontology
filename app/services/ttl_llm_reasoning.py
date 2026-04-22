@@ -189,6 +189,10 @@ def reason_discount_llm(
     expiry_date: date,
     stock: int,
     use_llm: bool = True,
+    is_imported: bool = False,
+    is_organic: bool = False,
+    is_promoted: bool = False,
+    arrival_days: Optional[int] = None,
 ) -> dict:
     """
     Layer 2: TTL + LLM 协同折扣推理
@@ -251,10 +255,10 @@ def reason_discount_llm(
     exemption = sparql.check_product_exemption(
         product_id=product_id,
         category_uri="",
-        is_imported=False,
-        is_organic=False,
-        is_promoted=False,
-        arrival_days=None,
+        is_imported=is_imported,
+        is_organic=is_organic,
+        is_promoted=is_promoted,
+        arrival_days=arrival_days,
     )
 
     is_exempted = exemption is not None
@@ -279,22 +283,9 @@ def reason_discount_llm(
 
     # Step 4: TTL 降级 fallback
     if matched_tier is None:
-        # 使用标准分级
-        if days_left <= 1:
-            tier_num, rec_discount = 1, 0.20
-            discount_range = [0.10, 0.50]
-        elif days_left <= 3:
-            tier_num, rec_discount = 2, 0.40
-            discount_range = [0.30, 0.60]
-        elif days_left <= 7:
-            tier_num, rec_discount = 3, 0.70
-            discount_range = [0.50, 0.80]
-        elif days_left <= 14:
-            tier_num, rec_discount = 4, 0.85
-            discount_range = [0.70, 0.90]
-        else:
-            tier_num, rec_discount = 5, 0.95
-            discount_range = [0.90, 1.00]
+        # 使用共享降级规则
+        from app.services.discount_constants import get_fallback_tier
+        tier_num, rec_discount, discount_range = get_fallback_tier(days_left)
         tier_name = f"Tier{tier_num}"
         matched_tier = {"tier": tier_name, "urgency": "Medium"}
 
@@ -494,7 +485,10 @@ def explain_discount_reasoning(
     """
     from app.models import ProductCategory
 
-    cat = ProductCategory(category) if category else ProductCategory.DAILY_FRESH
+    try:
+        cat = ProductCategory(category) if category else ProductCategory.DAILY_FRESH
+    except ValueError:
+        cat = ProductCategory.DAILY_FRESH
 
     # 查 TTL 规则（ttl_query_clearance_rules 只接受 category 参数）
     rules = ttl_query_clearance_rules(category=category or "daily_fresh")

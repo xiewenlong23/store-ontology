@@ -1,1 +1,54 @@
-[]
+[
+  {
+    "product_id": "P001",
+    "name": "嫩豆腐",
+    "category": "daily_fresh",
+    "expiry_date": "2026-04-23",
+    "stock": 50,
+    "store_id": "STORE-001",
+    "price": 8.5,
+    "is_imported": false,
+    "is_organic": false,
+    "is_promoted": false,
+    "arrival_days": 10
+  },
+  {
+    "product_id": "P002",
+    "name": "鲜牛奶",
+    "category": "daily_fresh",
+    "expiry_date": "2026-04-22",
+    "stock": 80,
+    "store_id": "STORE-001",
+    "price": 15.0,
+    "is_imported": false,
+    "is_organic": false,
+    "is_promoted": false,
+    "arrival_days": 5
+  },
+  {
+    "product_id": "P003",
+    "name": "面包",
+    "category": "bakery",
+    "expiry_date": "2026-04-25",
+    "stock": 30,
+    "store_id": "STORE-001",
+    "price": 12.0,
+    "is_imported": false,
+    "is_organic": false,
+    "is_promoted": false,
+    "arrival_days": 3
+  },
+  {
+    "product_id": "P004",
+    "name": "日配鲜奶",
+    "category": "daily_fresh",
+    "expiry_date": "2026-04-24",
+    "stock": 60,
+    "store_id": "STORE-001",
+    "price": 18.0,
+    "is_imported": true,
+    "is_organic": false,
+    "is_promoted": false,
+    "arrival_days": 2
+  }
+]

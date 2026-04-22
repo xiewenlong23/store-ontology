@@ -14,13 +14,7 @@ router = APIRouter()
 DATA_DIR = Path(__file__).parent.parent / "data"
 PRODUCTS_FILE = DATA_DIR / "products.json"
 
-DISCOUNT_TIERS = {
-    1: (0.10, 0.50, 0.20),   # T1: 0-1 days -> 10-50%, rec 20%
-    2: (0.30, 0.60, 0.40),   # T2: 2-3 days -> 30-60%, rec 40%
-    3: (0.50, 0.80, 0.70),   # T3: 4-7 days -> 50-80%, rec 70%
-    4: (0.70, 0.90, 0.85),   # T4: 8-14 days -> 70-90%, rec 85%
-    5: (0.90, 1.00, 0.95),   # T5: 15-30 days -> 90-100%, rec 95%
-}
+from app.services.discount_constants import DISCOUNT_TIERS, get_fallback_tier
 
 URGENCY_MAP = {
     ProductCategory.DAILY_FRESH: 1,
@@ -74,6 +68,11 @@ class ReasoningRequest(BaseModel):
     category: ProductCategory
     expiry_date: date
     stock: int
+    # 豁免检查字段（可选，未提供则按 False/None 处理）
+    is_imported: bool = False
+    is_organic: bool = False
+    is_promoted: bool = False
+    arrival_days: Optional[int] = None
 
 class ReasoningResponse(BaseModel):
     product_id: str
@@ -159,25 +158,9 @@ def recommend_discount(req: ReasoningRequest):
         # 从 tier 名称解析 tier 编号
         tier = next((num for name, num in _TIER_NAME_TO_NUM.items() if name in tier_name), 1)
     else:
-        # ⚠️ SYNC WARNING: 降级规则硬编码于此，需手动保持与 TTL 本体一致
-        # 当前降级规则值（必须与 WORKTASK-MODULE.ttl 中的 sp:defaultRecDiscount 一致）:
-        #   T1 (0-1天): rec=20%, range=10%-50%
-        #   T2 (2-3天): rec=40%, range=30%-60%
-        #   T3 (4-7天): rec=70%, range=50%-80%
-        #   T4 (8-14天): rec=85%, range=70%-90%
-        #   T5 (15-30天): rec=95%, range=90%-100%
-        # 修改此处规则后必须同步修改 TTL 本体中的对应 triples
-        if days_left <= 1:
-            tier, rec, min_d, max_d = 1, 0.20, 0.10, 0.50
-        elif days_left <= 3:
-            tier, rec, min_d, max_d = 2, 0.40, 0.30, 0.60
-        elif days_left <= 7:
-            tier, rec, min_d, max_d = 3, 0.70, 0.50, 0.80
-        elif days_left <= 14:
-            tier, rec, min_d, max_d = 4, 0.85, 0.70, 0.90
-        else:
-            tier, rec, min_d, max_d = 5, 0.95, 0.90, 1.00
-
+        # 降级 fallback 使用共享规则（与 TTL 本体 clearanceTier 一致）
+        tier, rec, discount_range = get_fallback_tier(days_left)
+        min_d, max_d = discount_range
         reasoning = f"标准 tier T{tier} 定价（无本体规则时降级）"
         auto_create = days_left <= 1
         discount_range = [min_d, max_d]
@@ -192,10 +175,10 @@ def recommend_discount(req: ReasoningRequest):
     exemption = sparql.check_product_exemption(
         product_id=req.product_id,
         category_uri=category_uri or "",
-        is_imported=False,  # TODO: 从商品属性获取
-        is_organic=False,    # TODO: 从商品属性获取
-        is_promoted=False,   # TODO: 从商品属性获取
-        arrival_days=None,   # TODO: 从商品属性获取
+        is_imported=req.is_imported,
+        is_organic=req.is_organic,
+        is_promoted=req.is_promoted,
+        arrival_days=req.arrival_days,
     )
 
     is_exempted = exemption is not None
@@ -287,7 +270,11 @@ def agent_scan_products():
                 product_name=p["name"],
                 category=category,
                 expiry_date=expiry,
-                stock=p["stock"]
+                stock=p["stock"],
+                is_imported=p.get("is_imported", False),
+                is_organic=p.get("is_organic", False),
+                is_promoted=p.get("is_promoted", False),
+                arrival_days=p.get("arrival_days"),
             )
             resp = recommend_discount(req)
             if resp.auto_create_task:

@@ -101,7 +101,7 @@ def _query_pending_products_impl(
             days_left = (exp - today).days
             if days_left < 0:
                 continue
-            if days_left > days_threshold:
+            if days_left >= days_threshold:
                 continue
             if category and p.get("category") != category:
                 continue
@@ -162,7 +162,6 @@ def _query_discount_rules_impl(
     """
     result = ttl_query_clearance_rules(
         category=category,
-        days_left=days_left,
     )
     return {
         "success": True,
@@ -462,13 +461,16 @@ def _query_discount_impl(
     else:
         # 建议型查询：这件商品应该打几折
         exp_date = date.fromisoformat(expiry_date) if expiry_date else None
-        cat = ProductCategory(category) if category else ProductCategory.DAILY_FRESH
+        try:
+            cat = ProductCategory(category) if category else ProductCategory.DAILY_FRESH
+        except ValueError:
+            cat = ProductCategory.DAILY_FRESH
 
         # 查 TTL 规则
-        rules = ttl_query_clearance_rules(category=category or "daily_fresh", days_left=None)
+        rules = ttl_query_clearance_rules(category=category or "daily_fresh")
         if not rules and exp_date:
             days_left = (exp_date - date.today()).days
-            rules = ttl_query_clearance_rules(category=category or "daily_fresh", days_left=days_left)
+            rules = ttl_query_clearance_rules(category=category or "daily_fresh")
 
         # 推理折扣
         discount_result = reason_discount_llm(
@@ -482,7 +484,7 @@ def _query_discount_impl(
 
         # 风险评估
         risk_result = assess_risk_llm(
-            discount_rate=discount_result.get("recommended_discount", 0.3),
+            discount_rate=discount_result.get("recommended_discount") or 0.3,
             stock=stock or 0,
             days_left=discount_result.get("days_left", 0),
             category=cat,
@@ -663,7 +665,115 @@ QUERY_DISCOUNT_SCHEMA = {
 }
 
 
+def _query_pending_with_discount_impl(
+    category: str = None,
+    days_threshold: int = 7,
+    store_id: str = None,
+) -> dict:
+    """
+    查询临期商品并返回每个商品的折扣建议。
+
+    这是一个组合工具：先查临期商品列表，再对每个商品调用折扣推理引擎。
+
+    Args:
+        category: 品类筛选（如 daily_fresh），可选
+        days_threshold: 多少天内到期的商品，默认7天
+        store_id: 门店ID，可选
+
+    Returns:
+        临期商品列表，每个商品包含折扣建议
+    """
+    products = _load_products()
+    today = date.today()
+    result = []
+
+    for p in products:
+        try:
+            exp = date.fromisoformat(p.get("expiry_date", ""))
+            days_left = (exp - today).days
+            if days_left < 0:
+                continue
+            if days_left >= days_threshold:
+                continue
+            if category and p.get("category") != category:
+                continue
+            if store_id and p.get("store_id") != store_id:
+                continue
+
+            # 对每个商品进行折扣推理
+            cat = ProductCategory(p.get("category", "daily_fresh"))
+            discount_result = reason_discount_llm(
+                product_id=p.get("product_id", "UNKNOWN"),
+                product_name=p.get("name", "商品"),
+                category=cat,
+                expiry_date=exp,
+                stock=p.get("stock", 0),
+                use_llm=False,
+            )
+            risk_result = assess_risk_llm(
+                discount_rate=discount_result.get("recommended_discount") or 0.3,
+                stock=p.get("stock", 0),
+                days_left=days_left,
+                category=cat,
+                use_llm=False,
+            )
+
+            item = {
+                **p,
+                "days_left": days_left,
+                "recommended_discount": discount_result.get("recommended_discount"),
+                "discount_range": discount_result.get("discount_range"),
+                "tier": discount_result.get("tier"),
+                "tier_name": discount_result.get("tier_name"),
+                "risk_level": risk_result.get("risk_level"),
+                "auto_confirm": risk_result.get("auto_confirm"),
+            }
+            result.append(item)
+        except (ValueError, TypeError, KeyError):
+            continue
+
+    return {
+        "success": True,
+        "count": len(result),
+        "products": result,
+    }
+
+
+# ============================================================================
+# 组合工具 Schema
+# ============================================================================
+
+QUERY_PENDING_WITH_DISCOUNT_SCHEMA = {
+    "name": "query_pending_with_discount",
+    "description": "查询临期商品并同时返回每个商品的折扣建议。组合了 query_pending_products 和 query_discount 的能力，适合店长一站式了解「临期哪些商品 + 该打几折」。返回商品名称、品类、库存、到期天数、推荐折扣、风险等级。",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "category": {
+                "type": "string",
+                "description": "商品品类，如 daily_fresh（日配）、bakery（烘焙）、frozen（冷冻）等",
+            },
+            "days_threshold": {
+                "type": "integer",
+                "description": "多少天内到期的商品算临期，默认7天",
+                "default": 7,
+            },
+            "store_id": {
+                "type": "string",
+                "description": "门店ID，可选",
+            },
+        },
+    },
+}
+
+
 # 模块导入时注册所有工具
+registry.register(
+    name="query_pending_with_discount",
+    toolset="store",
+    schema=QUERY_PENDING_WITH_DISCOUNT_SCHEMA,
+    handler=_query_pending_with_discount_impl,
+)
 registry.register(
     name="query_pending_products",
     toolset="store",

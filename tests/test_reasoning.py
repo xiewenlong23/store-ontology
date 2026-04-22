@@ -7,7 +7,7 @@ def test_tier1_high_stock():
         product_id="P001",
         product_name="嫩豆腐",
         category=ProductCategory.DAILY_FRESH,
-        expiry_date=date(2026, 4, 21),
+        expiry_date=date(2026, 4, 23),
         stock=150
     )
     resp = recommend_discount(req)
@@ -20,7 +20,7 @@ def test_tier4_normal():
         product_id="P004",
         product_name="蒙牛特仑苏",
         category=ProductCategory.DAIRY,
-        expiry_date=date(2026, 4, 29),
+        expiry_date=date(2026, 5, 1),
         stock=50
     )
     resp = recommend_discount(req)

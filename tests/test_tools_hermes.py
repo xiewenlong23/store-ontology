@@ -28,6 +28,7 @@ class TestToolRegistryImport:
 
         expected = [
             "query_pending_products",
+            "query_pending_with_discount",
             "query_tasks",
             "query_discount_rules",
             "create_task",
