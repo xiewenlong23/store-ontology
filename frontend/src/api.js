@@ -1,5 +1,6 @@
-export async function fetchTasks() {
-  const res = await fetch(`/api/tasks/`);
+export async function fetchTasks(status) {
+  const qs = status && status !== "all" ? `?status=${status}` : "";
+  const res = await fetch(`/api/tasks/${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`);
   return res.json();
 }

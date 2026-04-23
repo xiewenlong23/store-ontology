@@ -1,3 +1,67 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+* { font-family: 'Noto Sans SC', system-ui, sans-serif; }
+
+:root {
+  --accent: oklch(72% 0.18 160);
+  --accent-light: oklch(92% 0.04 160);
+  --warn: oklch(80% 0.18 70);
+  --danger: oklch(70% 0.2 25);
+  --surface: #0f1117;
+  --card: #1a1d27;
+  --border: oklch(1 0 0 / 0.08);
+}
+
+html, body {
+  background: var(--surface);
+  color: #fff;
+  min-height: 100vh;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.btn {
+  transition: all 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: scale(0.97); }
+
+.tab-active {
+  background: oklch(0.35 0.12 160);
+  color: oklch(0.92 0.08 160);
+}
+
+.task-card {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.4);
+}
+
+.progress-ring { transform: rotate(-90deg); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.live-dot { animation: pulse 2s infinite; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.blink { animation: blink 1s infinite; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate { animation: fadeUp 0.3s ease; }
