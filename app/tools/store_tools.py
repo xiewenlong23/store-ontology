@@ -279,6 +279,8 @@ def _confirm_task_impl(
         确认结果
     """
     ctx = get_context()
+    if not ctx.has_permission("task:confirm"):
+        return {"success": False, "error": "权限不足：确认任务需要 manager 或更高角色"}
     tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:
@@ -341,6 +343,8 @@ def _execute_task_impl(
         执行结果
     """
     ctx = get_context()
+    if not ctx.has_permission("task:execute"):
+        return {"success": False, "error": "权限不足：执行任务需要 clerk 或更高角色"}
     tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:
@@ -405,6 +409,8 @@ def _review_task_impl(
         复核结果
     """
     ctx = get_context()
+    if not ctx.has_permission("task:review"):
+        return {"success": False, "error": "权限不足：复核任务需要 manager 或更高角色"}
     tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:

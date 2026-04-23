@@ -1,0 +1,16 @@
+{
+  "roles": {
+    "manager": {
+      "permissions": ["task:read", "task:create", "task:confirm", "task:execute", "task:review", "product:read"],
+      "description": "店长：可创建/确认/执行/复核"
+    },
+    "clerk": {
+      "permissions": ["task:read", "task:execute", "product:read"],
+      "description": "店员：可查看和执行，不能确认/复核"
+    },
+    "headquarters": {
+      "permissions": ["task:read", "task:create", "task:confirm", "task:execute", "task:review", "product:read", "store:view_all"],
+      "description": "总部：全门店权限"
+    }
+  }
+}

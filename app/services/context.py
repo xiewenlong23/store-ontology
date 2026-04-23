@@ -14,6 +14,29 @@ ToolContext — 工具执行上下文
 from dataclasses import dataclass, field
 from typing import Optional, Any
 from contextvars import ContextVar
+import json
+from pathlib import Path
+
+
+# ── 权限配置加载 ────────────────────────────────────────────
+
+def _load_permissions() -> dict:
+    path = Path(__file__).parent.parent.parent / "data" / "permissions.json"
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"roles": {}}
+
+
+_PERMISSIONS = _load_permissions()
+
+
+def _role_permissions(role: str) -> list[str]:
+    return _PERMISSIONS.get("roles", {}).get(role, {}).get("permissions", [])
+
+
+# ── 上下文变量 ──────────────────────────────────────────────
 
 # 全局上下文变量（thread-safe）
 _current_context: ContextVar["ToolContext"] = ContextVar("current_context", default=None)
@@ -53,9 +76,9 @@ class ToolContext:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def has_permission(self, permission: str) -> bool:
-        """检查是否拥有某权限（当前 always True，后续权限服务实现后生效）"""
-        # TODO: 后续接入权限服务
-        return True
+        """检查是否拥有某权限（基于 role-permission 矩阵）"""
+        perms = _role_permissions(self.user_role or "clerk")
+        return permission in perms
 
     def is_manager(self) -> bool:
         """是否是店长"""
@@ -109,6 +132,10 @@ def get_context() -> ToolContext:
         # 兼容：未设置上下文时返回默认单店上下文
         return ToolContext()
     return ctx
+
+
+# 别名：用于 middleware 兼容
+get_current_context = get_context
 
 
 def require_context() -> ToolContext:

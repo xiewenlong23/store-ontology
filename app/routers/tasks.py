@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from app.models import ReductionTask, TaskStatus, RiskLevel, ExemptionType
 from pydantic import BaseModel
 from datetime import datetime, date
 from typing import Optional
 from app.services.data import get_data_service
+from app.services.context import get_context
+from app.middleware.permission import require_role
 import uuid
 import logging
 
@@ -13,6 +15,10 @@ router = APIRouter()
 
 @router.get("/", response_model=list[ReductionTask])
 def list_tasks(store_id: Optional[str] = None, status: Optional[TaskStatus] = None):
+    # Clerk 强制只能看自己门店
+    ctx = get_context()
+    if ctx.user_role == "clerk" and ctx.store_id:
+        store_id = ctx.store_id
     tasks = get_data_service().load_tasks(store_id)
     if store_id:
         tasks = [t for t in tasks if t["store_id"] == store_id]
@@ -94,11 +100,13 @@ def _get_task(tasks: list, task_id: str) -> tuple[int, dict]:
 
 
 @router.patch("/{task_id}/confirm")
+@require_role("manager", "headquarters")
 def confirm_task(task_id: str, req: ConfirmRequest):
     """
     确认任务：Pending → Confirmed
 
     店长审批或AI自动确认后执行此端点。
+    仅 manager/headquarters 可调用。
     """
     tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
@@ -169,11 +177,13 @@ def execute_task(task_id: str, req: ExecuteRequest):
 
 
 @router.patch("/{task_id}/review")
+@require_role("manager", "headquarters")
 def review_task(task_id: str, req: ReviewRequest):
     """
     复核任务：Executed → Reviewed/Completed
 
     店长复核售罄率，确认任务闭环。
+    仅 manager/headquarters 可调用。
     """
     tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
