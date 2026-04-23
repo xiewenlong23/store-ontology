@@ -7,3 +7,6 @@ __pycache__/
 node_modules/
 # Build artifacts
 frontend/dist/
+
+# Environment secrets — NEVER commit
+.env
