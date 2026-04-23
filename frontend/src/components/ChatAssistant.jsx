@@ -111,17 +111,26 @@ export default function ChatAssistant() {
 
   // ========== 发送消息 ==========
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = { id: crypto.randomUUID(), role: "user", content: input };
+  const send = async (text) => {
+    const msgText = text ?? input.trim();
+    if (!msgText || loading) return;
+    const userMsg = { id: crypto.randomUUID(), role: "user", content: msgText };
     setMessages((m) => [...m, userMsg]);
-    const sentInput = input;
-    setInput("");
+    const sentInput = msgText;
+    if (!text) setInput("");
     setLoading(true);
 
     try {
       const data = await unifiedChat(sentInput);
-      const response = data.response || "（无响应）";
+      // 过滤掉 LLM 原始输出的 <tool_call>...</tool_call> 或 <toolcall>...</toolcall> 标签
+      const rawResponse = data.response || "（无响应）";
+      let response = rawResponse
+        .replace(/```json\n?\{[\s\S]*?\}\n?```/g, "")
+        .replace(/\{[\s\S]*?"tool"[\s\S]*?\}/g, "")
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
+        .replace(/<toolcall>[\s\S]*?<\/toolcall>/gi, "")
+        .replace(/<tool name="[^"]*">[\s\S]*?<\/tool>/gi, "")
+        .trim();
 
       // 根据返回内容类型决定渲染方式
       // tool_result 里可能包含结构化数据（商品列表 / 任务列表 / 折扣结果）
@@ -134,6 +143,12 @@ export default function ChatAssistant() {
         // 商品列表
         if (toolResult.products) {
           const prods = Array.isArray(toolResult.products) ? toolResult.products : [];
+          // 前端去重：当 tool_result.products 存在时，从 response 文本中移除产品详细列表行
+          // LLM 会在 response 中嵌入 "商品名\n品类: ... | 库存: ..." 格式的产品描述，
+          // 这与 ProductList 组件渲染的数据重复，需要过滤掉
+          response = response
+            .replace(/^[^\n品类].*\n品类:\s*(daily_fresh|bakery|fresh|meat_poultry|seafood|dairy|frozen|beverage|snack|grain_oil)[^}\n]*\n?/gm, "")
+            .replace(/^[^\n品类][^\n]*\n(?:品类:|库存:|到期:)[^\n]*\n?/gm, "");
           parts.push({ component: <ProductList products={prods} /> });
         } else if (toolResult.pending_products) {
           const prods = Array.isArray(toolResult.pending_products) ? toolResult.pending_products : [];
@@ -229,11 +244,11 @@ export default function ChatAssistant() {
 
       {/* 快捷提示 */}
       <div className="flex flex-wrap gap-1 mt-2 text-xs text-gray-400">
-        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => setInput("帮我创建任务")}>创建任务</span>
-        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => setInput("查询任务状态")}>查询任务</span>
-        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => setInput("有哪些临期商品")}>临期商品</span>
-        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => setInput("确认任务")}>确认任务</span>
-        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => setInput("查询折扣建议")}>折扣建议</span>
+        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => send("帮我创建任务")}>创建任务</span>
+        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => send("查询任务状态")}>查询任务</span>
+        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => send("有哪些临期商品")}>临期商品</span>
+        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => send("确认任务")}>确认任务</span>
+        <span className="bg-gray-100 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-200" onClick={() => send("查询折扣建议")}>折扣建议</span>
       </div>
     </div>
   );

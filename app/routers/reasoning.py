@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
 PRODUCTS_FILE = DATA_DIR / "products.json"
 
 from app.services.discount_constants import DISCOUNT_TIERS, get_fallback_tier

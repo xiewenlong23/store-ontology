@@ -39,6 +39,18 @@ SYSTEM_PROMPT = """你是一个门店大脑 AI 助手，负责帮助店长管理
 - 如果用户问"嫩豆腐要打几折"，你不知道嫩豆腐的到期日和库存，必须先查询商品信息
 - 如果用户说"帮我创建出清任务"，你需要先确认商品信息完整，不完整就先查
 - 操作类工具（create_task/confirm_task/execute_task/review_task）执行后，继续向店长确认下一步
+
+回复格式：
+- 当你完成所有工具调用，只需要直接回答店长的问题，不需要再调用工具
+- 用自然语言组织最终回复，不要输出 JSON 或 continue 字段
+- 当需要生成柱状图时，使用以下 ASCII 格式：
+  商品数量(种)
+  3 ┤   █
+  2 ┤   █   █ █
+  1 ┤ █ █ █ █ █
+  0 ┼─────────────────────
+    0天  1天  2天  3天  4天及以上
+  每个█代表1个商品，Y轴是"商品数量(种)"
 """
 
 
@@ -122,8 +134,16 @@ class AgentExecutor:
             should_continue = decision.get("continue", False)
 
             # LLM 标记结束：reasoning 就是最终回答
+            # 尊重 LLM 的决策，不要用 Python 格式化覆盖 LLM 的自然语言推理
             if not should_continue:
-                final_response = reasoning if reasoning else decision.get("response", "")
+                if reasoning:
+                    final_response = reasoning
+                elif decision.get("response"):
+                    final_response = decision.get("response")
+                else:
+                    final_response = self._build_response_from_result(
+                        final_tool_name, final_tool_result, user_message
+                    ) if final_tool_result else "处理完成。"
                 break
 
             # LLM 无法决策（unknown tool 后会 continue），最多重试 MAX_UNKNOWN_TOOL_RETRIES 次
@@ -165,6 +185,15 @@ class AgentExecutor:
                 final_tool_name, final_tool_result, user_message
             )
 
+        # 过滤掉 <tool_call>...</tool_call> 标签（LLM 输出的原始工具调用标记）
+        import re
+        final_response = re.sub(
+            r'<tool_call>\s*\{[^}]*"tool"[^}]*\}\s*</tool_call>',
+            '',
+            final_response,
+            flags=re.DOTALL
+        ).strip()
+
         return {
             "success": bool(final_tool_result.get("success", False)) if final_tool_result else False,
             "tool_name": final_tool_name,
@@ -180,7 +209,9 @@ class AgentExecutor:
         """
         try:
             llm = get_minimax_llm()
-            response = llm.chat(messages)
+            # 传递工具定义给 LLM（Anthropic 格式）
+            tool_schemas = self._get_tool_schemas()
+            response = llm.chat(messages, tools=tool_schemas)
         except ValueError as e:
             logger.warning("[AgentExecutor] LLM not available: %s", e)
             return {"tool_name": None, "tool_args": {}, "reasoning": "LLM 未配置", "continue": False}
@@ -188,7 +219,35 @@ class AgentExecutor:
             logger.error("[AgentExecutor] LLM call failed: %s", e)
             return {"tool_name": None, "tool_args": {}, "reasoning": f"LLM 错误: {e}", "continue": False}
 
+        # 如果 LLM 返回了结构化工具调用（MiniMax 原生 tool_use）
+        if isinstance(response, dict) and response.get("type") == "tool_call":
+            tool_name = response.get("tool_name")
+            tool_args = response.get("tool_args", {})
+            reasoning = response.get("text", "")
+            return {
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "reasoning": reasoning,
+                "continue": True,
+            }
+
+        # 否则按原有逻辑解析文本响应
         return self._parse_llm_decision(response)
+
+    def _get_tool_schemas(self) -> list:
+        """获取所有工具的 Anthropic 格式 schema 列表（从 OpenAI 格式转换）。"""
+        schemas = []
+        for name, entry in self._tools.items():
+            schema = entry.schema.copy()
+            # OpenAI 格式: {name, description, parameters: {type, properties, ...}}
+            # Anthropic 格式: {name, description, input_schema: {type, properties, ...}}
+            anthropic_schema = {
+                "name": entry.name,
+                "description": schema.get("description", ""),
+                "input_schema": schema.get("parameters", {"type": "object", "properties": {}}),
+            }
+            schemas.append(anthropic_schema)
+        return schemas
 
     def _parse_llm_decision(self, llm_response: str) -> dict:
         """
@@ -202,37 +261,49 @@ class AgentExecutor:
 
         response = llm_response.strip()
 
-        # 尝试 JSON 解析
+        # 尝试 JSON 解析（可能包含在 <tool_call> 标签内）
+        obj = None
         try:
             obj = json.loads(response)
-            if isinstance(obj, dict):
-                tool_name = obj.get("tool") or obj.get("tool_name")
-                tool_args = obj.get("args") or obj.get("tool_args") or {}
-                reasoning = obj.get("reasoning", "")
-                continue_flag = obj.get("continue", True if tool_name else False)
-                final_response = obj.get("response", "")
-
-                # 检查工具名是否合法
-                if tool_name and tool_name not in self._tools:
-                    logger.warning("[AgentExecutor] LLM returned unknown tool: %s", tool_name)
-                    return {
-                        "tool_name": None,
-                        "tool_args": {},
-                        "reasoning": f"工具 {tool_name} 不存在，请基于已有信息重新选择工具或直接回答用户。",
-                        "continue": True,
-                    }
-
-                return {
-                    "tool_name": tool_name,
-                    "tool_args": tool_args,
-                    "reasoning": reasoning or final_response,
-                    "continue": continue_flag,
-                    "response": final_response,
-                }
         except (json.JSONDecodeError, ValueError):
-            pass
+            # 尝试从 <tool_call> 或 <invoke> 标签内提取 JSON
+            match = re.search(r'<(?:tool_call|invoke)[^>]*>([\s\S]*?)</(?:tool_call|invoke)>', response, re.IGNORECASE)
+            if match:
+                inner = match.group(1)
+                # 去掉转义引号（如 \" -> "）
+                inner = inner.replace('\\"', '"').replace('\\n', ' ')
+                try:
+                    obj = json.loads(inner)
+                except (json.JSONDecodeError, ValueError):
+                    pass
 
-        # 非 JSON：检查是否包含工具名
+        if obj and isinstance(obj, dict):
+            tool_name = obj.get("name") or obj.get("tool") or obj.get("tool_name")
+            # MiniMax 格式: "parameters" 而不是 "args"
+            tool_args = obj.get("parameters") or obj.get("args") or obj.get("tool_args") or {}
+            reasoning = obj.get("reasoning", "")
+            continue_flag = obj.get("continue", True if tool_name else False)
+            final_response = obj.get("response", "")
+
+            # 检查工具名是否合法
+            if tool_name and tool_name not in self._tools:
+                logger.warning("[AgentExecutor] LLM returned unknown tool: %s", tool_name)
+                return {
+                    "tool_name": None,
+                    "tool_args": {},
+                    "reasoning": f"工具 {tool_name} 不存在，请基于已有信息重新选择工具或直接回答用户。",
+                    "continue": True,
+                }
+
+            return {
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+                "reasoning": reasoning or final_response,
+                "continue": continue_flag,
+                "response": final_response,
+            }
+
+        # 非 JSON：检查是否包含工具名（JSON格式）
         m = re.search(r'tool\s*[=:\s]+["\']?([a-zA-Z_][a-zA-Z0-9_]*)', response, re.IGNORECASE)
         if m:
             tool_name = m.group(1)
@@ -242,6 +313,32 @@ class AgentExecutor:
                     "tool_name": tool_name,
                     "tool_args": tool_args,
                     "reasoning": response,
+                    "continue": True,
+                }
+
+        # MiniMax XML 格式工具调用: <invoke name="tool_name">...<parameter name="x">value</parameter>...</invoke>
+        # 或 <tool_call>tool_name\nparam="value"\n</tool_call>
+        xml_match = re.search(r'<invoke\s+name=["\']([a-zA-Z_][a-zA-Z0-9_]*)["\']', response, re.IGNORECASE)
+        if not xml_match:
+            # 尝试 <tool_call>tool_name\nparams...</tool_call> 格式
+            xml_match = re.search(r'<tool_call>\s*([a-zA-Z_][a-zA-Z0-9_]*)', response, re.IGNORECASE)
+        
+        if xml_match:
+            tool_name = xml_match.group(1)
+            if tool_name in self._tools:
+                tool_args = self._extract_args_from_xml(response, tool_name)
+                return {
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "reasoning": response,
+                    "continue": True,
+                }
+            else:
+                logger.warning("[AgentExecutor] LLM returned unknown tool: %s", tool_name)
+                return {
+                    "tool_name": None,
+                    "tool_args": {},
+                    "reasoning": f"工具 {tool_name} 不存在，请基于已有信息重新选择工具或直接回答用户。",
                     "continue": True,
                 }
 
@@ -288,8 +385,35 @@ class AgentExecutor:
 
         return args
 
+    def _extract_args_from_xml(self, text: str, tool_name: str) -> dict:
+        """从 MiniMax XML 格式中提取工具参数。"""
+        import re
+        args = {}
+
+        entry = registry.get(tool_name)
+        if not entry:
+            return args
+
+        schema_props = entry.schema.get("parameters", {}).get("properties", {})
+
+        # 提取 <parameter name="x">value</parameter> 格式的参数
+        param_matches = re.findall(r'<parameter\s+name=["\']([^"\']+)["\']>([^<]*)</parameter>', text)
+        for param_name, param_value in param_matches:
+            if param_name in schema_props:
+                # 类型转换
+                prop_type = schema_props[param_name].get("type", "string")
+                if prop_type == "integer" or prop_type == "number":
+                    try:
+                        args[param_name] = int(param_value.strip())
+                    except ValueError:
+                        args[param_name] = param_value.strip()
+                else:
+                    args[param_name] = param_value.strip()
+
+        return args
+
     def _build_response_from_result(
-        self, tool_name: Optional[str], tool_result: Optional[dict], user_message: str
+        self, tool_name: Optional[str], tool_result: Optional[dict], user_message: str, wants_chart: bool = False
     ) -> str:
         if not tool_result:
             return "处理完成，但没有返回结果。"
@@ -299,6 +423,13 @@ class AgentExecutor:
 
         if not tool_name:
             return str(tool_result.get("message", tool_result))
+
+        # 生成柱状图（如果有商品列表且用户要求图表）
+        chart = ""
+        if wants_chart and tool_name in ("query_pending_products", "query_pending_with_discount"):
+            products = tool_result.get("products", [])
+            if products:
+                chart = self._generate_bar_chart(products)
 
         if tool_name == "query_pending_products":
             products = tool_result.get("products", [])
@@ -314,7 +445,35 @@ class AgentExecutor:
                 )
             if count > 5:
                 lines.append(f"...还有 {count - 5} 件商品")
-            return "\n".join(lines)
+            result = "\n".join(lines)
+            if chart:
+                result += "\n\n" + chart
+            return result
+
+        if tool_name == "query_pending_with_discount":
+            products = tool_result.get("products", [])
+            count = tool_result.get("count", len(products))
+            if count == 0:
+                return "当前没有临期商品，库存都很新鲜。"
+            lines = [f"当前共有 {count} 件临期商品："]
+            for p in products[:5]:
+                name = p.get('name', '未知')
+                days = p.get('days_left', '?')
+                stock = p.get('stock', '?')
+                disc = p.get('recommended_discount', 0)
+                disc_display = f"{disc*10:.0f}折" if disc < 1 else f"{disc:.0f}折"
+                risk = p.get('risk_level', '?')
+                risk_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪️")
+                lines.append(
+                    f"- {name}，剩余 {days} 天，库存 {stock} 件，"
+                    f"建议 {disc_display} {risk_emoji}"
+                )
+            if count > 5:
+                lines.append(f"...还有 {count - 5} 件商品")
+            result = "\n".join(lines)
+            if chart:
+                result += "\n\n" + chart
+            return result
 
         if tool_name == "query_tasks":
             tasks = tool_result.get("tasks", [])
@@ -335,7 +494,7 @@ class AgentExecutor:
                     "completed": "已完成",
                 }.get(status, status)
                 lines.append(f"- {status_text}：{num} 个")
-            return "\n".join(lines)
+            return "\\n".join(lines)
 
         if tool_name == "query_discount":
             if tool_result.get("discount_rate") is not None:
@@ -359,9 +518,40 @@ class AgentExecutor:
                 disc_range = r.get("discount_range", [])
                 range_str = f"{disc_range[0]*100:.0f}%-{disc_range[1]*100:.0f}%" if disc_range else "?"
                 lines.append(f"- Tier{tier}：建议 {rec*100:.0f}%（范围 {range_str}）")
-            return "\n".join(lines)
+            return "\\n".join(lines)
 
         if tool_name in ("create_task", "confirm_task", "execute_task", "review_task"):
             return tool_result.get("message", "操作完成。")
 
         return tool_result.get("message", json.dumps(tool_result, ensure_ascii=False, indent=2)[:500])
+
+
+    def _generate_bar_chart(self, products: list) -> str:
+        """生成临期商品柱状图（ASCII 艺术风格）。"""
+        from collections import Counter
+        days_counts = Counter()
+        for p in products:
+            days = p.get("days_left", 0)
+            if days <= 0:
+                label = "0天"
+            elif days == 1:
+                label = "1天"
+            elif days == 2:
+                label = "2天"
+            elif days == 3:
+                label = "3天"
+            else:
+                label = "4天及以上"
+            days_counts[label] += 1
+        ordered_labels = ["0天", "1天", "2天", "3天", "4天及以上"]
+        counts = [days_counts.get(label, 0) for label in ordered_labels]
+        max_count = max(counts) if counts else 1
+        lines = ["📊 临期商品柱状图（按临期天数）", "", "商品数量(种)"]
+        for y in range(max_count, 0, -1):
+            row = f"{y} ┤"
+            for c in counts:
+                row += "  ██" if c >= y else "   "
+            lines.append(row)
+        lines.append("0 ┼" + "─" * (len(counts) * 4))
+        lines.append("  " + "  ".join(ordered_labels))
+        return "\n".join(lines)
