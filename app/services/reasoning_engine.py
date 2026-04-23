@@ -452,6 +452,277 @@ class MediumPathRuleEngine:
         )
 
 
+class SlowPathRuleEngine:
+    """
+    Slow Path - LLM Agent multi-step reasoning helper engine
+
+    Use cases:
+    - "Why is this product discounted at 50%?"
+    - "Analyze recent near-expiry product handling suggestions"
+    - "Compare expiry situation across categories"
+    - "Predict which products will become near-expiry next week"
+    """
+
+    def __init__(self):
+        self._fast_path = FastPathRuleEngine()
+        self._medium_path = MediumPathRuleEngine()
+
+    def evaluate(self, query: str, context: Optional[dict] = None) -> DiscountRule:
+        query_lower = query.lower()
+
+        if "为什么" in query_lower:
+            return self._explain_discount(query_lower, context)
+        if "分析" in query_lower or "建议" in query_lower:
+            return self._analyze_suggest(query_lower, context)
+        if "比较" in query_lower:
+            return self._compare(query_lower, context)
+        if "预测" in query_lower:
+            return self._predict(query_lower, context)
+
+        return self._fallback(query_lower, context)
+
+    def _explain_discount(self, query: str, context: Optional[dict]) -> DiscountRule:
+        if not context or "product" not in context:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.SLOW,
+                reasoning="无法解释：缺少商品信息。请先查询商品详情。"
+            )
+
+        product = context["product"]
+        fast_result = self._fast_path.evaluate(product)
+
+        exemption_type = fast_result.exemption_type
+        exemption_reason = fast_result.exemption_reason
+        discount_rate = fast_result.discount_rate
+
+        days_left = product.get("days_left")
+        if days_left is None:
+            expiry_str = product.get("expiry_date")
+            if expiry_str:
+                from datetime import date
+                try:
+                    days_left = (date.fromisoformat(expiry_str) - date.today()).days
+                except ValueError:
+                    days_left = 999
+
+        product_name = product.get("name", "商品")
+
+        if fast_result.action == Action.EXEMPTED:
+            reason = exemption_reason or "豁免规则"
+            reasoning = "【%s】不参与打折：%s。豁免类型：%s。" % (product_name, reason, exemption_type)
+        elif fast_result.action == Action.NO_ACTION:
+            if days_left is not None and days_left < 0:
+                reasoning = "【%s】已过期 %d 天，按照规则不能打折。" % (product_name, abs(days_left))
+            else:
+                reasoning = "【%s】剩余保质期充足（%d天），暂不参与临期处理。" % (product_name, days_left)
+        elif fast_result.action == Action.NEEDS_APPROVAL:
+            rate_pct = discount_rate * 100 if discount_rate else 0
+            reasoning = "【%s】建议折扣率 %.0f%% 低于品类下限，需要店长审批后才能执行。" % (product_name, rate_pct)
+        else:
+            tier = fast_result.tier
+            disc_range = fast_result.discount_range or []
+            min_r = disc_range[0] if disc_range else 0
+            max_r = disc_range[1] if disc_range else 0
+            rate_pct = discount_rate * 100 if discount_rate else 0
+            reasoning = "【%s】剩余 %d 天未售出，匹配 T%d 折扣区间（%.0f%%-%.0f%%），建议折扣率 %.0f%%。" % (
+                product_name, days_left, tier, min_r * 100, max_r * 100, rate_pct
+            )
+            stock = product.get("stock", 0)
+            if stock > 100 and days_left is not None and days_left <= 2:
+                reasoning += "高库存（%d件）+ 短有效期 -> 建议更激进折扣。" % stock
+
+        return DiscountRule(
+            action=Action.NO_ACTION,
+            reasoning_path=ReasoningPath.SLOW,
+            reasoning=reasoning
+        )
+
+    def _analyze_suggest(self, query: str, context: Optional[dict]) -> DiscountRule:
+        from app.services.data import get_data_service
+        from datetime import date
+
+        products = get_data_service().load_all_products()
+        today = date.today()
+
+        critical = []
+        urgent = []
+        upcoming = []
+
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+            except ValueError:
+                continue
+
+            if p.get("in_reduction"):
+                continue
+
+            if days_left <= 1:
+                critical.append(p)
+            elif days_left <= 3:
+                urgent.append(p)
+            elif days_left <= 7:
+                upcoming.append(p)
+
+        lines = ["临期商品分析报告", ""]
+
+        if not critical and not urgent and not upcoming:
+            lines.append("当前没有需要处理的临期商品，库存状态良好。")
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.SLOW,
+                reasoning="\n".join(lines)
+            )
+
+        if critical:
+            lines.append("紧急（1天内）：%d 件" % len(critical))
+            for p in critical[:3]:
+                pname = p.get("name", "未知")
+                pcat = p.get("category", "")
+                pdays = p.get("days_left", 0)
+                lines.append("  - %s（%s），剩余 %d 天" % (pname, pcat, pdays))
+            if len(critical) > 3:
+                lines.append("  ...还有 %d 件" % (len(critical) - 3))
+            lines.append("  -> 建议立即打折处理（7折以上）")
+
+        if urgent:
+            lines.append("较急（2-3天）：%d 件" % len(urgent))
+            for p in urgent[:3]:
+                pname = p.get("name", "未知")
+                pcat = p.get("category", "")
+                pdays = p.get("days_left", 0)
+                lines.append("  - %s（%s），剩余 %d 天" % (pname, pcat, pdays))
+            if len(urgent) > 3:
+                lines.append("  ...还有 %d 件" % (len(urgent) - 3))
+            lines.append("  -> 建议尽快打折（5-7折）")
+
+        if upcoming:
+            lines.append("预警（4-7天）：%d 件" % len(upcoming))
+            lines.append("  -> 建议持续关注，提前准备促销")
+
+        from app.services.inventory_service import check_product_exemption_from_json
+        exempted = [p for p in critical + urgent if check_product_exemption_from_json(p)]
+        if exempted:
+            lines.append("\n其中 %d 件豁免商品不参与打折" % len(exempted))
+
+        total_actionable = len(critical) + len(urgent)
+        if total_actionable > 0:
+            lines.append("\n总计 %d 件商品需要处理（不含豁免）" % total_actionable)
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT if total_actionable > 0 else Action.NO_ACTION,
+            reasoning_path=ReasoningPath.SLOW,
+            reasoning="\n".join(lines)
+        )
+
+    def _compare(self, query: str, context: Optional[dict]) -> DiscountRule:
+        from app.services.data import get_data_service
+        from datetime import date
+
+        products = get_data_service().load_all_products()
+        today = date.today()
+
+        category_data = {}
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+            except ValueError:
+                continue
+
+            cat = p.get("category", "未知")
+            if cat not in category_data:
+                category_data[cat] = {"critical": 0, "urgent": 0, "upcoming": 0}
+            if days_left <= 1:
+                category_data[cat]["critical"] += 1
+            elif days_left <= 3:
+                category_data[cat]["urgent"] += 1
+            elif days_left <= 7:
+                category_data[cat]["upcoming"] += 1
+
+        if not category_data:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.SLOW,
+                reasoning="暂无商品数据可供比较"
+            )
+
+        lines = ["临期商品品类对比", ""]
+        has_data = False
+        for cat, data in sorted(category_data.items(), key=lambda x: x[1]["critical"] + x[1]["urgent"], reverse=True):
+            if data["critical"] + data["urgent"] == 0:
+                continue
+            has_data = True
+            total = data["critical"] + data["urgent"]
+            tag = "紧急" if data["critical"] > 0 else "较急"
+            lines.append("%s：%s %d 件（紧急%d，较急%d）" % (cat, tag, total, data["critical"], data["urgent"]))
+
+        if not has_data:
+            lines.append("所有品类临期商品数量为0，库存状态良好。")
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.SLOW,
+            reasoning="\n".join(lines)
+        )
+
+    def _predict(self, query: str, context: Optional[dict]) -> DiscountRule:
+        from app.services.data import get_data_service
+        from datetime import date, timedelta
+
+        products = get_data_service().load_all_products()
+        today = date.today()
+
+        upcoming = []
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+            except ValueError:
+                continue
+
+            if 3 < days_left <= 7 and not p.get("in_reduction"):
+                upcoming.append({**p, "days_left": days_left})
+
+        if not upcoming:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.SLOW,
+                reasoning="未来7天内没有即将变成临期的商品。"
+            )
+
+        upcoming.sort(key=lambda p: p.get("days_left", 999))
+        lines = ["未来7天预警：%d 件商品即将临期" % len(upcoming), ""]
+        for p in upcoming[:5]:
+            pname = p.get("name", "未知")
+            pcat = p.get("category", "")
+            pdays = p.get("days_left")
+            lines.append("- %s（%s）：预计 %d 天后到期" % (pname, pcat, pdays))
+        if len(upcoming) > 5:
+            lines.append("...还有 %d 件" % (len(upcoming) - 5))
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.SLOW,
+            reasoning="\n".join(lines)
+        )
+
+    def _fallback(self, query: str, context: Optional[dict]) -> DiscountRule:
+        medium_result = self._medium_path.evaluate(query, context)
+        return medium_result
+
+
 class ReasoningEngine:
     """
     三级推理引擎统一入口
@@ -465,6 +736,7 @@ class ReasoningEngine:
     def __init__(self):
         self.fast_path = FastPathRuleEngine()
         self.medium_path = MediumPathRuleEngine()
+        self.slow_path = SlowPathRuleEngine()
 
     def reason(self, query: str, context: Optional[dict] = None) -> dict:
         """
@@ -485,14 +757,15 @@ class ReasoningEngine:
                 if context and "product" in context:
                     return self.fast_path.evaluate(context["product"]).to_dict()
 
+        # Slow Path: 复杂推理（优先级最高，防止被 Medium Path 截断）
+        if any(kw in query_lower for kw in ["为什么", "分析", "建议", "比较", "预测"]):
+            result = self.slow_path.evaluate(query, context)
+            return result.to_dict()
+
         # Medium Path 关键词
         if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有", "统计"]):
             result = self.medium_path.evaluate(query, context)
             return result.to_dict()
-
-        # Slow Path: 复杂推理
-        if any(kw in query_lower for kw in ["为什么", "分析", "建议", "比较", "预测"]):
-            return {"error": "Slow Path not yet implemented", "path": ReasoningPath.SLOW.value}
 
         # 默认使用 Fast Path
         if context and "product" in context:
