@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from app.models import ReductionTask, TaskStatus, RiskLevel, ExemptionType
 from pydantic import BaseModel
 from datetime import datetime, date
@@ -41,6 +41,10 @@ def get_task(task_id: str):
     tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
+            ctx = get_context()
+            # Clerk 只能查看自己门店的任务
+            if ctx.user_role == "clerk" and ctx.store_id and t.get("store_id") != ctx.store_id:
+                raise HTTPException(status_code=403, detail="无权查看该任务")
             return t
     raise HTTPException(status_code=404, detail="Task not found")
 
@@ -49,6 +53,9 @@ def update_task_status(task_id: str, status: TaskStatus):
     tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
+            ctx = get_context()
+            if ctx.user_role == "clerk" and ctx.store_id and t.get("store_id") != ctx.store_id:
+                raise HTTPException(status_code=403, detail="无权操作该任务")
             t["status"] = status.value
             get_data_service().save_tasks(tasks)
             return t
@@ -60,6 +67,9 @@ def complete_task(task_id: str, sold_qty: int):
     tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
+            ctx = get_context()
+            if ctx.user_role == "clerk" and ctx.store_id and t.get("store_id") != ctx.store_id:
+                raise HTTPException(status_code=403, detail="无权操作该任务")
             t["status"] = TaskStatus.COMPLETED.value
             original_stock = t.get("original_stock", 0)
             if original_stock == 0:
@@ -114,6 +124,10 @@ def confirm_task(task_id: str, req: ConfirmRequest):
     if TaskStatus(task["status"]) != TaskStatus.PENDING:
         raise HTTPException(status_code=400, detail="只有Pending状态的任务可以确认")
 
+    ctx = get_context()
+    if ctx.user_role == "clerk" and ctx.store_id and task.get("store_id") != ctx.store_id:
+        raise HTTPException(status_code=403, detail="无权操作该任务")
+
     task["status"] = TaskStatus.CONFIRMED.value
     task["confirmed_discount_rate"] = req.confirmed_discount_rate
     task["confirmed_by"] = req.confirmed_by
@@ -139,6 +153,7 @@ def confirm_task(task_id: str, req: ConfirmRequest):
 
 
 @router.patch("/{task_id}/execute")
+@require_role("clerk", "manager", "headquarters")
 def execute_task(task_id: str, req: ExecuteRequest):
     """
     执行任务：Confirmed → Executed
@@ -147,6 +162,10 @@ def execute_task(task_id: str, req: ExecuteRequest):
     """
     tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
+
+    ctx = get_context()
+    if ctx.user_role == "clerk" and ctx.store_id and task.get("store_id") != ctx.store_id:
+        raise HTTPException(status_code=403, detail="无权操作该任务")
 
     if TaskStatus(task["status"]) != TaskStatus.CONFIRMED.value:
         raise HTTPException(status_code=400, detail="只有Confirmed状态的任务可以执行")
@@ -190,6 +209,10 @@ def review_task(task_id: str, req: ReviewRequest):
 
     if TaskStatus(task["status"]) != TaskStatus.EXECUTED.value:
         raise HTTPException(status_code=400, detail="只有Executed状态的任务可以复核")
+
+    ctx = get_context()
+    if ctx.user_role == "clerk" and ctx.store_id and task.get("store_id") != ctx.store_id:
+        raise HTTPException(status_code=403, detail="无权操作该任务")
 
     task["status"] = TaskStatus.REVIEWED.value
     task["reviewed_by"] = req.reviewed_by
