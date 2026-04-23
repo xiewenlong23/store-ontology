@@ -6,94 +6,90 @@ import ChatAssistant from "./components/ChatAssistant";
 import "./index.css";
 
 function LiveClock() {
-  const [time, setTime] = useState(() => {
-    const now = new Date();
-    return now.toLocaleTimeString("zh-CN", { hour12: false });
-  });
-
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString("zh-CN", { hour12: false })
+  );
   useEffect(() => {
-    const id = setInterval(() => {
-      setTime(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
-    }, 1000);
+    const id = setInterval(() => setTime(new Date().toLocaleTimeString("zh-CN", { hour12: false })), 1000);
     return () => clearInterval(id);
   }, []);
-
-  return <span className="font-mono text-white/60">{time}</span>;
+  return <span className="stat-num" style={{ fontSize: 13, color: "var(--text-2)" }}>{time}</span>;
 }
 
 export default function App() {
   return (
-    <div className="flex flex-col min-h-screen p-4 md:p-6 text-white">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: "var(--accent)" }}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">门店本体AI</h1>
-              <p className="text-xs text-white/50">万达广场店 · 今日运营</p>
-            </div>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", padding: "16px 20px", gap: 14, position: "relative", zIndex: 1 }}>
+
+      {/* ── Header ── */}
+      <header className="animate stagger-1" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Logo mark */}
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--card)", border: "1px solid var(--border-strong)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 20px var(--accent-glow)" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
           </div>
-          <div
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
-            style={{ background: "oklch(0.25 0.08 160 / 0.5)" }}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 live-dot" />
-            <span className="text-emerald-400">营业中</span>
-            <span className="text-white/50">·</span>
-            <span className="text-white/70">9:00 - 22:00</span>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", margin: 0, lineHeight: 1.2 }}>门店大脑</h1>
+            <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0", fontFamily: "var(--mono)" }}>万达广场店 · 实时运营</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-white/60">
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* Status badge */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 20, background: "var(--card)", border: "1px solid var(--border-strong)", fontSize: 12 }}>
+            <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
+            <span style={{ color: "#34d399", fontWeight: 600, fontSize: 11 }}>营业中</span>
+            <span style={{ color: "var(--text-3)" }}>09:00 – 22:00</span>
+          </div>
+
+          {/* Clock */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 20, background: "var(--card)", border: "1px solid var(--border)", fontSize: 12 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
             <LiveClock />
           </div>
-          <button
-            className="btn px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: "var(--accent)" }}
-          >
+
+          {/* New task */}
+          <button className="btn" style={{ padding: "8px 18px", borderRadius: 10, background: "var(--accent)", color: "#0a1614", fontWeight: 700, fontSize: 13, border: "none", letterSpacing: "-0.01em" }}>
             + 新建任务
           </button>
         </div>
       </header>
 
-      {/* Top Dashboard (real data) */}
-      <DashboardStats />
+      {/* ── Stats strip ── */}
+      <div className="animate stagger-2">
+        <DashboardStats />
+      </div>
 
-      {/* Bottom: Task Board + AI Assistant 50/50 */}
-      <div className="flex gap-4 flex-1 overflow-hidden" style={{ height: "67vh" }}>
-        <div className="card flex-1 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-            <span className="text-sm font-medium text-white/70">📋</span>
-            <span className="text-sm font-medium text-white/70">任务看板</span>
+      {/* ── Bottom: Task Board | AI ── */}
+      <div className="animate stagger-3" style={{ display: "flex", gap: 14, flex: 1, overflow: "hidden", minHeight: 0 }}>
+        {/* Task Board */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px 10px", flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", letterSpacing: "0.02em" }}>任务看板</span>
           </div>
-          <div className="h-[calc(100%-44px)] overflow-hidden">
+          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <TaskBoard />
           </div>
         </div>
-        <div className="card flex-1 overflow-hidden flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-            <span className="text-sm font-medium text-white/70">🤖</span>
-            <span className="text-sm font-medium text-white/70">AI 助手</span>
+
+        {/* AI Assistant */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px 10px", flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", letterSpacing: "0.02em" }}>AI 助手</span>
           </div>
-          <div className="flex-1 overflow-hidden p-4">
-            <div className="h-full flex flex-col">
-              <div className="flex-1 overflow-auto">
-                <ChatAssistant />
-              </div>
-            </div>
+          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <ChatAssistant />
           </div>
         </div>
       </div>

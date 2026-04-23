@@ -1,148 +1,132 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { unifiedChat } from "../api";
 
-// 状态标签颜色
-const STATUS_LABEL = {
-  pending: { text: "待确认", cls: "bg-yellow-500/20 text-yellow-400" },
-  confirmed: { text: "已确认", cls: "bg-blue-500/20 text-blue-400" },
-  executed: { text: "已执行", cls: "bg-purple-500/20 text-purple-400" },
-  reviewed: { text: "已复核", cls: "bg-green-500/20 text-green-400" },
-  completed: { text: "已完成", cls: "bg-gray-500/20 text-gray-400" },
-};
-
-function TaskCard({ task }) {
-  const status = STATUS_LABEL[task.status] || { text: task.status, cls: "bg-white/10 text-white/70" };
+function TypingIndicator() {
   return (
-    <div className="card p-3 text-sm">
-      <div className="flex justify-between items-start mb-1">
-        <span className="font-medium">{task.product_name}</span>
-        <span className={`text-xs px-2 py-0.5 rounded ${status.cls}`}>{status.text}</span>
+    <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "10px 14px" }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite", opacity: 0.4 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite 0.15s", opacity: 0.6 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite 0.3s", opacity: 0.8 }} />
+    </div>
+  );
+}
+
+function TaskItem({ task }) {
+  const STATUS_COLOR = { pending: "#fbbf24", confirmed: "#fbbf24", executed: "#60a5fa", reviewed: "#34d399", completed: "#34d399" };
+  const color = STATUS_COLOR[task.status] || "#666";
+  return (
+    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 6)}`}
+        </p>
+        <p style={{ fontSize: 10, color: "var(--text-3)", margin: "2px 0 0" }}>
+          {task.category} · {task.original_stock}件 · {task.discount_rate != null ? `${Math.round(task.discount_rate * 100)}%折扣` : "—"}
+        </p>
       </div>
-      <div className="text-white/50 text-xs space-y-0.5">
-        <div>门店: {task.store_id} | 商品: {task.product_id}</div>
-        <div>折扣率: {task.discount_rate != null ? Math.round(task.discount_rate * 100) : "-"}%</div>
-        <div>原价库存: {task.original_stock} | 截止: {task.expiry_date}</div>
-        {task.task_id && <div className="text-white/30">ID: {task.task_id.slice(0, 8)}...</div>}
-      </div>
+      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 8, background: `${color}18`, color, fontWeight: 700, whiteSpace: "nowrap" }}>
+        {task.status === "pending" ? "待确认" : task.status === "confirmed" ? "已确认" : task.status === "executed" ? "执行中" : task.status === "reviewed" ? "已复核" : task.status === "completed" ? "已完成" : task.status}
+      </span>
     </div>
   );
 }
 
-function TaskList({ tasks, title }) {
-  if (!tasks || tasks.length === 0) {
-    return <div className="text-white/40 text-sm py-2">暂无数据</div>;
-  }
+function ProductItem({ product }) {
   return (
-    <div className="space-y-2 mt-2">
-      {title && <div className="text-sm font-medium text-white/70">{title}</div>}
-      {tasks.map((t) => (
-        <TaskCard key={t.task_id} task={t} />
-      ))}
+    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: 6 }}>
+      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", margin: 0 }}>{product.name || product.product_id}</p>
+      <p style={{ fontSize: 10, color: "var(--text-3)", margin: "2px 0 0" }}>
+        {product.category} · 库存 {product.stock} · 到期 {product.expiry_date || "—"}
+      </p>
     </div>
   );
 }
 
-function ProductList({ products }) {
-  if (!products || products.length === 0) {
-    return <div className="text-white/40 text-sm py-2">暂无临期商品</div>;
-  }
-  return (
-    <div className="space-y-2 mt-2">
-      {products.map((p) => (
-        <div key={p.product_id} className="card p-2 text-sm">
-          <div className="font-medium">{p.name}</div>
-          <div className="text-white/50 text-xs">
-            品类: {p.category} | 库存: {p.stock} | 到期: {p.expiry_date}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiscountResult({ result }) {
-  const rate = result.recommended_discount;
-  const tier = result.tier ?? "-";
-  const reason = result.reasoning || "";
+function DiscountCard({ result }) {
+  const rate = result.recommended_discount || result.discount_rate || 0;
   const exempt = result.exemption_type != null;
   if (exempt) {
     return (
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded p-3 text-sm">
-        <div className="font-medium text-amber-400">⚠️ {result.exemption_reason || "该商品豁免出清"}</div>
+      <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 18 }}>⚠️</span>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#fbbf24", margin: 0 }}>{result.exemption_reason || "豁免商品"}</p>
+          <p style={{ fontSize: 10, color: "var(--text-3)", margin: "2px 0 0" }}>该商品不参与临期打折</p>
+        </div>
       </div>
     );
   }
   return (
-    <div className="card p-3 text-sm space-y-1" style={{ border: "1px solid oklch(0.35 0.12 160 / 0.3)" }}>
-      <div className="flex items-center gap-2">
-        <span className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
-          {Math.round((rate || 0) * 100)}%
-        </span>
-        <span className="text-white/50 text-xs">建议折扣率</span>
+    <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(72,200,180,0.08)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", gap: 12 }}>
+      <span className="stat-num" style={{ fontSize: 28, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{Math.round(rate * 100)}%</span>
+      <div>
+        <p style={{ fontSize: 11, color: "var(--text-2)", margin: "0 0 2px" }}>建议折扣率</p>
+        <p style={{ fontSize: 10, color: "var(--text-3)", margin: 0 }}>等级 {result.tier || "—"} · {result.reasoning || "—"}</p>
       </div>
-      <div className="text-white/60 text-xs">推荐等级: {tier} | {reason}</div>
     </div>
   );
 }
 
 function WelcomeMessage() {
+  const QUICK_PROMPTS = [
+    { label: "今日临期商品", icon: "📅", prompt: "帮我看看最近7天有哪些临期商品" },
+    { label: "查询折扣规则", icon: "📋", prompt: "日配类的折扣规则是什么" },
+    { label: "创建出清任务", icon: "✨", prompt: "帮我创建一个出清任务" },
+    { label: "任务完成情况", icon: "📊", prompt: "今天任务完成情况怎么样" },
+  ];
+  const [prompts, setPrompts] = useState(QUICK_PROMPTS);
+
   return (
-    <div className="flex gap-3 animate">
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: "var(--accent)" }}
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-          />
-        </svg>
+    <div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(72,200,180,0.12)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 16px rgba(72,200,180,0.1)" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: "0 0 3px" }}>门店大脑 AI</p>
+          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>你好！有什么可以帮你的？</p>
+        </div>
       </div>
-      <div className="card p-4 max-w-xl">
-        <p className="text-sm mb-2">👋 你好！我是门店AI助手，我可以帮你：</p>
-        <ul className="text-sm text-white/70 space-y-1 ml-4">
-          <li>• 分析今日任务完成情况</li>
-          <li>• 预警临期商品和处理建议</li>
-          <li>• 优化员工排班和任务分配</li>
-          <li>• 生成运营日报和周报</li>
-        </ul>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {prompts.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => window.__chatSend && window.__chatSend(p.prompt)}
+            style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", cursor: "pointer", textAlign: "left", transition: "all 0.15s ease", display: "flex", alignItems: "center", gap: 8 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-glow)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+          >
+            <span style={{ fontSize: 14 }}>{p.icon}</span>
+            <span style={{ fontSize: 12, color: "var(--text-2)" }}>{p.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-export { TaskList, ProductList, DiscountResult };
-
 export default function ChatAssistant() {
-  const [messages, setMessages] = React.useState([]);
-  const [input, setInput] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chatLoaded, setChatLoaded] = useState(false);
+  const bottomRef = useRef(null);
 
-  const addMsg = (content, intent = null) =>
-    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content, intent }]);
+  useEffect(() => {
+    setChatLoaded(true);
+  }, []);
 
-  const renderContent = (content) => {
-    if (typeof content === "string") return content;
-    if (content === null || content === undefined) return "（无内容）";
-    if (typeof content === "object" && "text" in content) {
-      return (
-        <>
-          {content.text && <span>{content.text}</span>}
-          {content.component && <div className="mt-1">{content.component}</div>}
-        </>
-      );
-    }
-    return content;
-  };
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const send = async (text) => {
     const msgText = text ?? input.trim();
     if (!msgText || loading) return;
     const userMsg = { id: crypto.randomUUID(), role: "user", content: msgText };
-    setMessages((m) => [...m, userMsg]);
+    setMessages(m => [...m, userMsg]);
     const sentInput = msgText;
     if (!text) setInput("");
     setLoading(true);
@@ -159,148 +143,106 @@ export default function ChatAssistant() {
         .trim();
 
       const toolResult = data.tool_result;
+      const parts = [];
 
       if (toolResult) {
-        const parts = [];
-
-        if (toolResult.products) {
-          const prods = Array.isArray(toolResult.products) ? toolResult.products : [];
-          response = response
-            .replace(/^[^\n品类].*\n品类:\s*(daily_fresh|bakery|fresh|meat_poultry|seafood|dairy|frozen|beverage|snack|grain_oil)[^}\n]*\n?/gm, "")
-            .replace(/^[^\n品类][^\n]*\n(?:品类:|库存:|到期:)[^\n]*\n?/gm, "");
-          parts.push({ component: <ProductList products={prods} /> });
-        } else if (toolResult.pending_products) {
-          const prods = Array.isArray(toolResult.pending_products) ? toolResult.pending_products : [];
-          parts.push({ component: <ProductList products={prods} /> });
-        } else if (toolResult.items) {
-          const prods = Array.isArray(toolResult.items) ? toolResult.items : [];
-          parts.push({ component: <ProductList products={prods} /> });
+        if (toolResult.products || toolResult.pending_products || toolResult.items) {
+          const prods = toolResult.products || toolResult.pending_products || toolResult.items || [];
+          parts.push({ type: "products", items: prods });
         }
-
         if (toolResult.recommended_discount != null || toolResult.discount_rate != null) {
-          parts.push({ component: <DiscountResult result={toolResult} /> });
+          parts.push({ type: "discount", data: toolResult });
         }
-
         if (toolResult.tasks) {
-          const tasks = Array.isArray(toolResult.tasks) ? toolResult.tasks : [];
-          if (tasks.length > 0) {
-            parts.push({ component: <TaskList tasks={tasks} /> });
-          }
+          parts.push({ type: "tasks", items: toolResult.tasks });
         }
-
-        if (parts.length > 0) {
-          addMsg({ text: response, component: parts.map((p, i) => <div key={i}>{p.component}</div>) }, data.tool_name);
-        } else {
-          addMsg(response, data.tool_name);
-        }
-      } else {
-        addMsg(response, data.tool_name);
       }
+
+      const finalContent = parts.length > 0
+        ? { text: response, parts }
+        : response;
+
+      setMessages(m => [...m, { id: crypto.randomUUID(), role: "assistant", content: finalContent }]);
 
       if (data.needs_confirmation) {
-        addMsg("（请确认以上信息是否正确）", "confirm");
+        setMessages(m => [...m, { id: crypto.randomUUID(), role: "assistant", content: "（请确认以上信息是否正确）" }]);
       }
     } catch (err) {
-      addMsg(`请求失败：${err.message || "请检查网络连接后重试"}`, "error");
+      setMessages(m => [...m, { id: crypto.randomUUID(), role: "assistant", content: `请求失败：${err.message}` }]);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => { window.__chatSend = send; }, []);
+
+  const renderContent = (content) => {
+    if (typeof content === "string") return <span style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)" }}>{content}</span>;
+    if (!content) return null;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {content.text && <span style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text)" }}>{content.text}</span>}
+        {content.parts?.map((part, i) => {
+          if (part.type === "products") return part.items.map((p, j) => <ProductItem key={j} product={p} />);
+          if (part.type === "tasks") return part.items.slice(0, 5).map((t, j) => <TaskItem key={j} task={t} />);
+          if (part.type === "discount") return <DiscountCard key={i} result={part.data} />;
+          return null;
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* Messages */}
-      <div className="flex-1 overflow-auto space-y-4 mb-4">
-        <WelcomeMessage />
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex gap-3 animate ${m.role === "user" ? "flex-row-reverse" : ""}`}
-          >
+      <div style={{ flex: 1, overflow: "auto", padding: "4px 2px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {chatLoaded && <WelcomeMessage />}
+        {messages.map(m => (
+          <div key={m.id} className="animate" style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
             {m.role === "user" ? (
-              <div
-                className="max-w-[80%] rounded-xl px-4 py-3"
-                style={{ background: "oklch(0.35 0.12 160 / 0.5)", color: "oklch(0.92 0.08 160)" }}
-              >
-                <div className="text-sm whitespace-pre-wrap">{renderContent(m.content)}</div>
+              <div className="msg-user" style={{ maxWidth: "82%", padding: "9px 13px" }}>
+                <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 500 }}>{m.content}</span>
               </div>
             ) : (
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "var(--accent)" }}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-            )}
-            {m.role !== "user" && (
-              <div className="card p-4 max-w-xl flex-1">
-                {m.intent && m.intent !== "error" && (
-                  <div className="text-xs text-white/30 mb-1">
-                    {m.intent === "confirm" ? "" : `操作: ${m.intent}`}
-                  </div>
-                )}
-                <div className="text-sm text-white/90 whitespace-pre-wrap">{renderContent(m.content)}</div>
+              <div style={{ display: "flex", gap: 9, alignItems: "flex-start", maxWidth: "90%" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(72,200,180,0.12)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                  </svg>
+                </div>
+                <div className="msg-ai" style={{ padding: "10px 14px", flex: 1 }}>{renderContent(m.content)}</div>
               </div>
             )}
           </div>
         ))}
-
-        {loading && (
-          <div className="card p-3 max-w-[80%] text-white/40 text-sm">正在处理...</div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={() => send("分析今日临期商品风险")}
-          className="btn px-3 py-1.5 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 transition flex items-center gap-1"
-        >
-          <span>🚨</span> 临期风险分析
-        </button>
-        <button
-          onClick={() => send("今日任务完成情况")}
-          className="btn px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition flex items-center gap-1"
-        >
-          <span>📊</span> 任务分析
-        </button>
-        <button
-          onClick={() => send("生成今日运营日报")}
-          className="btn px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition flex items-center gap-1"
-        >
-          <span>📝</span> 生成日报
-        </button>
-        <button
-          onClick={() => send("任务分配优化建议")}
-          className="btn px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition flex items-center gap-1"
-        >
-          <span>👥</span> 排班优化
-        </button>
+        {loading && <TypingIndicator />}
+        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <div className="flex gap-3">
+      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="询问门店运营问题..."
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="输入问题..."
           disabled={loading}
-          className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[var(--accent)] transition text-white placeholder-white/40"
+          className="ai-input"
+          style={{ flex: 1, padding: "10px 14px", fontSize: 13 }}
         />
         <button
           onClick={() => send()}
-          disabled={loading}
-          className="btn px-4 py-3 rounded-xl text-sm font-medium"
-          style={{ background: "var(--accent)", color: "oklch(0.92 0.08 160)" }}
+          disabled={loading || !input.trim()}
+          className="btn"
+          style={{
+            padding: "10px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700,
+            background: input.trim() ? "var(--accent)" : "rgba(255,255,255,0.06)",
+            color: input.trim() ? "#0a1614" : "var(--text-3)",
+            border: "none", cursor: input.trim() ? "pointer" : "default",
+            transition: "all 0.15s ease",
+            boxShadow: input.trim() ? "0 0 14px rgba(72,200,180,0.25)" : "none",
+          }}
         >
           发送
         </button>

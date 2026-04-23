@@ -2,172 +2,185 @@ import React, { useState, useEffect } from "react";
 import { fetchTasks } from "../api";
 
 const CATEGORY_NAMES = {
-  daily_fresh: "日配",
-  bakery: "烘焙",
-  fresh: "生鲜",
-  meat_poultry: "肉禽",
-  seafood: "水产",
-  dairy: "乳品",
-  frozen: "冷冻",
-  beverage: "饮品",
-  snack: "休闲食品",
-  grain_oil: "米面粮油",
+  daily_fresh: "日配", bakery: "烘焙", fresh: "生鲜",
+  meat_poultry: "肉禽", seafood: "水产", dairy: "乳品",
+  frozen: "冷冻", beverage: "饮品", snack: "休闲食品", grain_oil: "米面粮油",
 };
 
-const CATEGORY_STYLE = {
-  daily_fresh: { bg: "oklch(0.7 0.18 25 / 0.3)", color: "oklch(0.9 0.15 25)" },
-  bakery:       { bg: "oklch(0.7 0.15 200 / 0.3)", color: "oklch(0.9 0.12 200)" },
-  fresh:       { bg: "oklch(0.7 0.18 25 / 0.3)", color: "oklch(0.9 0.15 25)" },
-  meat_poultry: { bg: "oklch(0.7 0.15 340 / 0.3)", color: "oklch(0.9 0.15 340)" },
-  seafood:     { bg: "oklch(0.7 0.15 200 / 0.3)", color: "oklch(0.9 0.12 200)" },
-  dairy:       { bg: "oklch(0.7 0.15 160 / 0.3)", color: "oklch(0.9 0.12 160)" },
-  frozen:      { bg: "oklch(0.7 0.15 340 / 0.3)", color: "oklch(0.9 0.15 340)" },
-  beverage:    { bg: "oklch(0.7 0.15 160 / 0.3)", color: "oklch(0.9 0.12 160)" },
-  snack:       { bg: "oklch(0.7 0.15 200 / 0.3)", color: "oklch(0.9 0.12 200)" },
-  grain_oil:   { bg: "oklch(0.7 0.15 340 / 0.3)", color: "oklch(0.9 0.15 340)" },
+const CAT_COLORS = {
+  daily_fresh:  { accent: "#f87171", bg: "rgba(248,113,113,0.12)", text: "#f87171" },
+  bakery:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
+  fresh:       { accent: "#f87171", bg: "rgba(248,113,113,0.12)", text: "#f87171" },
+  meat_poultry: { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
+  seafood:     { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
+  dairy:       { accent: "#34d399", bg: "rgba(52,211,153,0.12)", text: "#34d399" },
+  frozen:      { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
+  beverage:    { accent: "#34d399", bg: "rgba(52,211,153,0.12)", text: "#34d399" },
+  snack:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
+  grain_oil:   { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
+};
+
+const STATUS_DOT = {
+  pending:   { color: "#fbbf24", label: "待处理" },
+  confirmed: { color: "#fbbf24", label: "已确认" },
+  executed:  { color: "#60a5fa", label: "执行中" },
+  reviewed:  { color: "#34d399", label: "已复核" },
+  completed: { color: "#34d399", label: "已完成" },
 };
 
 function TaskCard({ task, isDone }) {
   const cat = task.category || "daily_fresh";
-  const style = CATEGORY_STYLE[cat] || CATEGORY_STYLE.daily_fresh;
-  const label = CATEGORY_NAMES[cat] || cat;
+  const catMeta = CAT_COLORS[cat] || CAT_COLORS.daily_fresh;
   const urgent = task.priority === "urgent" || task.risk_level === "high";
+  const isExecuting = task.status === "executed";
 
   return (
     <div
-      className={`task-card card p-3 ${isDone ? "opacity-70" : ""}`}
-      style={!isDone && task.status === "executed" ? { borderLeft: "3px solid var(--accent)" } : {}}
+      className="task-card"
+      style={{
+        padding: "12px 14px",
+        borderRadius: 10,
+        background: "var(--card-alt)",
+        border: `1px solid ${isDone ? "rgba(255,255,255,0.04)" : isExecuting ? "rgba(96,165,250,0.2)" : "var(--border)"}`,
+        borderLeft: isExecuting ? `2px solid ${catMeta.accent}` : undefined,
+        opacity: isDone ? 0.55 : 1,
+      }}
     >
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span
-          className="text-xs px-2 py-0.5 rounded"
-          style={{ background: style.bg, color: style.color }}
-        >
-          {label}
-        </span>
-        {urgent && !isDone && <span className="text-xs text-red-400 blink">紧急</span>}
-        {task.status === "executed" && (
-          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">执行中</span>
-        )}
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, fontWeight: 600, background: catMeta.bg, color: catMeta.text }}>
+            {CATEGORY_NAMES[cat] || cat}
+          </span>
+          {urgent && !isDone && (
+            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 5, background: "rgba(248,113,113,0.12)", color: "#f87171", fontWeight: 600 }} className="blink">
+              紧急
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: STATUS_DOT[task.status]?.color || "#666", display: "inline-block", flexShrink: 0 }} />
+          <span style={{ fontSize: 9, color: "var(--text-3)" }}>{STATUS_DOT[task.status]?.label || task.status}</span>
+        </div>
       </div>
-      <p className={`text-sm font-medium mb-2 ${isDone ? "line-through decoration-emerald-400" : ""}`}>
+
+      {/* Product name */}
+      <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px", color: isDone ? "var(--text-3)" : "var(--text)", textDecoration: isDone ? "line-through" : "none", textDecorationColor: "#34d399", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 8)}`}
       </p>
-      <div className="flex items-center justify-between text-xs text-white/40">
-        <span>
-          {task.expiry_date ? `🕙 ${task.expiry_date}` : task.updated_at ? `🕙 ${task.updated_at.slice(0, 10)}` : "全天"}
-        </span>
-        <span>🏪 {task.store_id || "未知门店"}</span>
+
+      {/* Meta row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {task.expiry_date && (
+            <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+              📅 {task.expiry_date}
+            </span>
+          )}
+          {task.original_stock && (
+            <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+              📦 {task.original_stock}件
+            </span>
+          )}
+        </div>
+        {task.discount_rate != null && (
+          <span className="stat-num" style={{ fontSize: 11, color: catMeta.text, fontWeight: 700 }}>
+            {Math.round(task.discount_rate * 100)}%
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-export default function TaskBoard({ filter: externalFilter = "all", onFilterChange }) {
+function KanbanColumn({ label, color, tasks, isDone }) {
+  if (tasks.length === 0) {
+    return (
+      <div style={{ padding: "12px", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", height: 80 }}>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>暂无任务</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {tasks.map((t, i) => (
+        <div key={t.task_id} className="animate" style={{ animationDelay: `${i * 0.04}s` }}>
+          <TaskCard task={t} isDone={isDone} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function TaskBoard() {
   const [tasks, setTasks] = useState([]);
-  const [filter, setFilter] = useState(externalFilter);
+  const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchTasks()
-      .then(setTasks)
-      .catch(() => setTasks([]))
-      .finally(() => setLoading(false));
+    fetchTasks().then(setTasks).catch(() => setTasks([])).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    setFilter(externalFilter);
-  }, [externalFilter]);
+  const availableCategories = [...new Set(tasks.map(t => t.category).filter(Boolean))];
+  const filtered = filter === "all" ? tasks : tasks.filter(t => t.category === filter);
 
-  // Dynamically derive available categories from data
-  const availableCategories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
-
-  const handleFilterChange = (val) => {
-    setFilter(val);
-    if (onFilterChange) onFilterChange(val);
-  };
-
-  const filtered = filter === "all" ? tasks : tasks.filter((t) => t.category === filter);
-
-  const todo = filtered.filter((t) => ["pending", "confirmed"].includes(t.status));
-  const inProgress = filtered.filter((t) => t.status === "executed");
-  const done = filtered.filter((t) => ["reviewed", "completed"].includes(t.status));
-
-  if (loading) {
-    return <div className="text-center py-8 text-white/50">加载中...</div>;
-  }
+  const todo       = filtered.filter(t => ["pending", "confirmed"].includes(t.status));
+  const inProgress = filtered.filter(t => t.status === "executed");
+  const done       = filtered.filter(t => ["reviewed", "completed"].includes(t.status));
 
   return (
-    <div className="p-4 h-full overflow-auto">
-      {/* Category filter chips */}
-      <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={() => handleFilterChange("all")}
-          className={`text-xs px-3 py-1 rounded-full transition ${filter === "all" ? "tab-active" : "bg-white/10 text-white/60 hover:bg-white/20"}`}
-        >
-          全部 ({tasks.length})
-        </button>
-        {availableCategories.map((cat) => {
-          const count = tasks.filter((t) => t.category === cat).length;
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "4px 2px" }}>
+      {/* Filter chips */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 10, flexShrink: 0 }}>
+        <button onClick={() => setFilter("all")} className={`chip ${filter === "all" ? "active" : ""}`}>全部</button>
+        {availableCategories.map(cat => {
+          const count = tasks.filter(t => t.category === cat).length;
           return (
-            <button
-              key={cat}
-              onClick={() => handleFilterChange(cat)}
-              className={`text-xs px-3 py-1 rounded-full transition ${filter === cat ? "tab-active" : "bg-white/10 text-white/60 hover:bg-white/20"}`}
-            >
+            <button key={cat} onClick={() => setFilter(cat)} className={`chip ${filter === cat ? "active" : ""}`}>
               {CATEGORY_NAMES[cat] || cat} ({count})
             </button>
           );
         })}
       </div>
 
-      {/* Kanban */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-        {/* To Do */}
-        <div className="bg-white/5 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-white/70 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              待处理
-            </h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">{todo.length}</span>
-          </div>
-          <div className="space-y-3">
-            {todo.length === 0 && <p className="text-xs text-white/30">暂无</p>}
-            {todo.map((t) => <TaskCard key={t.task_id} task={t} isDone={false} />)}
-          </div>
+      {/* Kanban grid */}
+      {loading ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>加载中...</span>
         </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, flex: 1, overflow: "auto", alignItems: "start" }}>
+          {/* To Do */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fbbf24", display: "inline-block", boxShadow: "0 0 6px #fbbf2480" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#fbbf24" }}>待处理</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(251,191,36,0.1)", color: "#fbbf24", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{todo.length}</span>
+            </div>
+            <KanbanColumn tasks={todo} isDone={false} />
+          </div>
 
-        {/* In Progress */}
-        <div className="bg-white/5 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-white/70 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
-              进行中
-            </h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">{inProgress.length}</span>
+          {/* In Progress */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#60a5fa", display: "inline-block", boxShadow: "0 0 6px #60a5fa80" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#60a5fa" }}>进行中</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(96,165,250,0.1)", color: "#60a5fa", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{inProgress.length}</span>
+            </div>
+            <KanbanColumn tasks={inProgress} isDone={false} />
           </div>
-          <div className="space-y-3">
-            {inProgress.length === 0 && <p className="text-xs text-white/30">暂无</p>}
-            {inProgress.map((t) => <TaskCard key={t.task_id} task={t} isDone={false} />)}
-          </div>
-        </div>
 
-        {/* Done */}
-        <div className="bg-white/5 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-white/70 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              已完成
-            </h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">{done.length}</span>
-          </div>
-          <div className="space-y-3">
-            {done.length === 0 && <p className="text-xs text-white/30">暂无</p>}
-            {done.map((t) => <TaskCard key={t.task_id} task={t} isDone={true} />)}
+          {/* Done */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", display: "inline-block", boxShadow: "0 0 6px #34d39980" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#34d399" }}>已完成</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(52,211,153,0.1)", color: "#34d399", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{done.length}</span>
+            </div>
+            <KanbanColumn tasks={done} isDone={true} />
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
