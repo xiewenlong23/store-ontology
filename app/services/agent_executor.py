@@ -19,7 +19,7 @@ from typing import Any, Optional
 from app.tools.registry import registry
 from app.services.llm_service import get_minimax_llm
 from app.services.context import ToolContext, ContextManager
-from app.services.reasoning_engine import FastPathRuleEngine, MediumPathRuleEngine
+from app.services.reasoning_engine import FastPathRuleEngine, MediumPathRuleEngine, SlowPathRuleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,7 @@ class AgentExecutor:
         self._tool_descs = _build_tool_descriptions(self._tools)
         self._fast_path = FastPathRuleEngine()
         self._medium_path = MediumPathRuleEngine()
+        self._slow_path = SlowPathRuleEngine()
 
     def execute(self, user_message: str, context: Optional[dict] = None) -> dict:
         """
@@ -136,8 +137,20 @@ class AgentExecutor:
 
         messages.append({"role": "user", "content": user_message})
 
-        # Medium Path 路由：直接处理语义查询，无需 LLM 参与
+        # Slow Path 路由：复杂推理，直接处理无需 LLM 参与
         query_lower = user_message.lower()
+        if any(kw in query_lower for kw in ["为什么", "分析", "建议", "比较", "预测"]):
+            slow_result = self._slow_path.evaluate(user_message, context)
+            return {
+                "success": slow_result.action.value != "NO_ACTION",
+                "tool_name": None,
+                "tool_result": slow_result.to_dict(),
+                "response": slow_result.reasoning,
+                "steps": 0,
+                "conversation": messages,
+            }
+
+        # Medium Path 路由：直接处理语义查询，无需 LLM 参与
         if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有", "统计"]):
             medium_result = self._medium_path.evaluate(user_message, context)
             return {
