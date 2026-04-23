@@ -19,6 +19,7 @@ from typing import Any, Optional
 from app.tools.registry import registry
 from app.services.llm_service import get_minimax_llm
 from app.services.context import ToolContext, ContextManager
+from app.services.reasoning_engine import FastPathRuleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ class AgentExecutor:
     def __init__(self):
         self._tools = registry.get_all_tools()
         self._tool_descs = _build_tool_descriptions(self._tools)
+        self._fast_path = FastPathRuleEngine()
 
     def execute(self, user_message: str, context: Optional[dict] = None) -> dict:
         """
@@ -454,12 +456,31 @@ class AgentExecutor:
             count = tool_result.get("count", len(products))
             if count == 0:
                 return "当前没有临期商品，库存都很新鲜。"
+
+            # 使用 Fast Path 规则引擎为每个商品计算折扣建议
+            enriched = self._enrich_products_with_fastpath(products)
+
             lines = [f"当前共有 {count} 件临期商品："]
-            for p in products[:5]:
+            for p in enriched[:5]:
+                fast_info = p.get("_fast_path", {})
+                if fast_info:
+                    action = fast_info.get("action", "")
+                    rate = fast_info.get("discount_rate")
+                    tier = fast_info.get("tier")
+                    if action == "EXEMPTED":
+                        info = f"（豁免: {fast_info.get('exemption_type', '未知')}）"
+                    elif action == "APPLY_DISCOUNT" and rate:
+                        info = f"（建议{rate*10:.0f}折/T{tier}）"
+                    elif action == "NEEDS_APPROVAL" and rate:
+                        info = f"（需审批: {rate*10:.0f}折/T{tier}）"
+                    else:
+                        info = ""
+                else:
+                    info = ""
                 lines.append(
                     f"- {p.get('name', '未知')}，"
                     f"剩余 {p.get('days_left', '?')} 天，"
-                    f"库存 {p.get('stock', '?')} 件"
+                    f"库存 {p.get('stock', '?')} 件{info}"
                 )
             if count > 5:
                 lines.append(f"...还有 {count - 5} 件商品")
@@ -543,6 +564,47 @@ class AgentExecutor:
 
         return tool_result.get("message", json.dumps(tool_result, ensure_ascii=False, indent=2)[:500])
 
+
+    def _enrich_products_with_fastpath(self, products: list) -> list[dict]:
+        """
+        使用 Fast Path 规则引擎为商品列表添加折扣建议。
+
+        Args:
+            products: 商品列表
+
+        Returns:
+            商品列表，每个商品包含 _fast_path 字段（Fast Path 评估结果）
+        """
+        if not products:
+            return products
+
+        # 转换为 Fast Path 评估格式
+        products_for_eval = []
+        for p in products:
+            product = {
+                "product_id": p.get("product_id") or p.get("sku", "UNKNOWN"),
+                "name": p.get("name", "商品"),
+                "expiry_date": p.get("expiry_date", ""),
+                "category": p.get("category", ""),
+                "stock": p.get("stock", 0),
+                "is_imported": p.get("is_imported", False),
+                "is_organic": p.get("is_organic", False),
+                "is_promoted": p.get("is_promoted", False),
+                "arrival_days": p.get("arrival_days"),
+                "days_left": p.get("days_left"),
+            }
+            products_for_eval.append(product)
+
+        # 批量评估
+        rules = self._fast_path.evaluate_batch(products_for_eval)
+
+        # 合并结果
+        enriched = []
+        for p, rule in zip(products, rules):
+            enriched_item = {**p, "_fast_path": rule.to_dict()}
+            enriched.append(enriched_item)
+
+        return enriched
 
     def _generate_bar_chart(self, products: list) -> str:
         """生成临期商品柱状图（ASCII 艺术风格）。"""
