@@ -28,6 +28,7 @@ DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
 TASKS_FILE = DATA_DIR / "tasks.json"
 PRODUCTS_FILE = DATA_DIR / "products.json"
 STAFF_FILE = DATA_DIR / "staff.json"
+INVENTORY_FILE = DATA_DIR / "inventory.json"
 
 
 class JSONDataService(DataService):
@@ -47,6 +48,7 @@ class JSONDataService(DataService):
         self._products_cache: Optional[list[dict]] = None
         self._tasks_cache: Optional[list[dict]] = None
         self._staff_cache: Optional[list[dict]] = None
+        self._inventory_cache: Optional[list[dict]] = None
         self._cache_lock = threading.Lock()
 
     def _read_json(self, path: Path) -> list[dict]:
@@ -200,10 +202,39 @@ class JSONDataService(DataService):
         with self._cache_lock:
             self._staff_cache = None
 
+    # ── Inventory ──────────────────────────────────────────────
+
+    def load_inventory(self, store_id: Optional[str] = None, product_id: Optional[str] = None) -> list[dict]:
+        all_inv = self.load_all_inventory()
+        if store_id:
+            all_inv = [i for i in all_inv if i.get("store_id") == store_id]
+        if product_id:
+            all_inv = [i for i in all_inv if i.get("product_id") == product_id]
+        return all_inv
+
+    def load_all_inventory(self) -> list[dict]:
+        with self._cache_lock:
+            if self._inventory_cache is not None:
+                return self._inventory_cache
+        try:
+            with open(INVENTORY_FILE, encoding="utf-8") as f:
+                inv_list = json.load(f)
+        except Exception:
+            inv_list = []
+        with self._cache_lock:
+            self._inventory_cache = inv_list
+        return inv_list
+
+    def save_inventory(self, inventory: list[dict]) -> None:
+        self._write_json(INVENTORY_FILE, inventory)
+        with self._cache_lock:
+            self._inventory_cache = None
+
     def invalidate_cache(self) -> None:
         """主动失效所有缓存"""
         with self._cache_lock:
             self._products_cache = None
             self._tasks_cache = None
             self._staff_cache = None
+            self._inventory_cache = None
         logger.debug("DataService cache invalidated")

@@ -120,6 +120,29 @@ class DataService(ABC):
         """
 
     @abstractmethod
+    def load_inventory(self, store_id: Optional[str] = None, product_id: Optional[str] = None) -> list[dict]:
+        """
+        加载库存列表。
+
+        Args:
+            store_id: 门店ID，可选。
+            product_id: 商品ID，可选。
+
+        Returns:
+            库存列表
+        """
+
+    @abstractmethod
+    def load_all_inventory(self) -> list[dict]:
+        """加载所有库存（不过滤）。"""
+
+    @abstractmethod
+    def save_inventory(self, inventory: list[dict]) -> None:
+        """
+        保存库存列表。
+        """
+
+    @abstractmethod
     def invalidate_cache(self) -> None:
         """
         主动失效缓存。

@@ -1,170 +1,138 @@
-#!/usr/bin/env python3
-"""
-ABox 库存查询服务
-直接从 products.json 查询临期货商品（不经过 SPARQL/TTL）
-
-注意：此服务保留用于库存特定查询。
-通用商品加载已迁移到 DataService。
-
-向后兼容导出（供测试使用）：
-- PRODUCTS_FILE: 商品文件路径
-- _load_products: 兼容旧接口，内部使用 DataService
-"""
-
-from __future__ import annotations
-
-import logging
-from datetime import date
-from pathlib import Path
 from typing import Optional
-
+from app.models import Inventory, InventoryStatus, InventoryEvent, InventoryEventType
 from app.services.data import get_data_service
+from datetime import datetime
+import uuid
+import logging
 
 logger = logging.getLogger(__name__)
 
-# 向后兼容：保持 PRODUCTS_FILE 导出供测试使用
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-PRODUCTS_FILE = DATA_DIR / "products.json"
 
-# 向后兼容：_cached_products（供测试 monkeypatch 使用）
-_cached_products: Optional[list[dict]] = None
+def list_inventory(store_id: str = None, product_id: str = None, status: InventoryStatus = None) -> list[Inventory]:
+    inv_list = get_data_service().load_inventory(store_id=store_id, product_id=product_id)
+    if status:
+        inv_list = [i for i in inv_list if i.get("status") == status.value]
+    return [Inventory(**i) for i in inv_list]
 
 
-def _load_products() -> list[dict]:
-    """
-    向后兼容：加载 products.json。
+def get_inventory(inventory_id: str) -> Optional[Inventory]:
+    all_inv = get_data_service().load_all_inventory()
+    for i in all_inv:
+        if i.get("inventory_id") == inventory_id:
+            return Inventory(**i)
+    return None
 
-    内部使用 DataService，但保持接口兼容供测试 monkeypatch。
-    注意：此函数不使用 DataService 的缓存机制。
-    """
+
+def create_inventory(inv: Inventory) -> Inventory:
+    inv_list = get_data_service().load_all_inventory()
+    inv_dict = inv.model_dump()
+    inv_dict["inventory_id"] = inv_dict.get("inventory_id") or str(uuid.uuid4())
+    inv_list.append(inv_dict)
+    get_data_service().save_inventory(inv_list)
+    logger.info(f"[Inventory] Created: {inv_dict['inventory_id']} ({inv_dict.get('product_id')})")
+    return Inventory(**inv_dict)
+
+
+def update_inventory(inventory_id: str, updates: dict) -> Optional[Inventory]:
+    inv_list = get_data_service().load_all_inventory()
+    for i, inv in enumerate(inv_list):
+        if inv.get("inventory_id") == inventory_id:
+            inv_list[i].update(updates)
+            get_data_service().save_inventory(inv_list)
+            logger.info(f"[Inventory] Updated: {inventory_id}")
+            return Inventory(**inv_list[i])
+    return None
+
+
+def delete_inventory(inventory_id: str) -> bool:
+    inv_list = get_data_service().load_all_inventory()
+    for i, inv in enumerate(inv_list):
+        if inv.get("inventory_id") == inventory_id:
+            inv_list.pop(i)
+            get_data_service().save_inventory(inv_list)
+            logger.info(f"[Inventory] Deleted: {inventory_id}")
+            return True
+    return False
+
+
+def get_low_stock(store_id: str = None) -> list[Inventory]:
+    """库存 ≤ reorder_point 的商品"""
+    inv_list = get_data_service().load_inventory(store_id=store_id)
+    low_stock = []
+    for inv in inv_list:
+        if inv.get("quantity", 0) <= inv.get("reorder_point", 0):
+            low_stock.append(Inventory(**inv))
+    return low_stock
+
+
+def get_near_expiry_inventory(store_id: str = None) -> list[Inventory]:
+    """临期库存（status = near_expiry）"""
+    return list_inventory(store_id=store_id, status=InventoryStatus.NEAR_EXPIRY)
+
+
+def create_inventory_event(event: InventoryEvent) -> InventoryEvent:
+    """创建库存事件并更新关联库存的状态"""
+    all_inv = get_data_service().load_all_inventory()
+
+    # 更新库存状态
+    for i, inv in enumerate(all_inv):
+        if inv.get("inventory_id") == event.inventory_id:
+            # 根据事件类型更新库存状态
+            if event.event_type == InventoryEventType.NEAR_EXPIRY:
+                all_inv[i]["status"] = InventoryStatus.NEAR_EXPIRY.value
+            elif event.event_type == InventoryEventType.OUT_OF_STOCK:
+                all_inv[i]["status"] = InventoryStatus.OUT_OF_STOCK.value
+            elif event.event_type == InventoryEventType.RESTOCK:
+                all_inv[i]["status"] = InventoryStatus.NORMAL.value
+            # 更新库存数量
+            if event.quantity_after >= 0:
+                all_inv[i]["quantity"] = event.quantity_after
+            get_data_service().save_inventory(all_inv)
+            break
+
+    # 保存事件（存在 events.json）
+    events = _load_events()
+    event_dict = event.model_dump()
+    event_dict["event_id"] = event_dict.get("event_id") or str(uuid.uuid4())
+    events.append(event_dict)
+    _save_events(events)
+    logger.info(f"[InventoryEvent] Created: {event_dict['event_id']} ({event.event_type.value})")
+    return InventoryEvent(**event_dict)
+
+
+def list_inventory_events(
+    inventory_id: str = None,
+    event_type: InventoryEventType = None,
+    store_id: str = None,
+) -> list[InventoryEvent]:
+    events = _load_events()
+    if inventory_id:
+        events = [e for e in events if e.get("inventory_id") == inventory_id]
+    if event_type:
+        events = [e for e in events if e.get("event_type") == event_type.value]
+    if store_id:
+        # 需要关联 inventory 来过滤 store_id
+        inv_map = {i["inventory_id"]: i.get("store_id") for i in get_data_service().load_all_inventory()}
+        events = [e for e in events if inv_map.get(e.get("inventory_id")) == store_id]
+    return [InventoryEvent(**e) for e in events]
+
+
+# ── 内部方法 ───────────────────────────────────────────────────
+
+def _load_events() -> list[dict]:
+    from pathlib import Path
+    events_file = Path(__file__).parent.parent.parent / "data" / "events.json"
     try:
-        with open(PRODUCTS_FILE, encoding="utf-8") as f:
-            import json
+        import json
+        with open(events_file, encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
-        logger.error(f"[Inventory] Failed to load products.json: {e}")
+    except Exception:
         return []
 
 
-def query_pending_clearance_skus(days_threshold: int = 2) -> list[dict]:
-    """
-    从 products.json 查询临期货商品。
-
-    Args:
-        days_threshold: 剩余天数阈值，默认 ≤ 2 天
-
-    Returns:
-        临期货商品列表，每项包含：
-        sku, name, qty, expiry, days_left, category, is_imported, is_organic,
-        is_promoted, arrival_days, in_reduction
-    """
-    products = get_data_service().load_all_products()
-    today = date.today()
-    result = []
-    for p in products:
-        try:
-            expiry = date.fromisoformat(p["expiry_date"])
-        except (ValueError, KeyError):
-            continue
-        days_left = (expiry - today).days
-        if 0 <= days_left <= days_threshold and not p.get("in_reduction", False):
-            result.append({
-                "sku": p["product_id"],
-                "name": p["name"],
-                "qty": p.get("stock", 0),
-                "expiry": p["expiry_date"],
-                "days_left": days_left,
-                "category": p.get("category", ""),
-                "is_imported": p.get("is_imported", False),
-                "is_organic": p.get("is_organic", False),
-                "is_promoted": p.get("is_promoted", False),
-                "arrival_days": p.get("arrival_days"),
-                "in_reduction": p.get("in_reduction", False),
-            })
-    logger.info(f"[Inventory] Found {len(result)} pending clearance SKUs (days_threshold={days_threshold})")
-    return result
-
-
-def get_product_by_sku(sku: str) -> Optional[dict]:
-    """根据 SKU 查询商品详情。"""
-    products = get_data_service().load_all_products()
-    for p in products:
-        if p.get("product_id") == sku:
-            return p
-    return None
-
-
-def check_product_exemption_from_json(product: dict) -> Optional[dict]:
-    """
-    基于商品属性（来自 JSON）判断豁免类型。
-
-    Args:
-        product: 商品字典，应包含 is_imported, is_organic, is_promoted, arrival_days
-
-    Returns:
-        豁免信息dict或None
-    """
-    if product.get("is_imported"):
-        return {"exemption_type": "imported", "exemption_reason": "进口商品不参与临期打折", "rule_source": "headquarters"}
-    if product.get("is_organic"):
-        return {"exemption_type": "organic", "exemption_reason": "有机绿色食品不参与临期打折", "rule_source": "headquarters"}
-    if product.get("is_promoted"):
-        return {"exemption_type": "already_promoted", "exemption_reason": "已参与促销不叠加折扣", "rule_source": "headquarters"}
-    arrival_days = product.get("arrival_days")
-    if arrival_days is not None and arrival_days <= 7:
-        return {"exemption_type": "new_arrival", "exemption_reason": f"新上架商品(到货{arrival_days}天)不参与", "rule_source": "headquarters"}
-    return None
-
-
-def query_pending_clearance_with_fastpath(days_threshold: int = 2) -> list[dict]:
-    """
-    查询临期货商品并附带 Fast Path 折扣建议。
-
-    整合了 Fast Path 规则引擎，为每个临期商品提供：
-    - 折扣率建议
-    - 豁免检查结果
-    - 折扣区间
-    - 操作建议（直接打折/需审批/豁免）
-
-    Args:
-        days_threshold: 剩余天数阈值，默认 ≤ 2 天
-
-    Returns:
-        临期货商品列表，每项包含原始信息 + 折扣建议
-    """
-    from app.services.reasoning_engine import FastPathRuleEngine
-
-    # 获取待处理商品
-    pending = query_pending_clearance_skus(days_threshold)
-    if not pending:
-        return []
-
-    # 构建用于 Fast Path 评估的商品列表
-    products_for_eval = []
-    for p in pending:
-        product = {
-            "product_id": p["sku"],
-            "name": p["name"],
-            "expiry_date": p["expiry"],
-            "category": p["category"],
-            "stock": p["qty"],
-            "is_imported": p.get("is_imported", False),
-            "is_organic": p.get("is_organic", False),
-            "is_promoted": p.get("is_promoted", False),
-            "arrival_days": p.get("arrival_days"),
-            "days_left": p["days_left"],
-        }
-        products_for_eval.append(product)
-
-    # 批量评估
-    engine = FastPathRuleEngine()
-    rules = engine.evaluate_batch(products_for_eval)
-
-    # 合并结果
-    result = []
-    for p, rule in zip(pending, rules):
-        item = {**p, **rule.to_dict()}
-        result.append(item)
-
-    logger.info(f"[Inventory] FastPath evaluated {len(result)} pending clearance SKUs")
-    return result
+def _save_events(events: list[dict]) -> None:
+    from pathlib import Path
+    events_file = Path(__file__).parent.parent.parent / "data" / "events.json"
+    import json
+    with open(events_file, "w", encoding="utf-8") as f:
+        json.dump(events, f, ensure_ascii=False, indent=2)

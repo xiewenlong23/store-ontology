@@ -1,0 +1,93 @@
+[
+  {
+    "inventory_id": "INV-P001-S1",
+    "product_id": "P001",
+    "store_id": "STORE-001",
+    "quantity": 30,
+    "min_stock_level": 10,
+    "max_stock_level": 100,
+    "reorder_point": 20,
+    "last_restock_date": "2026-04-20",
+    "last_count_date": "2026-04-22",
+    "status": "normal",
+    "location": "生鲜区-A排-3层"
+  },
+  {
+    "inventory_id": "INV-P002-S1",
+    "product_id": "P002",
+    "store_id": "STORE-001",
+    "quantity": 80,
+    "min_stock_level": 15,
+    "max_stock_level": 150,
+    "reorder_point": 30,
+    "last_restock_date": "2026-04-21",
+    "last_count_date": "2026-04-22",
+    "status": "normal",
+    "location": "冷藏区-B排-1层"
+  },
+  {
+    "inventory_id": "INV-P003-S1",
+    "product_id": "P003",
+    "store_id": "STORE-001",
+    "quantity": 25,
+    "min_stock_level": 5,
+    "max_stock_level": 60,
+    "reorder_point": 15,
+    "last_restock_date": "2026-04-22",
+    "last_count_date": "2026-04-22",
+    "status": "near_expiry",
+    "location": "烘焙区-C排-2层"
+  },
+  {
+    "inventory_id": "INV-P004-S1",
+    "product_id": "P004",
+    "store_id": "STORE-001",
+    "quantity": 45,
+    "min_stock_level": 10,
+    "max_stock_level": 80,
+    "reorder_point": 20,
+    "last_restock_date": "2026-04-19",
+    "last_count_date": "2026-04-22",
+    "status": "normal",
+    "location": "冷藏区-B排-2层"
+  },
+  {
+    "inventory_id": "INV-P005-S1",
+    "product_id": "P005",
+    "store_id": "STORE-001",
+    "quantity": 5,
+    "min_stock_level": 10,
+    "max_stock_level": 50,
+    "reorder_point": 15,
+    "last_restock_date": "2026-04-18",
+    "last_count_date": "2026-04-22",
+    "status": "out_of_stock",
+    "location": "生鲜区-A排-2层"
+  },
+  {
+    "inventory_id": "INV-P001-S2",
+    "product_id": "P001",
+    "store_id": "STORE-002",
+    "quantity": 40,
+    "min_stock_level": 10,
+    "max_stock_level": 100,
+    "reorder_point": 20,
+    "last_restock_date": "2026-04-21",
+    "last_count_date": "2026-04-22",
+    "status": "normal",
+    "location": "生鲜区-A排-3层"
+  },
+  {
+    "inventory_id": "INV-P002-S2",
+    "product_id": "P002",
+    "store_id": "STORE-002",
+    "quantity": 60,
+    "min_stock_level": 15,
+    "max_stock_level": 150,
+    "reorder_point": 30,
+    "last_restock_date": "2026-04-20",
+    "last_count_date": "2026-04-22",
+    "status": "normal",
+    "location": "冷藏区-B排-1层"
+  }
+]
