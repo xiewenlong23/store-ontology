@@ -22,8 +22,6 @@ function LiveClock() {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("board");
-
   return (
     <div className="flex flex-col min-h-screen p-4 md:p-6 text-white">
       {/* Header */}
@@ -74,40 +72,29 @@ export default function App() {
       {/* Top Dashboard (real data) */}
       <DashboardStats />
 
-      {/* Bottom Tabs */}
-      <div className="card flex-1 overflow-hidden" style={{ height: "67vh" }}>
-        {/* Tab Bar */}
-        <div className="flex border-b border-white/10">
-          <button
-            onClick={() => setActiveTab("board")}
-            className={`px-6 py-3 text-sm font-medium transition-all flex items-center gap-2 ${
-              activeTab === "board" ? "tab-active" : "text-white/60 hover:text-white"
-            }`}
-          >
-            <span>📋</span> 任务看板
-          </button>
-          <button
-            onClick={() => setActiveTab("ai")}
-            className={`px-6 py-3 text-sm font-medium transition-all flex items-center gap-2 ${
-              activeTab === "ai" ? "tab-active" : "text-white/60 hover:text-white"
-            }`}
-          >
-            <span>🤖</span> AI 助手
-          </button>
-          <div className="flex-1" />
-        </div>
-
-        {/* Tab Content */}
-        <div className="h-full overflow-hidden">
-          {activeTab === "board" ? (
+      {/* Bottom: Task Board + AI Assistant 50/50 */}
+      <div className="flex gap-4 flex-1 overflow-hidden" style={{ height: "67vh" }}>
+        <div className="card flex-1 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+            <span className="text-sm font-medium text-white/70">📋</span>
+            <span className="text-sm font-medium text-white/70">任务看板</span>
+          </div>
+          <div className="h-[calc(100%-44px)] overflow-hidden">
             <TaskBoard />
-          ) : (
-            <div className="p-4 h-full flex flex-col">
+          </div>
+        </div>
+        <div className="card flex-1 overflow-hidden flex flex-col">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+            <span className="text-sm font-medium text-white/70">🤖</span>
+            <span className="text-sm font-medium text-white/70">AI 助手</span>
+          </div>
+          <div className="flex-1 overflow-hidden p-4">
+            <div className="h-full flex flex-col">
               <div className="flex-1 overflow-auto">
                 <ChatAssistant />
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
