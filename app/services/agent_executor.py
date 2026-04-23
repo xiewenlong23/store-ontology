@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from app.tools.registry import registry
 from app.services.llm_service import get_minimax_llm
+from app.services.context import ToolContext, ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,10 @@ class AgentExecutor:
         """
         执行用户消息 — LLM Agent 循环直到完成。
 
+        Args:
+            user_message: 用户消息
+            context: 可选的上下文信息，包含 store_id, user_id, user_role 等
+
         Returns:
             {
                 "success": bool,
@@ -102,6 +107,18 @@ class AgentExecutor:
                 "conversation": list,
             }
         """
+        # 构建 ToolContext（用于工具执行时的上下文隔离）
+        tool_ctx = ToolContext(
+            store_id=context.get("store_id") if context else "STORE-001",
+            user_id=context.get("user_id"),
+            user_role=context.get("user_role"),
+            product_id=context.get("product_id"),
+            product_name=context.get("product_name"),
+            category=context.get("category"),
+            expiry_date=context.get("expiry_date"),
+            stock=context.get("stock"),
+        )
+
         # 构建初始消息列表
         system_content = SYSTEM_PROMPT.format(tool_descriptions=self._tool_descs)
         messages = [{"role": "system", "content": system_content}]
@@ -154,14 +171,15 @@ class AgentExecutor:
                     break
                 continue
 
-            # 执行工具
-            entry = registry.get(tool_name)
-            if not entry:
-                tool_result = {"success": False, "error": f"未知工具: {tool_name}"}
-            else:
-                schema_props = entry.schema.get("parameters", {}).get("properties", {})
-                filtered_args = {k: v for k, v in tool_args.items() if k in schema_props}
-                tool_result = registry.dispatch(tool_name, filtered_args)
+            # 执行工具（设置上下文）
+            with ContextManager(tool_ctx):
+                entry = registry.get(tool_name)
+                if not entry:
+                    tool_result = {"success": False, "error": f"未知工具: {tool_name}"}
+                else:
+                    schema_props = entry.schema.get("parameters", {}).get("properties", {})
+                    filtered_args = {k: v for k, v in tool_args.items() if k in schema_props}
+                    tool_result = registry.dispatch(tool_name, filtered_args)
 
             # 把 LLM 的决策 + 执行结果都加入历史，供下一步使用
             messages.append({

@@ -3,9 +3,7 @@ from app.models import ReductionTask, TaskStatus, RiskLevel, ExemptionType
 from pydantic import BaseModel
 from datetime import datetime, date
 from typing import Optional
-from pathlib import Path
-import json
-import fcntl
+from app.services.data import get_data_service
 import uuid
 import logging
 
@@ -13,39 +11,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-TASKS_FILE = DATA_DIR / "tasks.json"
-
-def load_tasks():
-    try:
-        with open(TASKS_FILE) as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                return json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-    except FileNotFoundError:
-        logger.warning(f"Tasks file not found: {TASKS_FILE}, returning empty list")
-        return []
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in tasks file: {TASKS_FILE}: {e}")
-        return []
-
-def save_tasks(tasks):
-    try:
-        with open(TASKS_FILE, "w") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(tasks, f, indent=2, default=str)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-    except OSError as e:
-        logger.error(f"Failed to save tasks to {TASKS_FILE}: {e}")
-        raise
-
 @router.get("/", response_model=list[ReductionTask])
 def list_tasks(store_id: Optional[str] = None, status: Optional[TaskStatus] = None):
-    tasks = load_tasks()
+    tasks = get_data_service().load_tasks(store_id)
     if store_id:
         tasks = [t for t in tasks if t["store_id"] == store_id]
     if status:
@@ -54,17 +22,17 @@ def list_tasks(store_id: Optional[str] = None, status: Optional[TaskStatus] = No
 
 @router.post("/", response_model=ReductionTask)
 def create_task(task: ReductionTask):
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     task_dict = task.model_dump()
     task_dict["task_id"] = str(uuid.uuid4())
     task_dict["created_at"] = datetime.now().isoformat()
     tasks.append(task_dict)
-    save_tasks(tasks)
+    get_data_service().save_tasks(tasks)
     return task_dict
 
 @router.get("/{task_id}", response_model=ReductionTask)
 def get_task(task_id: str):
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
             return t
@@ -72,18 +40,18 @@ def get_task(task_id: str):
 
 @router.patch("/{task_id}/status")
 def update_task_status(task_id: str, status: TaskStatus):
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
             t["status"] = status.value
-            save_tasks(tasks)
+            get_data_service().save_tasks(tasks)
             return t
     raise HTTPException(status_code=404, detail="Task not found")
 
 @router.patch("/{task_id}/complete")
 def complete_task(task_id: str, sold_qty: int):
     """废弃：保留兼容性，请使用 /review 端点"""
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     for t in tasks:
         if t["task_id"] == task_id:
             t["status"] = TaskStatus.COMPLETED.value
@@ -92,7 +60,7 @@ def complete_task(task_id: str, sold_qty: int):
                 t["sell_through_rate"] = 0.0
             else:
                 t["sell_through_rate"] = sold_qty / original_stock
-            save_tasks(tasks)
+            get_data_service().save_tasks(tasks)
             return t
     raise HTTPException(status_code=404, detail="Task not found")
 
@@ -132,7 +100,7 @@ def confirm_task(task_id: str, req: ConfirmRequest):
 
     店长审批或AI自动确认后执行此端点。
     """
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
 
     if TaskStatus(task["status"]) != TaskStatus.PENDING:
@@ -145,7 +113,7 @@ def confirm_task(task_id: str, req: ConfirmRequest):
     if req.notes:
         task["confirmed_notes"] = req.notes
 
-    save_tasks(tasks)
+    get_data_service().save_tasks(tasks)
 
     # 发送事件
     from app.services.event_system import get_event_bus, EventType
@@ -169,7 +137,7 @@ def execute_task(task_id: str, req: ExecuteRequest):
 
     员工完成IF枪扫描和价签打印后执行此端点。
     """
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
 
     if TaskStatus(task["status"]) != TaskStatus.CONFIRMED.value:
@@ -183,7 +151,7 @@ def execute_task(task_id: str, req: ExecuteRequest):
     if req.executed_discount_rate is not None:
         task["executed_discount_rate"] = req.executed_discount_rate
 
-    save_tasks(tasks)
+    get_data_service().save_tasks(tasks)
 
     # 发送事件
     from app.services.event_system import get_event_bus, EventType
@@ -207,7 +175,7 @@ def review_task(task_id: str, req: ReviewRequest):
 
     店长复核售罄率，确认任务闭环。
     """
-    tasks = load_tasks()
+    tasks = get_data_service().load_all_tasks()
     _, task = _get_task(tasks, task_id)
 
     if TaskStatus(task["status"]) != TaskStatus.EXECUTED.value:
@@ -224,7 +192,7 @@ def review_task(task_id: str, req: ReviewRequest):
     if not req.requires_rectification:
         task["status"] = TaskStatus.COMPLETED.value
 
-    save_tasks(tasks)
+    get_data_service().save_tasks(tasks)
 
     # 发送事件
     from app.services.event_system import get_event_bus, EventType

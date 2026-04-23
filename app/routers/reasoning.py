@@ -2,17 +2,14 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from app.models import ProductCategory
 from datetime import date
-from pathlib import Path
 from typing import Optional, List
-import json
 import logging
+
+from app.services.data import get_data_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-PRODUCTS_FILE = DATA_DIR / "products.json"
 
 from app.services.discount_constants import DISCOUNT_TIERS, get_fallback_tier
 
@@ -91,14 +88,11 @@ class ReasoningResponse(BaseModel):
 
 @router.get("/products")
 def list_products():
-    """Return product list from products.json."""
+    """Return product list from products.json via DataService."""
     try:
-        if not PRODUCTS_FILE.exists():
-            logger.error(f"Products file not found: {PRODUCTS_FILE}")
-            return {"error": "Product data unavailable", "products": []}
-        with open(PRODUCTS_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+        products = get_data_service().load_all_products()
+        return products
+    except Exception as e:
         logger.error(f"Failed to load products: {e}")
         return {"error": f"Failed to load products: {e}", "products": []}
 
@@ -225,11 +219,10 @@ def agent_scan_products():
     触发推理引擎进行折扣推荐。
     """
     try:
-        with open(PRODUCTS_FILE) as f:
-            products = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        logger.error(f"[Reasoning] Failed to read products file: {e}")
-        return []
+        products = get_data_service().load_all_products()
+    except Exception as e:
+        logger.error(f"[Reasoning] Failed to load products via DataService: {e}")
+        return {"tasks_to_create": [], "scanned_count": 0, "events_emitted": False}
 
     tasks_to_create = []
     today = date.today()

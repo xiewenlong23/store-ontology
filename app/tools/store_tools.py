@@ -9,6 +9,10 @@
     查询类：query_pending_products, query_tasks, query_discount_rules
     操作类：create_task, confirm_task, execute_task, review_task
     解释类：explain_discount
+
+重要设计：
+    - 工具函数通过 context.get() 获取当前门店上下文
+    - store_id 参数保留用于覆盖（向下兼容），默认从 context 读取
 """
 
 from app.tools.registry import registry
@@ -22,6 +26,8 @@ from app.services.ttl_llm_reasoning import (
     explain_discount_reasoning,
 )
 from app.services.event_system import get_event_bus, EventType
+from app.services.context import get_context, ToolContext
+from app.services.data import get_data_service
 from datetime import datetime, date
 from pathlib import Path
 import json
@@ -30,37 +36,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-TASKS_FILE = DATA_DIR / "tasks.json"
-PRODUCTS_FILE = DATA_DIR / "products.json"
+
+def _get_store_id(store_id: str = None) -> str:
+    """获取门店ID：优先使用参数覆盖，否则从上下文读取"""
+    if store_id:
+        return store_id
+    ctx = get_context()
+    return ctx.store_id
 
 
 # ============================================================================
-# 辅助函数
+# 辅助函数（已迁移到 DataService）
 # ============================================================================
-
-
-def _load_tasks():
-    try:
-        with open(TASKS_FILE) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        return []
-
-
-def _save_tasks(tasks):
-    with open(TASKS_FILE, "w") as f:
-        json.dump(tasks, f, indent=2, default=str)
-
-
-def _load_products():
-    try:
-        with open(PRODUCTS_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
 
 
 def _get_task(tasks, task_id):
@@ -68,6 +55,26 @@ def _get_task(tasks, task_id):
         if t["task_id"] == task_id:
             return i, t
     return None, None
+
+
+def _load_products():
+    """加载商品（按当前上下文 store_id 过滤）"""
+    return get_data_service().load_products()
+
+
+def _load_tasks():
+    """加载任务（按当前上下文 store_id 过滤）"""
+    return get_data_service().load_tasks()
+
+
+def _load_all_tasks():
+    """加载所有任务（不过滤 store_id），用于需要整体读写的场景"""
+    return get_data_service().load_all_tasks()
+
+
+def _save_tasks(tasks):
+    """保存所有任务（不过滤 store_id），使用 DataService 失效缓存"""
+    get_data_service().save_tasks(tasks)
 
 
 # ============================================================================
@@ -86,11 +93,13 @@ def _query_pending_products_impl(
     Args:
         category: 品类筛选（如 daily_fresh），可选
         days_threshold: 多少天内到期的商品，默认7天
-        store_id: 门店ID，可选
+        store_id: 门店ID，可选（默认从 ToolContext 读取）
 
     Returns:
         临期商品列表
     """
+    # 从上下文获取 store_id（支持参数覆盖）
+    effective_store_id = _get_store_id(store_id)
     products = _load_products()
     today = date.today()
     result = []
@@ -105,7 +114,8 @@ def _query_pending_products_impl(
                 continue
             if category and p.get("category") != category:
                 continue
-            if store_id and p.get("store_id") != store_id:
+            # 权限过滤：只返回当前门店的商品
+            if p.get("store_id") != effective_store_id:
                 continue
             result.append({**p, "days_left": days_left})
         except (ValueError, TypeError):
@@ -115,6 +125,7 @@ def _query_pending_products_impl(
         "success": True,
         "count": len(result),
         "products": result,
+        "store_id": effective_store_id,  # 返回查询所用的门店ID
     }
 
 
@@ -127,20 +138,22 @@ def _query_tasks_impl(
 
     Args:
         status: 状态筛选（pending/confirmed/executed/reviewed/completed），可选
-        store_id: 门店ID，可选
+        store_id: 门店ID，可选（默认从 ToolContext 读取）
 
     Returns:
         任务列表
     """
+    effective_store_id = _get_store_id(store_id)
     tasks = _load_tasks()
     if status:
         tasks = [t for t in tasks if t.get("status") == status]
-    if store_id:
-        tasks = [t for t in tasks if t.get("store_id") == store_id]
+    # 权限过滤：只返回当前门店的任务
+    tasks = [t for t in tasks if t.get("store_id") == effective_store_id]
     return {
         "success": True,
         "count": len(tasks),
         "tasks": tasks,
+        "store_id": effective_store_id,
     }
 
 
@@ -181,7 +194,7 @@ def _create_task_impl(
     discount_rate: float,
     original_stock: int,
     expiry_date: str,
-    store_id: str = "STORE-001",
+    store_id: str = None,
     created_by: str = "店长",
     urgency: str = "medium",
 ) -> dict:
@@ -195,20 +208,22 @@ def _create_task_impl(
         discount_rate: 折扣率（0.0 - 1.0）
         original_stock: 原库存量
         expiry_date: 到期日期（YYYY-MM-DD）
-        store_id: 门店ID
+        store_id: 门店ID（默认从 ToolContext 读取）
         created_by: 创建人
         urgency: 紧急程度（low/medium/high/critical）
 
     Returns:
         创建的任务信息
     """
+    effective_store_id = _get_store_id(store_id)
+    ctx = get_context()
     tasks = _load_tasks()
     task_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
 
     task = {
         "task_id": task_id,
-        "store_id": store_id,
+        "store_id": effective_store_id,
         "product_id": product_id,
         "product_name": product_name,
         "category": category,
@@ -216,7 +231,7 @@ def _create_task_impl(
         "original_stock": original_stock,
         "expiry_date": expiry_date,
         "status": TaskStatus.PENDING.value,
-        "created_by": created_by,
+        "created_by": created_by or ctx.user_id or "店长",
         "created_at": now,
         "urgency": urgency,
     }
@@ -248,7 +263,7 @@ def _create_task_impl(
 def _confirm_task_impl(
     task_id: str,
     confirmed_discount_rate: float,
-    confirmed_by: str = "店长",
+    confirmed_by: str = None,
     notes: str = None,
 ) -> dict:
     """
@@ -257,23 +272,28 @@ def _confirm_task_impl(
     Args:
         task_id: 任务ID
         confirmed_discount_rate: 确认的折扣率
-        confirmed_by: 确认人
+        confirmed_by: 确认人（默认从上下文读取）
         notes: 备注
 
     Returns:
         确认结果
     """
-    tasks = _load_tasks()
+    ctx = get_context()
+    tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:
         return {"success": False, "error": f"任务不存在: {task_id}"}
+
+    # 权限检查：只能确认本门店的任务
+    if task.get("store_id") != ctx.store_id:
+        return {"success": False, "error": f"无权操作其他门店的任务"}
 
     if TaskStatus(task["status"]) != TaskStatus.PENDING:
         return {"success": False, "error": f"只有Pending状态的任务可以确认，当前状态: {task['status']}"}
 
     task["status"] = TaskStatus.CONFIRMED.value
     task["confirmed_discount_rate"] = confirmed_discount_rate
-    task["confirmed_by"] = confirmed_by
+    task["confirmed_by"] = confirmed_by or ctx.user_id or "店长"
     task["confirmed_at"] = datetime.now().isoformat()
     if notes:
         task["confirmed_notes"] = notes
@@ -302,7 +322,7 @@ def _confirm_task_impl(
 
 def _execute_task_impl(
     task_id: str,
-    executed_by: str = "员工",
+    executed_by: str = None,
     scan_barcode: str = None,
     price_label_printed: bool = True,
     executed_discount_rate: float = None,
@@ -312,7 +332,7 @@ def _execute_task_impl(
 
     Args:
         task_id: 任务ID
-        executed_by: 执行人
+        executed_by: 执行人（默认从上下文读取）
         scan_barcode: 扫描的条码
         price_label_printed: 是否已打印价签
         executed_discount_rate: 实际执行的折扣率
@@ -320,16 +340,21 @@ def _execute_task_impl(
     Returns:
         执行结果
     """
-    tasks = _load_tasks()
+    ctx = get_context()
+    tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:
         return {"success": False, "error": f"任务不存在: {task_id}"}
+
+    # 权限检查：只能执行本门店的任务
+    if task.get("store_id") != ctx.store_id:
+        return {"success": False, "error": f"无权操作其他门店的任务"}
 
     if TaskStatus(task["status"]) != TaskStatus.CONFIRMED:
         return {"success": False, "error": f"只有Confirmed状态的任务可以执行，当前状态: {task['status']}"}
 
     task["status"] = TaskStatus.EXECUTED.value
-    task["executed_by"] = executed_by
+    task["executed_by"] = executed_by or ctx.user_id or "员工"
     task["executed_at"] = datetime.now().isoformat()
     if scan_barcode:
         task["scan_barcode"] = scan_barcode
@@ -361,7 +386,7 @@ def _execute_task_impl(
 
 def _review_task_impl(
     task_id: str,
-    reviewed_by: str = "店长",
+    reviewed_by: str = None,
     sell_through_rate: float = None,
     review_notes: str = None,
     requires_rectification: bool = False,
@@ -371,7 +396,7 @@ def _review_task_impl(
 
     Args:
         task_id: 任务ID
-        reviewed_by: 复核人
+        reviewed_by: 复核人（默认从上下文读取）
         sell_through_rate: 售罄率（0.0 - 1.0）
         review_notes: 复核备注
         requires_rectification: 是否需要整改
@@ -379,16 +404,21 @@ def _review_task_impl(
     Returns:
         复核结果
     """
-    tasks = _load_tasks()
+    ctx = get_context()
+    tasks = _load_all_tasks()
     idx, task = _get_task(tasks, task_id)
     if task is None:
         return {"success": False, "error": f"任务不存在: {task_id}"}
+
+    # 权限检查：只能复核本门店的任务
+    if task.get("store_id") != ctx.store_id:
+        return {"success": False, "error": f"无权操作其他门店的任务"}
 
     if TaskStatus(task["status"]) != TaskStatus.EXECUTED:
         return {"success": False, "error": f"只有Executed状态的任务可以复核，当前状态: {task['status']}"}
 
     task["status"] = TaskStatus.REVIEWED.value if requires_rectification else TaskStatus.COMPLETED.value
-    task["reviewed_by"] = reviewed_by
+    task["reviewed_by"] = reviewed_by or ctx.user_id or "店长"
     task["reviewed_at"] = datetime.now().isoformat()
     if sell_through_rate is not None:
         task["sell_through_rate"] = sell_through_rate
@@ -678,11 +708,12 @@ def _query_pending_with_discount_impl(
     Args:
         category: 品类筛选（如 daily_fresh），可选
         days_threshold: 多少天内到期的商品，默认7天
-        store_id: 门店ID，可选
+        store_id: 门店ID，可选（默认从 ToolContext 读取）
 
     Returns:
         临期商品列表，每个商品包含折扣建议
     """
+    effective_store_id = _get_store_id(store_id)
     products = _load_products()
     today = date.today()
     result = []
@@ -697,7 +728,8 @@ def _query_pending_with_discount_impl(
                 continue
             if category and p.get("category") != category:
                 continue
-            if store_id and p.get("store_id") != store_id:
+            # 权限过滤：只返回当前门店的商品
+            if p.get("store_id") != effective_store_id:
                 continue
 
             # 对每个商品进行折扣推理
@@ -736,6 +768,7 @@ def _query_pending_with_discount_impl(
         "success": True,
         "count": len(result),
         "products": result,
+        "store_id": effective_store_id,
     }
 
 

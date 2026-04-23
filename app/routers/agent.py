@@ -19,6 +19,9 @@ router = APIRouter()
 
 class UnifiedChatRequest(BaseModel):
     message: str
+    store_id: Optional[str] = "STORE-001"  # 门店ID（多门店扩展点）
+    user_id: Optional[str] = None  # 用户ID（权限扩展点）
+    user_role: Optional[str] = None  # 用户角色（manager/clerk/headquarters）
     product_id: Optional[str] = None
     product_name: Optional[str] = None
     category: Optional[str] = None
@@ -57,7 +60,13 @@ def unified_chat(req: UnifiedChatRequest):
         from app.services.agent_executor import AgentExecutor
 
         # 构建上下文（从请求中提取可用的商品/任务信息）
-        context = {}
+        context = {
+            "store_id": req.store_id or "STORE-001",
+        }
+        if req.user_id:
+            context["user_id"] = req.user_id
+        if req.user_role:
+            context["user_role"] = req.user_role
         if req.product_id:
             context["product_id"] = req.product_id
         if req.product_name:

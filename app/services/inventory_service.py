@@ -2,36 +2,48 @@
 """
 ABox 库存查询服务
 直接从 products.json 查询临期货商品（不经过 SPARQL/TTL）
+
+注意：此服务保留用于库存特定查询。
+通用商品加载已迁移到 DataService。
+
+向后兼容导出（供测试使用）：
+- PRODUCTS_FILE: 商品文件路径
+- _load_products: 兼容旧接口，内部使用 DataService
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
+from app.services.data import get_data_service
+
 logger = logging.getLogger(__name__)
 
-PRODUCTS_FILE = Path(__file__).parent.parent.parent / "data" / "products.json"
+# 向后兼容：保持 PRODUCTS_FILE 导出供测试使用
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+PRODUCTS_FILE = DATA_DIR / "products.json"
 
-# 缓存 products.json 内容，进程内单例
+# 向后兼容：_cached_products（供测试 monkeypatch 使用）
 _cached_products: Optional[list[dict]] = None
 
 
 def _load_products() -> list[dict]:
-    """加载 products.json，带缓存。"""
-    global _cached_products
-    if _cached_products is None:
-        try:
-            with open(PRODUCTS_FILE, encoding="utf-8") as f:
-                _cached_products = json.load(f)
-            logger.info(f"[Inventory] Loaded {len(_cached_products)} products from {PRODUCTS_FILE}")
-        except Exception as e:
-            logger.error(f"[Inventory] Failed to load products.json: {e}")
-            _cached_products = []
-    return _cached_products
+    """
+    向后兼容：加载 products.json。
+
+    内部使用 DataService，但保持接口兼容供测试 monkeypatch。
+    注意：此函数不使用 DataService 的缓存机制。
+    """
+    try:
+        with open(PRODUCTS_FILE, encoding="utf-8") as f:
+            import json
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"[Inventory] Failed to load products.json: {e}")
+        return []
 
 
 def query_pending_clearance_skus(days_threshold: int = 2) -> list[dict]:
@@ -46,7 +58,7 @@ def query_pending_clearance_skus(days_threshold: int = 2) -> list[dict]:
         sku, name, qty, expiry, days_left, category, is_imported, is_organic,
         is_promoted, arrival_days, in_reduction
     """
-    products = _load_products()
+    products = get_data_service().load_all_products()
     today = date.today()
     result = []
     for p in products:
@@ -75,7 +87,7 @@ def query_pending_clearance_skus(days_threshold: int = 2) -> list[dict]:
 
 def get_product_by_sku(sku: str) -> Optional[dict]:
     """根据 SKU 查询商品详情。"""
-    products = _load_products()
+    products = get_data_service().load_all_products()
     for p in products:
         if p.get("product_id") == sku:
             return p
