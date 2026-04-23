@@ -5,3 +5,5 @@ __pycache__/
 *.ttl.bak*
 .venv/
 node_modules/
+# Build artifacts
+frontend/dist/

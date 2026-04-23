@@ -9,50 +9,98 @@
 ## 技术栈
 
 - **后端**：Python FastAPI + RDFLib
-- **前端**：React + Vite
+- **前端**：React + Vite + Tailwind
 - **本体**：Turtle (TTL) / OWL2 DL
-- **数据**：JSON 配置文件
 - **部署**：飞书小程序
 
-## 关键路径
+---
+
+## 本体论存储结构（TBOX / ABOX）
 
 ```
-app/                    # FastAPI 后端
-  routers/
-    tasks.py          # 任务 CRUD
-    reasoning.py      # 对话 + 推理
-  main.py             # FastAPI 入口
-  models.py           # Pydantic 模型
-  data/
-    products.json     # 商品数据
-    tasks.json        # 任务数据
-
-modules/               # TTL 本体模块
-  module1-worktask/
-    WORKTASK-MODULE.ttl  # 临期打折本体（1256 triples）
-
-examples/
-  clearance_engine.py  # TTL 推理引擎（CLI）
-  DEMO-DISCOUNT-001.ttl # 示例实例数据
-  products.json         # 示例商品
-
-frontend/src/          # React 前端
-  components/
-    ChatAssistant.jsx  # AI 对话组件
-    ProductCard.jsx    # 商品卡片
-  api.js              # API 调用
-
-validation/
-  validate_ontology.py  # TTL 验证脚本
+store-ontology/
+├── modules/                    # TBOX — 语义存储：本体定义
+│   └── module1-worktask/
+│       └── WORKTASK-MODULE.ttl   # 临期打折本体（Schema/类/属性/规则）
+│
+├── data/                       # ABOX — 实例存储：业务数据
+│   ├── products.json              # 商品实例
+│   └── tasks.json                # 任务实例
+│
+└── docs/
+    ├── TBOX/                  # TBOX — 本体设计文档
+    │   ├── README.md
+    │   ├── ARCHITECTURE.md
+    │   ├── ABOX_TBOX_ARCHITECTURE.md
+    │   └── RUNTIME_ADAPTERS.md
+    ├── ABOX/                  # ABOX — 实例数据文档（暂无）
+    ├── OPERATIONS/            # 运维文档
+    ├── AGENT/                 # Agent 系统文档
+    └── INFRASTRUCTURE/        # 工程基础设施文档
 ```
+
+### TBOX / ABOX 职责划分
+
+| 层级 | 目录 | 内容 | 工具 |
+|---|---|---|---|
+| **TBOX**（语义层） | `modules/` + `docs/TBOX/` | 本体类/属性/OWL声明/推理规则 | Protege, WebVOWL, rapper |
+| **ABOX**（实例层） | `data/` + `docs/ABOX/` | 具体商品/任务/库存实例 | SPARQL 查询 |
+
+---
+
+## 代码路径
+
+```
+app/                          # FastAPI 后端
+├── main.py                   # 入口
+├── models.py                 # Pydantic 模型
+├── routers/
+│   ├── agent.py              # Agent 对话路由
+│   ├── tasks.py              # 任务 CRUD
+│   ├── reasoning.py          # 推理路由
+│   └── pos.py                # POS 模拟器
+├── services/
+│   ├── agent_executor.py     # Agent 执行器
+│   ├── ttl_llm_reasoning.py  # TTL + LLM 推理引擎
+│   ├── sparql_service.py     # SPARQL 查询服务
+│   ├── llm_service.py        # LLM 调用
+│   ├── inventory_service.py  # 库存服务
+│   ├── intent_classifier.py  # 意图分类
+│   └── auto_confirm_service.py
+├── tools/
+│   ├── registry.py           # 工具注册表
+│   └── store_tools.py        # 门店工具集
+└── agent/
+    └── store_brain_agent.py  # 门店大脑 Agent
+
+frontend/                     # React 前端
+├── src/
+│   ├── App.jsx
+│   ├── api.js
+│   └── components/
+│       ├── ChatAssistant.jsx  # AI 对话
+│       ├── Dashboard.jsx
+│       └── ProductCard.jsx
+├── tests/                    # Vitest 测试
+└── vite.config.js
+
+tests/                        # Python pytest 测试
+├── test_agent.py
+├── test_reasoning.py
+└── test_integration_*.py
+```
+
+---
 
 ## FAD 工作流
 
 ```
 /fad:pipeline <任务>   # 端到端交付
-/fad:optimize          # 代码优化
-/review                # 代码审查
+/fad:optimize           # 代码优化
+/fad:code review        # 代码审查
 ```
+
+---
 
 ## 常用命令
 
@@ -70,8 +118,10 @@ python3 .claude/scripts/code_quality_gate.py --repo-root .
 python3 .claude/scripts/audit_log.py --step test-step --command "test" --status done --goal "测试"
 ```
 
+---
+
 ## 注意事项
 
 - TTL 本体修改后用 `rapper` 验证语法
-- FastAPI 路由已配置 Vite 代理（开发环境），生产需配 CORS
-- clearance_engine.py 假设从 `examples/` 目录运行
+- TBOX/ABOX 分离原则：类/属性定义在 `modules/`；业务实例在 `data/`
+- 本体迭代方向：LLM Agent 从 one-shot 改为多步循环推理（查询本体 → 决策 → 执行 → 回流 → 再决策）
