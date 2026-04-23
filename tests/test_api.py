@@ -5,7 +5,7 @@ from pathlib import Path
 
 client = TestClient(app)
 
-DATA_DIR = Path(__file__).parent.parent / "app" / "data"
+DATA_DIR = Path(__file__).parent.parent / "data"
 TASKS_FILE = DATA_DIR / "tasks.json"
 
 def test_health():

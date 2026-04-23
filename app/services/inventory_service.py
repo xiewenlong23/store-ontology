@@ -14,7 +14,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PRODUCTS_FILE = Path(__file__).parent.parent / "data" / "products.json"
+PRODUCTS_FILE = Path(__file__).parent.parent.parent / "data" / "products.json"
 
 # 缓存 products.json 内容，进程内单例
 _cached_products: Optional[list[dict]] = None

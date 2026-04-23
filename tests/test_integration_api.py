@@ -20,7 +20,7 @@ client = TestClient(app)
 
 # Paths
 REPO_ROOT = Path(__file__).parent.parent
-DATA_DIR = REPO_ROOT / "app" / "data"
+DATA_DIR = REPO_ROOT / "data"
 TASKS_FILE = DATA_DIR / "tasks.json"
 
 

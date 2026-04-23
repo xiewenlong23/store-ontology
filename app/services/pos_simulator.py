@@ -19,23 +19,31 @@ from app.services.event_system import EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
 POS_SALES_FILE = DATA_DIR / "pos_sales.json"
 
 
 def load_pos_sales() -> list[dict]:
-    """加载POS销售记录"""
+    """加载POS销售记录（读锁）"""
     if not POS_SALES_FILE.exists():
         return []
     with open(POS_SALES_FILE) as f:
-        return json.load(f)
+        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+        try:
+            return json.load(f)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def save_pos_sales(sales: list[dict]) -> None:
-    """保存POS销售记录"""
+    """保存POS销售记录（写锁）"""
     POS_SALES_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(POS_SALES_FILE, "w") as f:
-        json.dump(sales, f, indent=2, default=str)
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            json.dump(sales, f, indent=2, default=str)
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 class POSSimulator:
@@ -123,20 +131,27 @@ class POSSimulator:
         return record
 
     def _update_product_inventory(self, product_id: str, remaining: int) -> None:
-        """更新商品库存（模拟POS系统更新库存）"""
-        from app.routers.tasks import DATA_DIR, TASKS_FILE
+        """更新商品库存（模拟POS系统更新库存，写锁）"""
+        from app.routers.tasks import DATA_DIR
 
-        # 更新任务中的original_stock参考（实际应以POS为准）
         tasks_file = DATA_DIR / "tasks.json"
         if tasks_file.exists():
             with open(tasks_file) as f:
-                tasks = json.load(f)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    tasks = json.load(f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             for t in tasks:
                 if t.get("product_id") == product_id and t.get("original_stock", 0) == remaining + 1:
                     t["original_stock"] = remaining  # 模拟库存变化
                     break
             with open(tasks_file, "w") as f:
-                json.dump(tasks, f, indent=2, default=str)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    json.dump(tasks, f, indent=2, default=str)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
     def simulate_daily_sales(
         self,

@@ -13,6 +13,15 @@ export default function Dashboard() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
+  const grouped = React.useMemo(() => {
+    if (loading || error || !products.length) return {};
+    return products.reduce((acc, p) => {
+      if (!acc[p.category]) acc[p.category] = [];
+      acc[p.category].push(p);
+      return acc;
+    }, {});
+  }, [products]);
+
   React.useEffect(() => {
     let cancelled = false;
     fetchProducts()
@@ -28,12 +37,6 @@ export default function Dashboard() {
   if (error) {
     return <div className="text-center py-8 text-red-500">加载失败：{error}</div>;
   }
-
-  const grouped = useMemo(() => products.reduce((acc, p) => {
-    if (!acc[p.category]) acc[p.category] = [];
-    acc[p.category].push(p);
-    return acc;
-  }, {}), [products]);
 
   return (
     <div className="space-y-4">

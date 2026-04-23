@@ -5,20 +5,8 @@ from typing import Optional
 import logging
 import re
 
-from app.agent.store_brain_agent import (
-    get_store_brain_agent,
-    init_store_brain_agent,
-    StoreBrainAgent,
-)
-from app.services.complexity_classifier import get_complexity_classifier, QueryComplexity
-from app.services.ttl_llm_reasoning import (
-    ttl_query_pending_skus,
-    ttl_query_clearance_rules,
-    ttl_query_tasks,
-    reason_discount_llm,
-    assess_risk_llm,
-    generate_chat_response,
-)
+# 触发工具注册（必须在顶层，冷启动时工具数为0会导致Agent瘫痪）
+import app.tools.store_tools  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -121,29 +109,22 @@ class AgentChatResponse(BaseModel):
 @router.post("/chat", response_model=AgentChatResponse)
 def chat_with_agent(req: AgentChatRequest):
     """
-    Natural language interface to StoreBrainAgent.
+    [DEPRECATED] 自然语言接口已迁移到 /unified-chat。
 
-    The agent uses LangChain ReAct to:
-    - Understand user intent (via MiniMax LLM)
-    - Query ontology via SPARQL (via RDFLib)
-    - Reason about discount and tasks
-    - Return actionable recommendations
-
-    Example queries:
-    - "查询所有临期商品"
-    - "给出折扣建议"
-    - "查看任务 T-20260419-0001 的状态"
+    此端点保留用于向后兼容，内部使用 AgentExecutor 实现。
+    新代码请直接使用 /unified-chat 端点。
     """
     try:
-        # Re-initialize if api_key provided (allows per-request override)
-        if req.api_key:
-            init_store_brain_agent(api_key=req.api_key)
+        from app.services.agent_executor import AgentExecutor
 
-        agent = get_store_brain_agent()
-        response = agent.run(req.message)
-        return AgentChatResponse(response=response, agent_used=True)
+        executor = AgentExecutor()
+        result = executor.execute(req.message, context=None)
+
+        return AgentChatResponse(
+            response=result.get("response", "抱歉，处理失败。"),
+            agent_used=True,
+        )
     except ValueError as ve:
-        # API key not configured
         raise HTTPException(
             status_code=503,
             detail=f"LLM not configured: {ve}. Set MINIMAX_API_KEY environment variable."
