@@ -23,7 +23,6 @@ function LiveClock() {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("board");
-  const [filterType, setFilterType] = useState("all");
 
   return (
     <div className="flex flex-col min-h-screen p-4 md:p-6 text-white">
@@ -49,7 +48,10 @@ export default function App() {
               <p className="text-xs text-white/50">万达广场店 · 今日运营</p>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs" style={{ background: "oklch(0.25 0.08 160 / 0.5)" }}>
+          <div
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+            style={{ background: "oklch(0.25 0.08 160 / 0.5)" }}
+          >
             <span className="w-2 h-2 rounded-full bg-emerald-400 live-dot" />
             <span className="text-emerald-400">营业中</span>
             <span className="text-white/50">·</span>
@@ -69,7 +71,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Top Dashboard */}
+      {/* Top Dashboard (real data) */}
       <DashboardStats />
 
       {/* Bottom Tabs */}
@@ -93,26 +95,12 @@ export default function App() {
             <span>🤖</span> AI 助手
           </button>
           <div className="flex-1" />
-          <div className="flex items-center px-4 text-xs text-white/50">
-            <span className="mr-2">筛选:</span>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="bg-transparent text-white/70 text-xs focus:outline-none cursor-pointer"
-            >
-              <option value="all">全部任务</option>
-              <option value="expiry">临期出清</option>
-              <option value="price">价签更新</option>
-              <option value="stock">上货补货</option>
-              <option value="food">食品加工</option>
-            </select>
-          </div>
         </div>
 
         {/* Tab Content */}
         <div className="h-full overflow-hidden">
           {activeTab === "board" ? (
-            <TaskBoard filter={filterType} />
+            <TaskBoard />
           ) : (
             <div className="p-4 h-full flex flex-col">
               <div className="flex-1 overflow-auto">
