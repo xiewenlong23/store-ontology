@@ -1,0 +1,413 @@
+# ============================================================
+# ABOX 实例数据 — 四角实体（临期出清场景）
+# ============================================================
+# 版本: 0.1.0
+# 日期: 2026-04-23
+# 描述: Product/Inventory/Staff/WorkTask 四角实体实例
+# 数据来源: data/products.json / data/staff.json / data/tasks.json
+#
+# Prefix
+# ============================================================
+
+@prefix so:   <https://store-ontology.example.com/retail#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+@base <https://store-ontology.example.com/retail> .
+
+# ============================================================
+# 第一部分：Staff 实例（员工）
+# ============================================================
+
+# ── STORE-001 员工 ─────────────────────────────────────────────
+
+so:S001 a so:Staff ;
+    so:staffCode "EMP-001" ;
+    so:staffName "张店长" ;
+    so:staffPhone "13800001111" ;
+    so:hireDate "2024-01-15"^^xsd:date ;
+    so:staffStatus so:StaffStatusActive ;
+    so:hasRole so:RoleStoreManager ;
+    so:worksAt so:StoreA .
+
+so:S002 a so:Staff ;
+    so:staffCode "EMP-002" ;
+    so:staffName "李店员" ;
+    so:staffPhone "13800002222" ;
+    so:hireDate "2024-06-01"^^xsd:date ;
+    so:staffStatus so:StaffStatusActive ;
+    so:hasRole so:RoleClerk ;
+    so:worksAt so:StoreA .
+
+so:S003 a so:Staff ;
+    so:staffCode "EMP-003" ;
+    so:staffName "王副店" ;
+    so:staffPhone "13800003333" ;
+    so:hireDate "2024-03-01"^^xsd:date ;
+    so:staffStatus so:StaffStatusActive ;
+    so:hasRole so:RoleAssistantMgr ;
+    so:worksAt so:StoreA .
+
+# ── STORE-002 员工 ─────────────────────────────────────────────
+
+so:S004 a so:Staff ;
+    so:staffCode "EMP-004" ;
+    so:staffName "赵店长" ;
+    so:staffPhone "13900004444" ;
+    so:hireDate "2024-02-01"^^xsd:date ;
+    so:staffStatus so:StaffStatusActive ;
+    so:hasRole so:RoleStoreManager ;
+    so:worksAt so:StoreB .
+
+# ── 总部员工 ───────────────────────────────────────────────────
+
+so:S005 a so:Staff ;
+    so:staffCode "EMP-005" ;
+    so:staffName "总部管理员" ;
+    so:staffPhone "13900005555" ;
+    so:hireDate "2023-01-01"^^xsd:date ;
+    so:staffStatus so:StaffStatusActive ;
+    so:hasRole so:RoleHQ .
+
+# ============================================================
+# 第二部分：Store 实例（门店）
+# ============================================================
+
+so:StoreA a so:Store ;
+    so:storeCode "STORE-001" ;
+    so:storeName "A 店（欢乐港）" ;
+    so:region "华东" ;
+    so:hasStaff so:S001, so:S002, so:S003 .
+
+so:StoreB a so:Store ;
+    so:storeCode "STORE-002" ;
+    so:storeName "B 店（万达广场）" ;
+    so:region "华东" ;
+    so:hasStaff so:S004 .
+
+# ============================================================
+# 第三部分：Inventory 实例（库存）
+# ============================================================
+# 库存按「门店+商品」唯一定位，一条记录 = 一个门店中某商品的数量
+
+# ── STORE-001 库存 ─────────────────────────────────────────────
+
+# P001 嫩豆腐 - 临期（4/25 到期 → 剩2天）
+so:INV-P001-S1 a so:Inventory ;
+    so:stores so:StoreA ;
+    so:contains so:P001 ;
+    so:quantity 30 ;
+    so:minStockLevel 10 ;
+    so:maxStockLevel 100 ;
+    so:reorderPoint 20 ;
+    so:lastRestockDate "2026-04-20"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNearExpiry ;
+    so:inventoryLocation "生鲜区-A排-3层" ;
+    so:managedBy so:S002 .
+
+# P002 鲜牛奶
+so:INV-P002-S1 a so:Inventory ;
+    so:stores so:StoreA ;
+    so:contains so:P002 ;
+    so:quantity 80 ;
+    so:minStockLevel 15 ;
+    so:maxStockLevel 150 ;
+    so:reorderPoint 30 ;
+    so:lastRestockDate "2026-04-21"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNormal ;
+    so:inventoryLocation "冷藏区-B排-1层" ;
+    so:managedBy so:S002 .
+
+# P003 面包 - 临期（4/25 到期 → 剩2天）
+so:INV-P003-S1 a so:Inventory ;
+    so:stores so:StoreA ;
+    so:contains so:P003 ;
+    so:quantity 25 ;
+    so:minStockLevel 5 ;
+    so:maxStockLevel 60 ;
+    so:reorderPoint 15 ;
+    so:lastRestockDate "2026-04-22"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNearExpiry ;
+    so:inventoryLocation "烘焙区-C排-2层" ;
+    so:managedBy so:S003 .
+
+# P004 日配酸奶
+so:INV-P004-S1 a so:Inventory ;
+    so:stores so:StoreA ;
+    so:contains so:P004 ;
+    so:quantity 45 ;
+    so:minStockLevel 10 ;
+    so:maxStockLevel 80 ;
+    so:reorderPoint 20 ;
+    so:lastRestockDate "2026-04-19"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNormal ;
+    so:inventoryLocation "冷藏区-B排-2层" ;
+    so:managedBy so:S002 .
+
+# P005 有机西兰花 - 缺货
+so:INV-P005-S1 a so:Inventory ;
+    so:stores so:StoreA ;
+    so:contains so:P005 ;
+    so:quantity 5 ;
+    so:minStockLevel 10 ;
+    so:maxStockLevel 50 ;
+    so:reorderPoint 15 ;
+    so:lastRestockDate "2026-04-18"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusOutOfStock ;
+    so:inventoryLocation "生鲜区-A排-2层" ;
+    so:managedBy so:S002 .
+
+# ── STORE-002 库存 ─────────────────────────────────────────────
+
+so:INV-P001-S2 a so:Inventory ;
+    so:stores so:StoreB ;
+    so:contains so:P001 ;
+    so:quantity 40 ;
+    so:minStockLevel 10 ;
+    so:maxStockLevel 100 ;
+    so:reorderPoint 20 ;
+    so:lastRestockDate "2026-04-21"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNormal ;
+    so:inventoryLocation "生鲜区-A排-3层" ;
+    so:managedBy so:S004 .
+
+so:INV-P002-S2 a so:Inventory ;
+    so:stores so:StoreB ;
+    so:contains so:P002 ;
+    so:quantity 60 ;
+    so:minStockLevel 15 ;
+    so:maxStockLevel 150 ;
+    so:reorderPoint 30 ;
+    so:lastRestockDate "2026-04-20"^^xsd:date ;
+    so:inventoryStatus so:InventoryStatusNormal ;
+    so:inventoryLocation "冷藏区-B排-1层" ;
+    so:managedBy so:S004 .
+
+# ============================================================
+# 第四部分：InventoryEvent 实例（库存事件）
+# ============================================================
+
+# 临期事件：P003 面包即将到期
+so:EVT001 a so:InventoryEvent ;
+    so:eventType so:EventNearExpiry ;
+    so:eventTime "2026-04-23T08:00:00"^^xsd:dateTime ;
+    so:quantityBefore 30 ;
+    so:quantityAfter 25 ;
+    so:eventReason "到期日临近（4/25，剩2天）" ;
+    so:affects so:INV-P003-S1 ;
+    so:detectedBy so:S001 .
+
+# 缺货事件：P005 有机西兰花库存不足
+so:EVT002 a so:InventoryEvent ;
+    so:eventType so:EventOutOfStock ;
+    so:eventTime "2026-04-23T09:30:00"^^xsd:dateTime ;
+    so:quantityBefore 8 ;
+    so:quantityAfter 5 ;
+    so:eventReason "库存低于补货点（5 < 15）" ;
+    so:affects so:INV-P005-S1 ;
+    so:detectedBy so:S002 .
+
+# 到货事件：P002 鲜牛奶补货
+so:EVT003 a so:InventoryEvent ;
+    so:eventType so:EventRestock ;
+    so:eventTime "2026-04-21T07:00:00"^^xsd:dateTime ;
+    so:quantityBefore 55 ;
+    so:quantityAfter 80 ;
+    so:eventReason "供应商到货" ;
+    so:affects so:INV-P002-S1 ;
+    so:detectedBy so:S003 .
+
+# 临期事件：P001 嫩豆腐即将到期
+so:EVT004 a so:InventoryEvent ;
+    so:eventType so:EventNearExpiry ;
+    so:eventTime "2026-04-23T10:00:00"^^xsd:dateTime ;
+    so:quantityBefore 35 ;
+    so:quantityAfter 30 ;
+    so:eventReason "到期日临近（5/15，剩22天）" ;
+    so:affects so:INV-P001-S1 ;
+    so:detectedBy so:S001 .
+
+# 盘点事件：STORE-001 全门店盘点
+so:EVT005 a so:InventoryEvent ;
+    so:eventType so:EventCount ;
+    so:eventTime "2026-04-22T21:00:00"^^xsd:dateTime ;
+    so:quantityBefore 0 ;
+    so:quantityAfter 0 ;
+    so:eventReason "晚班盘点" ;
+    so:affects so:INV-P002-S1 ;
+    so:detectedBy so:S001 .
+
+# ============================================================
+# 第五部分：WorkTask 实例（任务 — 四角关系链接）
+# ============================================================
+
+# 临期打折任务：面包（P003）→ 分配给李店员执行
+so:TASK001 a so:WorkTask ;
+    so:taskId "T-20260423-001" ;
+    so:taskType so:TaskTypeDiscountExecute ;
+    so:taskStatus so:TaskPending ;
+    so:taskPriority so:PriorityHigh ;
+    so:createdAt "2026-04-23T08:30:00"^^xsd:dateTime ;
+    so:dueTime "2026-04-25T23:59:59"^^xsd:dateTime ;
+    so:requiresConfirmation true ;
+    so:autoConfirm false ;
+    so:triggerReason "临期检测：面包到期日 4/25，剩 2 天" ;
+    so:recommendedDiscountRate "0.40"^^xsd:decimal ;
+    so:recommendedReason "bakery 品类 T2 规则（2-3天）推荐折扣 40%" ;
+    so:relatedProduct so:P003 ;
+    so:relatedInventory so:INV-P003-S1 ;
+    so:assignedTo so:S002 ;
+    so:triggeredByInventoryEvent so:EVT001 .
+
+# 待确认任务：嫩豆腐（P001）→ 等待店长确认
+so:TASK002 a so:WorkTask ;
+    so:taskId "T-20260423-002" ;
+    so:taskType so:TaskTypeDiscountExecute ;
+    so:taskStatus so:TaskPending ;
+    so:taskPriority so:PriorityMedium ;
+    so:createdAt "2026-04-23T10:05:00"^^xsd:dateTime ;
+    so:dueTime "2026-05-15T23:59:59"^^xsd:dateTime ;
+    so:requiresConfirmation true ;
+    so:autoConfirm false ;
+    so:triggerReason "临期检测：嫩豆腐到期日 5/15，剩 22 天" ;
+    so:recommendedDiscountRate "0.70"^^xsd:decimal ;
+    so:recommendedReason "daily_fresh 品类 T3 规则（4-7天）推荐折扣 70%，实际 22 天降级使用" ;
+    so:relatedProduct so:P001 ;
+    so:relatedInventory so:INV-P001-S1 ;
+    so:assignedTo so:S001 ;
+    so:triggeredByInventoryEvent so:EVT004 .
+
+# 已执行任务：鲜牛奶（P002）→ 李店员已执行，等待复核
+so:TASK003 a so:WorkTask ;
+    so:taskId "T-20260421-003" ;
+    so:taskType so:TaskTypeDiscountExecute ;
+    so:taskStatus so:TaskExecuted ;
+    so:taskPriority so:PriorityMedium ;
+    so:createdAt "2026-04-21T08:00:00"^^xsd:dateTime ;
+    so:confirmedDiscountRate "0.40"^^xsd:decimal ;
+    so:confirmedBy "张店长" ;
+    so:executedBy "李店员" ;
+    so:executedAt "2026-04-21T11:30:00"^^xsd:dateTime ;
+    so:scanBarcode "6901234567890" ;
+    so:priceLabelPrinted true ;
+    so:relatedProduct so:P002 ;
+    so:relatedInventory so:INV-P002-S1 ;
+    so:assignedTo so:S002 ;
+    so:handledBy so:S002 .
+
+# 已完成任务：日配酸奶（P004）
+so:TASK004 a so:WorkTask ;
+    so:taskId "T-20260420-004" ;
+    so:taskType so:TaskTypeDiscountExecute ;
+    so:taskStatus so:TaskCompleted ;
+    so:taskPriority so:PriorityLow ;
+    so:createdAt "2026-04-20T08:00:00"^^xsd:dateTime ;
+    so:completedAt "2026-04-20T18:00:00"^^xsd:dateTime ;
+    so:confirmedDiscountRate "0.70"^^xsd:decimal ;
+    so:executedDiscountRate "0.70"^^xsd:decimal ;
+    so:sellThroughRate "0.85"^^xsd:decimal ;
+    so:relatedProduct so:P004 ;
+    so:relatedInventory so:INV-P004-S1 ;
+    so:assignedTo so:S002 ;
+    so:handledBy so:S002 .
+
+# 缺货补货任务：有机西兰花（P005）→ 王副店负责
+so:TASK005 a so:WorkTask ;
+    so:taskId "T-20260423-005" ;
+    so:taskType so:TaskTypeReplenishment ;
+    so:taskStatus so:TaskPending ;
+    so:taskPriority so:PriorityHigh ;
+    so:createdAt "2026-04-23T09:35:00"^^xsd:dateTime ;
+    so:triggerReason "库存缺货检测：有机西兰花库存 5 <= 补货点 15" ;
+    so:relatedProduct so:P005 ;
+    so:relatedInventory so:INV-P005-S1 ;
+    so:assignedTo so:S003 ;
+    so:triggeredByInventoryEvent so:EVT002 .
+
+# ============================================================
+# 第六部分：SKU 实例（Product/商品）
+# ============================================================
+# 来自 data/products.json 的关键商品
+
+so:P001 a so:SKU ;
+    so:skuCode "SKU001" ;
+    so:skuName "嫩豆腐" ;
+    so:barcode "6901234567891" ;
+    so:unit "盒" ;
+    so:costPrice "4.25"^^xsd:decimal ;
+    so:retailPrice "8.50"^^xsd:decimal ;
+    so:origin "本地供应商" ;
+    so:supplier "永丰食品" ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isPromoted false ;
+    so:arrivalDays 10 ;
+    so:hasStock so:INV-P001-S1, so:INV-P001-S2 ;
+    so:belongsToCategory so:DailyFresh .
+
+so:P002 a so:SKU ;
+    so:skuCode "SKU002" ;
+    so:skuName "鲜牛奶" ;
+    so:barcode "6901234567892" ;
+    so:unit "盒" ;
+    so:costPrice "7.50"^^xsd:decimal ;
+    so:retailPrice "15.00"^^xsd:decimal ;
+    so:origin "本地供应商" ;
+    so:supplier "光明乳业" ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isPromoted false ;
+    so:arrivalDays 5 ;
+    so:hasStock so:INV-P002-S1, so:INV-P002-S2 ;
+    so:belongsToCategory so:DailyFresh .
+
+so:P003 a so:SKU ;
+    so:skuCode "SKU003" ;
+    so:skuName "面包" ;
+    so:barcode "6901234567893" ;
+    so:unit "袋" ;
+    so:costPrice "6.00"^^xsd:decimal ;
+    so:retailPrice "12.00"^^xsd:decimal ;
+    so:origin "本地供应商" ;
+    so:supplier "麦趣坊" ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isPromoted false ;
+    so:arrivalDays 3 ;
+    so:hasStock so:INV-P003-S1 ;
+    so:belongsToCategory so:Bakery .
+
+so:P004 a so:SKU ;
+    so:skuCode "SKU004" ;
+    so:skuName "日配酸奶" ;
+    so:barcode "6901234567894" ;
+    so:unit "盒" ;
+    so:costPrice "8.00"^^xsd:decimal ;
+    so:retailPrice "16.00"^^xsd:decimal ;
+    so:origin "本地供应商" ;
+    so:supplier "伊利乳业" ;
+    so:isImported false ;
+    so:isOrganic false ;
+    so:isPromoted false ;
+    so:arrivalDays 7 ;
+    so:hasStock so:INV-P004-S1 ;
+    so:belongsToCategory so:Dairy .
+
+so:P005 a so:SKU ;
+    so:skuCode "SKU005" ;
+    so:skuName "有机西兰花" ;
+    so:barcode "6901234567895" ;
+    so:unit "千克" ;
+    so:costPrice "10.00"^^xsd:decimal ;
+    so:retailPrice "22.00"^^xsd:decimal ;
+    so:origin "云南有机农场" ;
+    so:supplier "绿野农业" ;
+    so:isImported false ;
+    so:isOrganic true ;
+    so:isPromoted false ;
+    so:arrivalDays 12 ;
+    so:hasStock so:INV-P005-S1 ;
+    so:belongsToCategory so:FreshProduce .
+
+########## END OF ABOX INSTANCES ##########
