@@ -114,3 +114,57 @@ def check_product_exemption_from_json(product: dict) -> Optional[dict]:
     if arrival_days is not None and arrival_days <= 7:
         return {"exemption_type": "new_arrival", "exemption_reason": f"新上架商品(到货{arrival_days}天)不参与", "rule_source": "headquarters"}
     return None
+
+
+def query_pending_clearance_with_fastpath(days_threshold: int = 2) -> list[dict]:
+    """
+    查询临期货商品并附带 Fast Path 折扣建议。
+
+    整合了 Fast Path 规则引擎，为每个临期商品提供：
+    - 折扣率建议
+    - 豁免检查结果
+    - 折扣区间
+    - 操作建议（直接打折/需审批/豁免）
+
+    Args:
+        days_threshold: 剩余天数阈值，默认 ≤ 2 天
+
+    Returns:
+        临期货商品列表，每项包含原始信息 + 折扣建议
+    """
+    from app.services.reasoning_engine import FastPathRuleEngine
+
+    # 获取待处理商品
+    pending = query_pending_clearance_skus(days_threshold)
+    if not pending:
+        return []
+
+    # 构建用于 Fast Path 评估的商品列表
+    products_for_eval = []
+    for p in pending:
+        product = {
+            "product_id": p["sku"],
+            "name": p["name"],
+            "expiry_date": p["expiry"],
+            "category": p["category"],
+            "stock": p["qty"],
+            "is_imported": p.get("is_imported", False),
+            "is_organic": p.get("is_organic", False),
+            "is_promoted": p.get("is_promoted", False),
+            "arrival_days": p.get("arrival_days"),
+            "days_left": p["days_left"],
+        }
+        products_for_eval.append(product)
+
+    # 批量评估
+    engine = FastPathRuleEngine()
+    rules = engine.evaluate_batch(products_for_eval)
+
+    # 合并结果
+    result = []
+    for p, rule in zip(pending, rules):
+        item = {**p, **rule.to_dict()}
+        result.append(item)
+
+    logger.info(f"[Inventory] FastPath evaluated {len(result)} pending clearance SKUs")
+    return result

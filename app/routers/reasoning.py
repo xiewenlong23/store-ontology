@@ -301,3 +301,146 @@ def trigger_scan_now():
     except Exception as e:
         logger.error(f"[Reasoning] Manual scan trigger failed: {e}")
         return {"status": "error", "message": str(e)}
+
+
+# =============================================================================
+# Fast Path 规则引擎 API
+# =============================================================================
+
+
+class FastPathProductRequest(BaseModel):
+    """Fast Path 评估请求"""
+    product_id: str
+    name: str
+    expiry_date: str  # YYYY-MM-DD
+    category: str
+    stock: int = 0
+    is_imported: bool = False
+    is_organic: bool = False
+    is_promoted: bool = False
+    arrival_days: Optional[int] = None
+    days_left: Optional[int] = None  # 可选，预计算的天数
+
+
+class FastPathEvaluateResponse(BaseModel):
+    """Fast Path 评估响应"""
+    product_id: str
+    action: str
+    discount_rate: Optional[float] = None
+    tier: Optional[int] = None
+    discount_range: Optional[List[float]] = None
+    exemption_type: Optional[str] = None
+    exemption_reason: Optional[str] = None
+    reasoning_path: str
+    reasoning: str
+
+
+class FastPathBatchRequest(BaseModel):
+    """Fast Path 批量评估请求"""
+    products: List[FastPathProductRequest]
+
+
+class FastPathBatchResponse(BaseModel):
+    """Fast Path 批量评估响应"""
+    results: List[FastPathEvaluateResponse]
+    total: int
+    applied_count: int
+    exempted_count: int
+    no_action_count: int
+    needs_approval_count: int
+
+
+@router.post("/fast-path/evaluate", response_model=FastPathEvaluateResponse)
+def fast_path_evaluate(req: FastPathProductRequest):
+    """
+    Fast Path 规则引擎 — 单个商品折扣评估。
+
+    毫秒级确定性推理，适用于临期商品折扣计算。
+    """
+    from app.services.reasoning_engine import FastPathRuleEngine
+
+    engine = FastPathRuleEngine()
+    product = {
+        "product_id": req.product_id,
+        "name": req.name,
+        "expiry_date": req.expiry_date,
+        "category": req.category,
+        "stock": req.stock,
+        "is_imported": req.is_imported,
+        "is_organic": req.is_organic,
+        "is_promoted": req.is_promoted,
+        "arrival_days": req.arrival_days,
+        "days_left": req.days_left,
+    }
+
+    result = engine.evaluate(product)
+    return FastPathEvaluateResponse(
+        product_id=req.product_id,
+        action=result.action.value,
+        discount_rate=result.discount_rate,
+        tier=result.tier,
+        discount_range=result.discount_range,
+        exemption_type=result.exemption_type,
+        exemption_reason=result.exemption_reason,
+        reasoning_path=result.reasoning_path.value,
+        reasoning=result.reasoning,
+    )
+
+
+@router.post("/fast-path/batch", response_model=FastPathBatchResponse)
+def fast_path_batch_evaluate(req: FastPathBatchRequest):
+    """
+    Fast Path 规则引擎 — 批量商品折扣评估。
+
+    适用于全门店临期商品扫描，一次性获取所有商品的折扣建议。
+    """
+    from app.services.reasoning_engine import FastPathRuleEngine
+
+    engine = FastPathRuleEngine()
+    products = [
+        {
+            "product_id": p.product_id,
+            "name": p.name,
+            "expiry_date": p.expiry_date,
+            "category": p.category,
+            "stock": p.stock,
+            "is_imported": p.is_imported,
+            "is_organic": p.is_organic,
+            "is_promoted": p.is_promoted,
+            "arrival_days": p.arrival_days,
+            "days_left": p.days_left,
+        }
+        for p in req.products
+    ]
+
+    results = engine.evaluate_batch(products)
+
+    # 统计
+    applied_count = sum(1 for r in results if r.action.value == "APPLY_DISCOUNT")
+    exempted_count = sum(1 for r in results if r.action.value == "EXEMPTED")
+    no_action_count = sum(1 for r in results if r.action.value == "NO_ACTION")
+    needs_approval_count = sum(1 for r in results if r.action.value == "NEEDS_APPROVAL")
+
+    response_results = [
+        FastPathEvaluateResponse(
+            product_id=p["product_id"],
+            action=r.action.value,
+            discount_rate=r.discount_rate,
+            tier=r.tier,
+            discount_range=r.discount_range,
+            exemption_type=r.exemption_type,
+            exemption_reason=r.exemption_reason,
+            reasoning_path=r.reasoning_path.value,
+            reasoning=r.reasoning,
+        )
+        for p, r in zip(products, results)
+    ]
+
+    return FastPathBatchResponse(
+        results=response_results,
+        total=len(results),
+        applied_count=applied_count,
+        exempted_count=exempted_count,
+        no_action_count=no_action_count,
+        needs_approval_count=needs_approval_count,
+    )
