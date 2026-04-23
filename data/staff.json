@@ -1,0 +1,52 @@
+[
+  {
+    "staff_id": "S001",
+    "staff_code": "EMP-001",
+    "staff_name": "张店长",
+    "staff_phone": "13800001111",
+    "role": "store_manager",
+    "store_id": "STORE-001",
+    "status": "active",
+    "hire_date": "2024-01-15"
+  },
+  {
+    "staff_id": "S002",
+    "staff_code": "EMP-002",
+    "staff_name": "李店员",
+    "staff_phone": "13800002222",
+    "role": "clerk",
+    "store_id": "STORE-001",
+    "status": "active",
+    "hire_date": "2024-06-01"
+  },
+  {
+    "staff_id": "S003",
+    "staff_code": "EMP-003",
+    "staff_name": "王副店",
+    "staff_phone": "13800003333",
+    "role": "assistant_manager",
+    "store_id": "STORE-001",
+    "status": "active",
+    "hire_date": "2024-03-01"
+  },
+  {
+    "staff_id": "S004",
+    "staff_code": "EMP-004",
+    "staff_name": "赵店长",
+    "staff_phone": "13900004444",
+    "role": "store_manager",
+    "store_id": "STORE-002",
+    "status": "active",
+    "hire_date": "2024-02-01"
+  },
+  {
+    "staff_id": "S005",
+    "staff_code": "EMP-005",
+    "staff_name": "总部管理员",
+    "staff_phone": "13900005555",
+    "role": "hq",
+    "store_id": null,
+    "status": "active",
+    "hire_date": "2023-01-01"
+  }
+]

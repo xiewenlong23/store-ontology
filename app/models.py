@@ -96,3 +96,95 @@ class Product(BaseModel):
     expiry_date: date
     stock: int
     in_reduction: bool = False
+
+# ============================================================
+# Staff（员工）Models
+# ============================================================
+
+class StaffRole(str, Enum):
+    STORE_MANAGER = "store_manager"
+    ASSISTANT_MANAGER = "assistant_manager"
+    CLERK = "clerk"
+    HQ = "hq"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            "store_manager": "店长",
+            "assistant_manager": "副店长",
+            "clerk": "店员",
+            "hq": "总部人员",
+        }
+        return labels.get(self.value, self.value)
+
+
+class StaffStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    TRANSFERRED = "transferred"
+
+
+class Staff(BaseModel):
+    staff_id: str
+    staff_code: str
+    staff_name: str
+    staff_phone: Optional[str] = None
+    role: StaffRole = StaffRole.CLERK
+    store_id: Optional[str] = None
+    status: StaffStatus = StaffStatus.ACTIVE
+    hire_date: Optional[date] = None
+
+
+# ============================================================
+# Inventory（库存）Models
+# ============================================================
+
+class InventoryStatus(str, Enum):
+    NORMAL = "normal"
+    NEAR_EXPIRY = "near_expiry"
+    OUT_OF_STOCK = "out_of_stock"
+    FROZEN = "frozen"
+
+
+class InventoryEventType(str, Enum):
+    NEAR_EXPIRY = "near_expiry"
+    OUT_OF_STOCK = "out_of_stock"
+    RESTOCK = "restock"
+    ADJUSTMENT = "adjustment"
+    COUNT = "count"
+
+
+class Inventory(BaseModel):
+    inventory_id: str
+    product_id: str
+    store_id: str
+    quantity: int
+    min_stock_level: int = 10
+    max_stock_level: int = 200
+    reorder_point: int = 20
+    last_restock_date: Optional[str] = None
+    last_count_date: Optional[str] = None
+    status: InventoryStatus = InventoryStatus.NORMAL
+    location: Optional[str] = None
+
+
+class InventoryEvent(BaseModel):
+    event_id: str
+    inventory_id: str
+    event_type: InventoryEventType
+    event_time: str
+    quantity_before: int
+    quantity_after: int
+    reason: Optional[str] = None
+    detected_by: Optional[str] = None
+
+
+# ============================================================
+# ExpiryPolicy（保质期政策）
+# ============================================================
+
+class ExpiryPolicy(BaseModel):
+    product_id: str
+    standard_shelf_life_days: int
+    warning_threshold_days: int = 3
+    clearance_threshold_days: int = 7

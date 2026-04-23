@@ -90,6 +90,36 @@ class DataService(ABC):
         """
 
     @abstractmethod
+    def load_staff(self, store_id: Optional[str] = None) -> list[dict]:
+        """
+        加载员工列表。
+
+        Args:
+            store_id: 门店ID，可选。
+
+        Returns:
+            员工列表（已按 store_id 过滤）
+        """
+
+    @abstractmethod
+    def load_all_staff(self) -> list[dict]:
+        """
+        加载所有员工（不过滤 store_id）。
+
+        Returns:
+            完整的员工列表
+        """
+
+    @abstractmethod
+    def save_staff(self, staff: list[dict]) -> None:
+        """
+        保存员工列表。
+
+        Args:
+            staff: 完整的员工列表
+        """
+
+    @abstractmethod
     def invalidate_cache(self) -> None:
         """
         主动失效缓存。

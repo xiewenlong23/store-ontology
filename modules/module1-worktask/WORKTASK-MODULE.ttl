@@ -2642,3 +2642,480 @@ so:StoreScopeAll a owl:NamedIndividual ;
     rdfs:subClassOf so:StoreScope .
 
 ########## END OF CLEARANCE RULE MODULE ##########
+
+# ============================================================
+# 第二部分：Staff（员工）Object Type
+# ============================================================
+
+so:Staff a owl:Class ;
+    rdfs:label "员工"@zh-CN ;
+    rdfs:label "Staff"@en ;
+    rdfs:comment "门店员工实体，包含店长/店员/总部人员等角色"@zh-CN .
+
+# ── Staff DatatypeProperties ────────────────────────────────────
+
+so:staffCode a owl:DatatypeProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range xsd:string ;
+    rdfs:label "员工编号"@zh-CN ;
+    rdfs:comment "员工工号，如 EMP-001"@zh-CN .
+
+so:staffName a owl:DatatypeProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range xsd:string ;
+    rdfs:label "员工姓名"@zh-CN .
+
+so:staffPhone a owl:DatatypeProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range xsd:string ;
+    rdfs:label "联系电话"@zh-CN .
+
+so:hireDate a owl:DatatypeProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range xsd:date ;
+    rdfs:label "入职日期"@zh-CN .
+
+so:staffStatus a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:StaffStatus ;
+    rdfs:label "员工状态"@zh-CN ;
+    rdfs:comment "在职/离职/调转"@zh-CN .
+
+# ── Staff ObjectProperties（关系）─────────────────────────────────
+
+so:worksAt a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:Store ;
+    rdfs:label "工作门店"@zh-CN ;
+    rdfs:comment "员工所属门店"@zh-CN .
+
+so:hasRole a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:StaffRole ;
+    rdfs:label "角色"@zh-CN ;
+    rdfs:comment "店长/副店长/店员/总部人员"@zh-CN .
+
+so:manages a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:Inventory ;
+    rdfs:label "管理库存"@zh-CN ;
+    rdfs:comment "员工负责管理的库存记录"@zh-CN .
+
+# 逆属性
+so:managedBy a owl:ObjectProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range so:Staff ;
+    owl:inverseOf so:manages ;
+    rdfs:label "管理员"@zh-CN .
+
+so:assignedTasks a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "被分配的任务"@zh-CN ;
+    owl:inverseOf so:assignedTo ;
+    rdfs:comment "inverse: WorkTask.assignedTo"@zh-CN .
+
+so:executedTasks a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "已执行任务"@zh-CN ;
+    owl:inverseOf so:executedBy ;
+    rdfs:comment "inverse: WorkTask.executedBy"@zh-CN .
+
+so:confirmedTasks a owl:ObjectProperty ;
+    rdfs:domain so:Staff ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "已确认任务"@zh-CN ;
+    owl:inverseOf so:confirmedBy ;
+    rdfs:comment "inverse: WorkTask.confirmedBy"@zh-CN .
+
+# ── StaffRole 枚举 ──────────────────────────────────────────────
+
+so:StaffRole a owl:Class ;
+    rdfs:label "员工角色"@zh-CN .
+
+so:RoleStoreManager a owl:NamedIndividual ;
+    rdfs:label "店长"@zh-CN ;
+    rdfs:subClassOf so:StaffRole .
+
+so:RoleAssistantMgr a owl:NamedIndividual ;
+    rdfs:label "副店长"@zh-CN ;
+    rdfs:subClassOf so:StaffRole .
+
+so:RoleClerk a owl:NamedIndividual ;
+    rdfs:label "店员"@zh-CN ;
+    rdfs:subClassOf so:StaffRole .
+
+so:RoleHQ a owl:NamedIndividual ;
+    rdfs:label "总部人员"@zh-CN ;
+    rdfs:subClassOf so:StaffRole .
+
+# ── StaffStatus 枚举 ─────────────────────────────────────────────
+
+so:StaffStatus a owl:Class ;
+    rdfs:label "员工状态"@zh-CN .
+
+so:StaffStatusActive a owl:NamedIndividual ;
+    rdfs:label "在职"@zh-CN ;
+    rdfs:subClassOf so:StaffStatus .
+
+so:StaffStatusInactive a owl:NamedIndividual ;
+    rdfs:label "离职"@zh-CN ;
+    rdfs:subClassOf so:StaffStatus .
+
+so:StaffStatusTransferred a owl:NamedIndividual ;
+    rdfs:label "调转"@zh-CN ;
+    rdfs:subClassOf so:StaffStatus .
+
+# ============================================================
+# 第三部分：Inventory（库存）Object Type
+# ============================================================
+
+so:Inventory a owl:Class ;
+    rdfs:label "库存"@zh-CN ;
+    rdfs:label "Inventory"@en ;
+    rdfs:comment "门店商品库存实体，独立于 Product。记录当前库存量、库位、更新时间等。"@zh-CN .
+
+# ── Inventory DatatypeProperties ─────────────────────────────────
+
+so:quantity a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "当前库存数量"@zh-CN .
+
+so:minStockLevel a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "最低库存阈值"@zh-CN ;
+    rdfs:comment "库存低于此值触发补货警告"@zh-CN .
+
+so:maxStockLevel a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "最高库存上限"@zh-CN .
+
+so:reorderPoint a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:integer ;
+    rdfs:label "补货点"@zh-CN ;
+    rdfs:comment "库存 ≤ 此值时触发缺货警告"@zh-CN .
+
+so:lastRestockDate a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:date ;
+    rdfs:label "最近补货日期"@zh-CN .
+
+so:lastCountDate a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:date ;
+    rdfs:label "最近盘点日期"@zh-CN .
+
+so:inventoryStatus a owl:ObjectProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range so:InventoryStatus ;
+    rdfs:label "库存状态"@zh-CN .
+
+so:inventoryLocation a owl:DatatypeProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range xsd:string ;
+    rdfs:label "库位"@zh-CN ;
+    rdfs:comment "如：生鲜区-A排-3层"@zh-CN .
+
+# ── Inventory ObjectProperties（关系）───────────────────────────
+
+so:stores a owl:ObjectProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range so:Store ;
+    rdfs:label "所属门店"@zh-CN ;
+    rdfs:comment "库存所属的门店"@zh-CN .
+
+so:contains a owl:ObjectProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range so:SKU ;
+    rdfs:label "存放商品"@zh-CN ;
+    rdfs:comment "该库存记录对应的商品（SKU）"@zh-CN .
+
+so:stockOf a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:Inventory ;
+    owl:inverseOf so:contains ;
+    rdfs:label "库存记录"@zh-CN .
+
+so:hasEvent a owl:ObjectProperty ;
+    rdfs:domain so:Inventory ;
+    rdfs:range so:InventoryEvent ;
+    rdfs:label "库存事件"@zh-CN ;
+    rdfs:comment "该库存关联的库存事件记录"@zh-CN .
+
+# ── InventoryStatus 枚举 ────────────────────────────────────────
+
+so:InventoryStatus a owl:Class ;
+    rdfs:label "库存状态"@zh-CN .
+
+so:InventoryStatusNormal a owl:NamedIndividual ;
+    rdfs:label "正常"@zh-CN ;
+    rdfs:subClassOf so:InventoryStatus .
+
+so:InventoryStatusNearExpiry a owl:NamedIndividual ;
+    rdfs:label "临期"@zh-CN ;
+    rdfs:subClassOf so:InventoryStatus .
+
+so:InventoryStatusOutOfStock a owl:NamedIndividual ;
+    rdfs:label "缺货"@zh-CN ;
+    rdfs:subClassOf so:InventoryStatus .
+
+so:InventoryStatusFrozen a owl:NamedIndividual ;
+    rdfs:label "冻结"@zh-CN ;
+    rdfs:subClassOf so:InventoryStatus .
+
+# ============================================================
+# 第四部分：InventoryEvent（库存事件）Object Type
+# ============================================================
+
+so:InventoryEvent a owl:Class ;
+    rdfs:label "库存事件"@zh-CN ;
+    rdfs:comment "库存变动触发的业务事件：临期/缺货/到货/调整/盘点"@zh-CN .
+
+# ── InventoryEvent DatatypeProperties ───────────────────────────
+
+so:eventTime a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "事件时间"@zh-CN .
+
+so:quantityBefore a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:integer ;
+    rdfs:label "变动前数量"@zh-CN .
+
+so:quantityAfter a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:integer ;
+    rdfs:label "变动后数量"@zh-CN .
+
+so:eventReason a owl:DatatypeProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range xsd:string ;
+    rdfs:label "事件原因"@zh-CN .
+
+# ── InventoryEvent ObjectProperties ────────────────────────────
+
+so:eventType a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:InventoryEventType ;
+    rdfs:label "事件类型"@zh-CN .
+
+so:affects a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:Inventory ;
+    rdfs:label "影响库存"@zh-CN ;
+    rdfs:comment "该事件影响的库存记录"@zh-CN .
+
+so:detectedBy a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:Staff ;
+    rdfs:label "检测员工"@zh-CN ;
+    rdfs:comment "发现并记录该事件的员工"@zh-CN .
+
+so:triggers a owl:ObjectProperty ;
+    rdfs:domain so:InventoryEvent ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "触发任务"@zh-CN ;
+    rdfs:comment "该事件触发的 WorkTask（临期检测→任务创建）"@zh-CN .
+
+# 逆属性
+so:triggeredByInventoryEvent a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:InventoryEvent ;
+    owl:inverseOf so:triggers ;
+    rdfs:label "触发来源事件"@zh-CN .
+
+# ── InventoryEventType 枚举 ─────────────────────────────────────
+
+so:InventoryEventType a owl:Class ;
+    rdfs:label "库存事件类型"@zh-CN .
+
+so:EventNearExpiry a owl:NamedIndividual ;
+    rdfs:label "临期事件"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:EventOutOfStock a owl:NamedIndividual ;
+    rdfs:label "缺货事件"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:EventRestock a owl:NamedIndividual ;
+    rdfs:label "到货事件"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:EventAdjustment a owl:NamedIndividual ;
+    rdfs:label "调整事件"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+so:EventCount a owl:NamedIndividual ;
+    rdfs:label "盘点事件"@zh-CN ;
+    rdfs:subClassOf so:InventoryEventType .
+
+# ============================================================
+# 第五部分：Product（SKU）扩展属性
+# ============================================================
+
+# ── SKU 扩展 DatatypeProperties ─────────────────────────────────
+
+so:barcode a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "商品条码"@zh-CN ;
+    rdfs:comment "EAN/UPC 条码"@zh-CN .
+
+so:unit a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "计量单位"@zh-CN ;
+    rdfs:comment "如：袋/盒/千克/升"@zh-CN .
+
+so:costPrice a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "成本价"@zh-CN .
+
+so:retailPrice a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "零售价"@zh-CN .
+
+so:origin a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "产地"@zh-CN .
+
+so:supplier a owl:DatatypeProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range xsd:string ;
+    rdfs:label "供应商"@zh-CN .
+
+# ── SKU 扩展 ObjectProperties ─────────────────────────────────
+
+so:hasStock a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:Inventory ;
+    rdfs:label "关联库存"@zh-CN ;
+    rdfs:comment "商品对应的库存记录（多门店多库存）"@zh-CN ;
+    owl:inverseOf so:stockOf .
+
+so:hasExpiryPolicy a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:ExpiryPolicy ;
+    rdfs:label "保质期政策"@zh-CN .
+
+so:belongsToCategory a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:Category ;
+    rdfs:label "所属品类"@zh-CN .
+
+# ── ExpiryPolicy ──────────────────────────────────────────────
+
+so:ExpiryPolicy a owl:Class ;
+    rdfs:label "保质期政策"@zh-CN ;
+    rdfs:comment "定义商品的标准保质期和各级预警阈值"@zh-CN .
+
+so:standardShelfLife a owl:DatatypeProperty ;
+    rdfs:domain so:ExpiryPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:label "标准保质期天数"@zh-CN .
+
+so:warningThreshold a owl:DatatypeProperty ;
+    rdfs:domain so:ExpiryPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:label "临期预警天数"@zh-CN ;
+    rdfs:comment "到期前 N 天触发临期预警（默认3天）"@zh-CN .
+
+so:clearanceThreshold a owl:DatatypeProperty ;
+    rdfs:domain so:ExpiryPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:label "出清触发天数"@zh-CN ;
+    rdfs:comment "到期前 N 天触发出清任务（默认7天）"@zh-CN .
+
+# ============================================================
+# 第六部分：WorkTask 扩展关系（关联 Product/Inventory/Staff）
+# ============================================================
+
+# ── WorkTask → Product ────────────────────────────────────────
+
+so:relatedProduct a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:SKU ;
+    rdfs:label "关联商品"@zh-CN ;
+    rdfs:comment "任务关联的商品（SKU）"@zh-CN ;
+    owl:inverseOf so:relatedTask ;
+    rdfs:seeAlso so:relatedSKU .
+
+so:relatedTask a owl:ObjectProperty ;
+    rdfs:domain so:SKU ;
+    rdfs:range so:WorkTask ;
+    rdfs:label "关联任务"@zh-CN ;
+    owl:inverseOf so:relatedProduct .
+
+# ── WorkTask → Inventory ──────────────────────────────────────
+
+so:relatedInventory a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Inventory ;
+    rdfs:label "关联库存"@zh-CN ;
+    rdfs:comment "任务关联的库存记录（用于库存操作类任务）"@zh-CN .
+
+# ── WorkTask → Staff ──────────────────────────────────────────
+
+so:assignedTo a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Staff ;
+    rdfs:label "分配给"@zh-CN ;
+    rdfs:comment "任务被分配给的员工"@zh-CN .
+
+so:handledBy a owl:ObjectProperty ;
+    rdfs:domain so:WorkTask ;
+    rdfs:range so:Staff ;
+    rdfs:label "最终执行人"@zh-CN ;
+    rdfs:comment "实际执行并完成任务的人（区别于 assignedTo 分配人）"@zh-CN .
+
+# ============================================================
+# 第七部分：Store 扩展（hasStaff / hasInventory）
+# ============================================================
+
+so:hasStaff a owl:ObjectProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range so:Staff ;
+    rdfs:label "门店员工"@zh-CN ;
+    owl:inverseOf so:worksAt .
+
+so:hasInventory a owl:ObjectProperty ;
+    rdfs:domain so:Store ;
+    rdfs:range so:Inventory ;
+    rdfs:label "门店库存"@zh-CN ;
+    owl:inverseOf so:stores .
+
+# ============================================================
+# 四角实体关系总结（临期出清场景）
+# ============================================================
+# Product(SKU) ──hasStock──▶ Inventory ──stores──▶ Store
+#                                          │
+#                                     managedBy
+#                                          │
+#                                          ▼
+#                                        Staff
+#                                          │
+#                                    assignedTasks
+#                                          │
+#                                          ▼
+# InventoryEvent ◀──affects── Inventory ◀──contains── Product(SKU)
+#        │                                              ▲
+#     triggers                                     relatedProduct
+#        │                                              │
+#        ▼                                              ▼
+#      WorkTask ◀──assignedTo── Staff ◀──worksAt── Store
+#
+# 临期出清完整链路：
+#   Product expiry_date 临近 → Inventory.status = NearExpiry
+#   → InventoryEvent(triggers) → WorkTask(relatedProduct/relatedInventory)
+#   → WorkTask.assignedTo → Staff
+#   → Staff.executedTasks → WorkTask 闭环
+########## END OF FOUR-CORNER ENTITY MODULE ##########

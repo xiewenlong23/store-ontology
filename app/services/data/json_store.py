@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
 TASKS_FILE = DATA_DIR / "tasks.json"
 PRODUCTS_FILE = DATA_DIR / "products.json"
+STAFF_FILE = DATA_DIR / "staff.json"
 
 
 class JSONDataService(DataService):
@@ -36,6 +37,7 @@ class JSONDataService(DataService):
     文件结构：
     - products.json: 商品列表
     - tasks.json: 任务列表
+    - staff.json: 员工列表
 
     每个文件都是完整的数组，load_* 返回时会按 store_id 过滤。
     """
@@ -44,6 +46,7 @@ class JSONDataService(DataService):
         # 缓存（进程内单例）
         self._products_cache: Optional[list[dict]] = None
         self._tasks_cache: Optional[list[dict]] = None
+        self._staff_cache: Optional[list[dict]] = None
         self._cache_lock = threading.Lock()
 
     def _read_json(self, path: Path) -> list[dict]:
@@ -171,9 +174,36 @@ class JSONDataService(DataService):
         with self._cache_lock:
             self._tasks_cache = None
 
+    # ── Staff ────────────────────────────────────────────────────
+
+    def load_staff(self, store_id: Optional[str] = None) -> list[dict]:
+        all_staff = self.load_all_staff()
+        if store_id:
+            return [s for s in all_staff if s.get("store_id") == store_id]
+        return all_staff
+
+    def load_all_staff(self) -> list[dict]:
+        with self._cache_lock:
+            if self._staff_cache is not None:
+                return self._staff_cache
+        try:
+            with open(STAFF_FILE, encoding="utf-8") as f:
+                staff_list = json.load(f)
+        except Exception:
+            staff_list = []
+        with self._cache_lock:
+            self._staff_cache = staff_list
+        return staff_list
+
+    def save_staff(self, staff: list[dict]) -> None:
+        self._write_json(STAFF_FILE, staff)
+        with self._cache_lock:
+            self._staff_cache = None
+
     def invalidate_cache(self) -> None:
         """主动失效所有缓存"""
         with self._cache_lock:
             self._products_cache = None
             self._tasks_cache = None
+            self._staff_cache = None
         logger.debug("DataService cache invalidated")

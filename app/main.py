@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import tasks, reasoning, agent, pos
+from app.routers import tasks, reasoning, agent, pos, staff
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -46,6 +46,7 @@ app.add_middleware(
 )
 
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(staff.router, prefix="/api/staff", tags=["staff"])
 app.include_router(reasoning.router, prefix="/api/reasoning", tags=["reasoning"])
 app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 app.include_router(pos.router, prefix="/api/pos", tags=["pos"])
