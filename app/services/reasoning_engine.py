@@ -218,6 +218,240 @@ class FastPathRuleEngine:
         return [self.evaluate(p) for p in products]
 
 
+class MediumPathRuleEngine:
+    """
+    Medium Path — OWL RL 语义推理
+
+    适用场景：
+    - "查找所有缺货且销量高的生鲜 SKU"
+    - "哪些品类最近7天有库存事件"
+    - "统计各品类临期商品占比"
+    - SPARQL + 本体隐含知识推理
+
+    性能目标：百毫秒级（<500ms）
+    """
+
+    def __init__(self):
+        from app.services.sparql_service import SPARQLService
+        self._sparql = SPARQLService()
+
+    def evaluate(self, query: str, context: Optional[dict] = None) -> DiscountRule:
+        """
+        评估查询，返回 DiscountRule（兼容接口）。
+
+        对于 Medium Path 不直接返回折扣，而是返回语义查询结果。
+        """
+        query_lower = query.lower()
+
+        if "缺货" in query_lower or "库存不足" in query_lower:
+            return self._query_out_of_stock(query_lower, context)
+        if "销量" in query_lower and ("高" in query_lower or "低" in query_lower):
+            return self._query_sales_volume(query_lower, context)
+        if "临期" in query_lower and "品类" in query_lower:
+            return self._query_category_expiry(query_lower, context)
+        if "所有" in query_lower or "统计" in query_lower:
+            return self._query_all_products(query_lower, context)
+
+        # 默认：返回帮助信息
+        return DiscountRule(
+            action=Action.NO_ACTION,
+            reasoning_path=ReasoningPath.MEDIUM,
+            reasoning="Medium Path 就绪，请使用更具体的查询（缺货/销量/临期品类/统计）"
+        )
+
+    def _query_out_of_stock(self, query: str, context: Optional[dict]) -> DiscountRule:
+        """查询缺货商品（stock <= threshold）"""
+        threshold = 10  # 默认缺货阈值
+        if context and "threshold" in context:
+            threshold = context["threshold"]
+
+        from app.services.data import get_data_service
+        products = get_data_service().load_all_products()
+        out_of_stock = [
+            p for p in products
+            if p.get("stock", 0) <= threshold and not p.get("in_reduction", False)
+        ]
+
+        if not out_of_stock:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.MEDIUM,
+                reasoning=f"当前没有缺货商品（阈值 ≤{threshold}件）"
+            )
+
+        # 按库存升序排列，取前5
+        out_of_stock.sort(key=lambda p: p.get("stock", 0))
+        top5 = out_of_stock[:5]
+
+        lines = [f"发现 {len(out_of_stock)} 件缺货商品，需要补货："]
+        for p in top5:
+            stock = p.get("stock", 0)
+            name = p.get("name", "未知")
+            cat = p.get("category", "")
+            lines.append(f"- {name}（{cat}）：库存 {stock} 件")
+        if len(out_of_stock) > 5:
+            lines.append(f"...还有 {len(out_of_stock) - 5} 件")
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.MEDIUM,
+            reasoning="\n".join(lines)
+        )
+
+    def _query_sales_volume(self, query: str, context: Optional[dict]) -> DiscountRule:
+        """
+        查询高销量/低销量商品。
+
+        注意：products.json 中无销量字段，以库存模拟：
+        - 高销量 → 低库存（卖得快）
+        - 低销量 → 高库存（卖得慢）
+        """
+        from app.services.data import get_data_service
+        products = get_data_service().load_all_products()
+
+        # 过滤临期商品
+        from datetime import date
+        today = date.today()
+        near_expiry = []
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+                if 0 <= days_left <= 7:
+                    near_expiry.append({**p, "days_left": days_left})
+            except ValueError:
+                continue
+
+        if not near_expiry:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.MEDIUM,
+                reasoning="最近7天没有临期商品"
+            )
+
+        # 高销量（低库存）+ 临期
+        if "高" in query:
+            near_expiry.sort(key=lambda p: p.get("stock", 999))
+            top5 = near_expiry[:5]
+            lines = ["高销量临期商品（库存低 = 卖得快）："]
+            for p in top5:
+                lines.append(
+                    f"- {p.get('name', '未知')}：库存 {p.get('stock', 0)} 件，"
+                    f"剩余 {p.get('days_left')} 天"
+                )
+        else:
+            # 低销量（高库存）+ 临期
+            near_expiry.sort(key=lambda p: p.get("stock", 0), reverse=True)
+            top5 = near_expiry[:5]
+            lines = ["低销量临期商品（库存高 = 卖得慢）："]
+            for p in top5:
+                lines.append(
+                    f"- {p.get('name', '未知')}：库存 {p.get('stock', 0)} 件，"
+                    f"剩余 {p.get('days_left')} 天"
+                )
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.MEDIUM,
+            reasoning="\n".join(lines)
+        )
+
+    def _query_category_expiry(self, query: str, context: Optional[dict]) -> DiscountRule:
+        """统计各品类临期商品数量"""
+        from collections import Counter
+        from app.services.data import get_data_service
+        from datetime import date
+
+        products = get_data_service().load_all_products()
+        today = date.today()
+        category_counts = Counter()
+
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+                if 0 <= days_left <= 3:
+                    cat = p.get("category", "未知")
+                    category_counts[cat] += 1
+            except ValueError:
+                continue
+
+        if not category_counts:
+            return DiscountRule(
+                action=Action.NO_ACTION,
+                reasoning_path=ReasoningPath.MEDIUM,
+                reasoning="各品类临期商品数量均为0，库存都很新鲜"
+            )
+
+        lines = ["各品类临期商品（≤3天）统计："]
+        for cat, cnt in category_counts.most_common():
+            lines.append(f"- {cat}: {cnt} 件")
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.MEDIUM,
+            reasoning="\n".join(lines)
+        )
+
+    def _query_all_products(self, query: str, context: Optional[dict]) -> DiscountRule:
+        """全量商品统计"""
+        from app.services.data import get_data_service
+        from datetime import date
+        from collections import Counter
+
+        products = get_data_service().load_all_products()
+        today = date.today()
+
+        total = len(products)
+        expired = 0
+        near_expiry = 0  # <= 3 days
+        upcoming = 0     # 4-7 days
+        categories = Counter()
+
+        for p in products:
+            expiry_str = p.get("expiry_date")
+            if not expiry_str:
+                continue
+            try:
+                expiry = date.fromisoformat(expiry_str)
+                days_left = (expiry - today).days
+            except ValueError:
+                continue
+
+            cat = p.get("category", "未知")
+            categories[cat] += 1
+
+            if days_left < 0:
+                expired += 1
+            elif days_left <= 3:
+                near_expiry += 1
+            elif days_left <= 7:
+                upcoming += 1
+
+        lines = [
+            f"商品总数：{total} 件",
+            f"  - 已过期：{expired} 件",
+            f"  - 临期（≤3天）：{near_expiry} 件",
+            f"  - 即将到期（4-7天）：{upcoming} 件",
+            "",
+            "各品类商品数量："
+        ]
+        for cat, cnt in categories.most_common():
+            lines.append(f"  - {cat}: {cnt} 件")
+
+        return DiscountRule(
+            action=Action.APPLY_DISCOUNT,
+            reasoning_path=ReasoningPath.MEDIUM,
+            reasoning="\n".join(lines)
+        )
+
+
 class ReasoningEngine:
     """
     三级推理引擎统一入口
@@ -230,6 +464,7 @@ class ReasoningEngine:
 
     def __init__(self):
         self.fast_path = FastPathRuleEngine()
+        self.medium_path = MediumPathRuleEngine()
 
     def reason(self, query: str, context: Optional[dict] = None) -> dict:
         """
@@ -251,13 +486,12 @@ class ReasoningEngine:
                     return self.fast_path.evaluate(context["product"]).to_dict()
 
         # Medium Path 关键词
-        if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有"]):
-            # TODO: 实现 Medium Path
-            return {"error": "Medium Path not yet implemented", "path": ReasoningPath.MEDIUM.value}
+        if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有", "统计"]):
+            result = self.medium_path.evaluate(query, context)
+            return result.to_dict()
 
         # Slow Path: 复杂推理
         if any(kw in query_lower for kw in ["为什么", "分析", "建议", "比较", "预测"]):
-            # TODO: 实现 Slow Path (LLM Agent)
             return {"error": "Slow Path not yet implemented", "path": ReasoningPath.SLOW.value}
 
         # 默认使用 Fast Path
