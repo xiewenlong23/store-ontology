@@ -117,6 +117,31 @@ def list_inventory_events(
     return [InventoryEvent(**e) for e in events]
 
 
+def check_product_exemption_from_json(product: dict) -> Optional[dict]:
+    """
+    基于商品属性（来自 JSON）判断豁免类型。
+
+    Args:
+        product: 商品字典，应包含 is_imported, is_organic, is_promoted, arrival_days 等字段
+
+    Returns:
+        豁免信息dict或None
+    """
+    if product.get("is_imported"):
+        return {"exemption_type": "imported", "exemption_reason": "进口商品不参与临期打折", "rule_source": "headquarters"}
+    if product.get("is_organic"):
+        return {"exemption_type": "organic", "exemption_reason": "有机绿色食品不参与临期打折", "rule_source": "headquarters"}
+    if product.get("is_promoted"):
+        return {"exemption_type": "already_promoted", "exemption_reason": "已参与促销不叠加折扣", "rule_source": "headquarters"}
+    arrival_days = product.get("arrival_days")
+    if arrival_days is not None and arrival_days <= 7:
+        return {"exemption_type": "new_arrival", "exemption_reason": f"新上架商品(到货{arrival_days}天)不参与", "rule_source": "headquarters"}
+    # 通用豁免：exemption_type 字段直接标识
+    if product.get("exemption_type"):
+        return {"exemption_type": product["exemption_type"], "exemption_reason": product.get("exemption_reason", ""), "rule_source": "headquarters"}
+    return None
+
+
 # ── 内部方法 ───────────────────────────────────────────────────
 
 def _load_events() -> list[dict]:
