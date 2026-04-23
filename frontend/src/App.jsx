@@ -39,8 +39,8 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Status badge */}
           <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 20, background: "var(--card)", border: "1px solid var(--border-strong)", fontSize: 12 }}>
-            <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
-            <span style={{ color: "#34d399", fontWeight: 600, fontSize: 11 }}>营业中</span>
+            <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+            <span style={{ color: "#22c55e", fontWeight: 600, fontSize: 11 }}>营业中</span>
             <span style={{ color: "var(--text-3)" }}>09:00 – 22:00</span>
           </div>
 
@@ -53,7 +53,7 @@ export default function App() {
           </div>
 
           {/* New task */}
-          <button className="btn" style={{ padding: "8px 18px", borderRadius: 10, background: "var(--accent)", color: "#0a1614", fontWeight: 700, fontSize: 13, border: "none", letterSpacing: "-0.01em" }}>
+          <button className="btn" style={{ padding: "8px 18px", borderRadius: 10, background: "var(--accent)", color: "#ffffff", fontWeight: 700, fontSize: 13, border: "none", letterSpacing: "-0.01em" }}>
             + 新建任务
           </button>
         </div>

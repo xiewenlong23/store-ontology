@@ -8,24 +8,24 @@ const CATEGORY_NAMES = {
 };
 
 const CAT_COLORS = {
-  daily_fresh:  { accent: "#f87171", bg: "rgba(248,113,113,0.12)", text: "#f87171" },
-  bakery:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
-  fresh:       { accent: "#f87171", bg: "rgba(248,113,113,0.12)", text: "#f87171" },
-  meat_poultry: { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
-  seafood:     { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
-  dairy:       { accent: "#34d399", bg: "rgba(52,211,153,0.12)", text: "#34d399" },
-  frozen:      { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
-  beverage:    { accent: "#34d399", bg: "rgba(52,211,153,0.12)", text: "#34d399" },
-  snack:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
-  grain_oil:   { accent: "#c084fc", bg: "rgba(192,132,252,0.12)", text: "#c084fc" },
+  daily_fresh:  { accent: "#0d9488", bg: "rgba(13,148,136,0.10)", text: "#0d9488" },
+  bakery:       { accent: "#0d9488", bg: "rgba(13,148,136,0.10)", text: "#0d9488" },
+  fresh:       { accent: "#dc2626", bg: "rgba(220,38,38,0.10)", text: "#dc2626" },
+  meat_poultry: { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
+  seafood:     { accent: "#0369a1", bg: "rgba(3,105,161,0.10)", text: "#0369a1" },
+  dairy:       { accent: "#22c55e", bg: "rgba(34,197,94,0.10)", text: "#22c55e" },
+  frozen:      { accent: "#7c3aed", bg: "rgba(124,58,237,0.10)", text: "#7c3aed" },
+  beverage:    { accent: "#22c55e", bg: "rgba(34,197,94,0.10)", text: "#22c55e" },
+  snack:       { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
+  grain_oil:   { accent: "#92400e", bg: "rgba(146,64,14,0.10)", text: "#92400e" },
 };
 
 const STATUS_DOT = {
-  pending:   { color: "#fbbf24", label: "待处理" },
-  confirmed: { color: "#fbbf24", label: "已确认" },
-  executed:  { color: "#60a5fa", label: "执行中" },
-  reviewed:  { color: "#34d399", label: "已复核" },
-  completed: { color: "#34d399", label: "已完成" },
+  pending:   { color: "#f59e0b", label: "待处理" },
+  confirmed: { color: "#f59e0b", label: "已确认" },
+  executed:  { color: "#0d9488", label: "执行中" },
+  reviewed:  { color: "#22c55e", label: "已复核" },
+  completed: { color: "#22c55e", label: "已完成" },
 };
 
 function TaskCard({ task, isDone }) {
@@ -41,7 +41,7 @@ function TaskCard({ task, isDone }) {
         padding: "12px 14px",
         borderRadius: 10,
         background: "var(--card-alt)",
-        border: `1px solid ${isDone ? "rgba(255,255,255,0.04)" : isExecuting ? "rgba(96,165,250,0.2)" : "var(--border)"}`,
+        border: `1px solid ${isDone ? "rgba(0,0,0,0.04)" : isExecuting ? "rgba(13,148,136,0.2)" : "var(--border)"}`,
         borderLeft: isExecuting ? `2px solid ${catMeta.accent}` : undefined,
         opacity: isDone ? 0.55 : 1,
       }}
@@ -53,7 +53,7 @@ function TaskCard({ task, isDone }) {
             {CATEGORY_NAMES[cat] || cat}
           </span>
           {urgent && !isDone && (
-            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 5, background: "rgba(248,113,113,0.12)", color: "#f87171", fontWeight: 600 }} className="blink">
+            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 5, background: "rgba(220,38,38,0.10)", color: "#dc2626", fontWeight: 600 }} className="blink">
               紧急
             </span>
           )}
@@ -65,7 +65,7 @@ function TaskCard({ task, isDone }) {
       </div>
 
       {/* Product name */}
-      <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px", color: isDone ? "var(--text-3)" : "var(--text)", textDecoration: isDone ? "line-through" : "none", textDecorationColor: "#34d399", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 6px", color: isDone ? "var(--text-3)" : "var(--text)", textDecoration: isDone ? "line-through" : "none", textDecorationColor: "#22c55e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 8)}`}
       </p>
 
@@ -153,9 +153,9 @@ export default function TaskBoard() {
           {/* To Do */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fbbf24", display: "inline-block", boxShadow: "0 0 6px #fbbf2480" }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#fbbf24" }}>待处理</span>
-              <span className="stat-num" style={{ fontSize: 11, background: "rgba(251,191,36,0.1)", color: "#fbbf24", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{todo.length}</span>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b" }}>待处理</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(245,158,11,0.10)", color: "#f59e0b", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{todo.length}</span>
             </div>
             <KanbanColumn tasks={todo} isDone={false} />
           </div>
@@ -163,9 +163,9 @@ export default function TaskBoard() {
           {/* In Progress */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#60a5fa", display: "inline-block", boxShadow: "0 0 6px #60a5fa80" }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#60a5fa" }}>进行中</span>
-              <span className="stat-num" style={{ fontSize: 11, background: "rgba(96,165,250,0.1)", color: "#60a5fa", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{inProgress.length}</span>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#0d9488", display: "inline-block" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#0d9488" }}>进行中</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(13,148,136,0.10)", color: "#0d9488", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{inProgress.length}</span>
             </div>
             <KanbanColumn tasks={inProgress} isDone={false} />
           </div>
@@ -173,9 +173,9 @@ export default function TaskBoard() {
           {/* Done */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", display: "inline-block", boxShadow: "0 0 6px #34d39980" }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#34d399" }}>已完成</span>
-              <span className="stat-num" style={{ fontSize: 11, background: "rgba(52,211,153,0.1)", color: "#34d399", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{done.length}</span>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#22c55e" }}>已完成</span>
+              <span className="stat-num" style={{ fontSize: 11, background: "rgba(34,197,94,0.10)", color: "#22c55e", padding: "1px 7px", borderRadius: 8, fontWeight: 700 }}>{done.length}</span>
             </div>
             <KanbanColumn tasks={done} isDone={true} />
           </div>

@@ -1,5 +1,5 @@
 /* ── Fonts ── */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,20 +9,22 @@
 
 /* ── Design tokens ── */
 :root {
-  --bg:        #09090e;
-  --surface:   #111219;
-  --card:      #18181f;
-  --card-alt:  #1e1e28;
-  --border:   rgba(255,255,255,0.07);
-  --border-strong: rgba(255,255,255,0.13);
-  --accent:   oklch(72% 0.18 160);
-  --accent-glow: rgba(72, 200, 180, 0.15);
-  --warn:     oklch(75% 0.17 70);
-  --danger:   oklch(68% 0.2 25);
-  --text:     oklch(88% 0.01 160);
-  --text-2:   oklch(55% 0.02 160);
-  --text-3:   oklch(38% 0.02 160);
-  --mono:     'JetBrains Mono', monospace;
+  --bg:           #f5f3ef;
+  --surface:      #eeece8;
+  --card:         #ffffff;
+  --card-alt:     #f0ede8;
+  --border:       rgba(0,0,0,0.08);
+  --border-strong:rgba(0,0,0,0.14);
+  --accent:       #0d9488;
+  --accent-light: #5eead4;
+  --accent-glow:  rgba(13,148,136,0.12);
+  --success:      #22c55e;
+  --warn:         #f59e0b;
+  --danger:       #ef4444;
+  --text:         #1a1a1a;
+  --text-2:       #5c5c5c;
+  --text-3:       #9a9a9a;
+  --mono:         'DM Sans', system-ui, sans-serif;
 }
 
 html, body {
@@ -37,7 +39,7 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
   background-size: 28px 28px;
   pointer-events: none;
   z-index: 0;
@@ -50,6 +52,7 @@ body::before {
   border-radius: 14px;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 /* Subtle top gradient on cards */
@@ -58,7 +61,7 @@ body::before {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.06), transparent);
 }
 
 /* ── Button ── */
@@ -66,7 +69,7 @@ body::before {
   transition: all 0.15s ease;
   cursor: pointer;
 }
-.btn:hover  { transform: translateY(-1px); filter: brightness(1.08); }
+.btn:hover  { transform: translateY(-1px); filter: brightness(0.96); }
 .btn:active { transform: scale(0.97); }
 
 /* ── Progress ring ── */
@@ -74,8 +77,8 @@ body::before {
 
 /* ── Live dot ── */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
-  50%       { opacity: 0.8; box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  50%       { opacity: 0.85; box-shadow: 0 0 0 4px rgba(34,197,94,0); }
 }
 .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
 
@@ -98,7 +101,7 @@ body::before {
 .stagger-5 { animation-delay: 0.25s; }
 
 /* ── Glow accent ── */
-.glow-accent { box-shadow: 0 0 16px var(--accent-glow), 0 0 40px rgba(72,200,180,0.06); }
+.glow-accent { box-shadow: 0 0 16px var(--accent-glow), 0 0 40px rgba(13,148,136,0.06); }
 
 /* ── Stat number ── */
 .stat-num {
@@ -110,7 +113,7 @@ body::before {
 
 /* ── Kanban column ── */
 .kanban-col {
-  background: rgba(255,255,255,0.02);
+  background: rgba(0,0,0,0.025);
   border-radius: 10px;
   border: 1px solid var(--border);
 }
@@ -123,7 +126,7 @@ body::before {
 .task-card:hover {
   transform: translateY(-2px);
   border-color: var(--border-strong);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
 }
 
 /* ── Category chip ── */
@@ -132,36 +135,38 @@ body::before {
   padding: 3px 10px;
   border-radius: 20px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04);
+  background: rgba(0,0,0,0.04);
   color: var(--text-2);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 .chip:hover    { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
-.chip.active   { background: rgba(72,200,180,0.15); border-color: var(--accent); color: var(--accent); }
+.chip.active   { background: rgba(13,148,136,0.10); border-color: var(--accent); color: var(--accent); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
 
 /* ── AI message ── */
 .msg-user  {
-  background: rgba(72,200,180,0.12);
-  border: 1px solid rgba(72,200,180,0.2);
+  background: rgba(13,148,136,0.08);
+  border: 1px solid rgba(13,148,136,0.15);
   border-radius: 14px 14px 4px 14px;
+  color: var(--accent);
 }
 .msg-ai    {
   background: var(--card-alt);
   border: 1px solid var(--border);
   border-radius: 14px 14px 14px 4px;
+  color: var(--text);
 }
 
 /* ── Input ── */
 .ai-input {
-  background: rgba(255,255,255,0.04);
+  background: rgba(0,0,0,0.04);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
@@ -175,8 +180,8 @@ body::before {
 .ai-input::placeholder { color: var(--text-3); }
 
 /* ── Alert item ── */
-.alert-danger { border-left: 2px solid oklch(0.68 0.2 25); background: rgba(200,80,50,0.06); }
-.alert-warn    { border-left: 2px solid oklch(0.75 0.17 70); background: rgba(200,150,50,0.06); }
+.alert-danger { border-left: 3px solid var(--danger); background: rgba(239,68,68,0.04); }
+.alert-warn    { border-left: 3px solid var(--warn); background: rgba(245,158,11,0.04); }
 
 /* ── Section label ── */
 .section-label {
@@ -184,14 +189,14 @@ body::before {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-3);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* ── Progress bar ── */
 .progress-bar {
   height: 3px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.08);
   overflow: hidden;
 }
 .progress-fill {

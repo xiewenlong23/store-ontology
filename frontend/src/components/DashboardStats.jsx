@@ -9,16 +9,16 @@ const CATEGORY_NAMES = {
 };
 
 const CATEGORY_COLORS = {
-  daily_fresh:  { accent: "#f87171", bg: "rgba(248,113,113,0.08)" },
-  bakery:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.08)" },
-  fresh:       { accent: "#f87171", bg: "rgba(248,113,113,0.08)" },
-  meat_poultry: { accent: "#c084fc", bg: "rgba(192,132,252,0.08)" },
-  seafood:     { accent: "#60a5fa", bg: "rgba(96,165,250,0.08)" },
-  dairy:       { accent: "#34d399", bg: "rgba(52,211,153,0.08)" },
-  frozen:      { accent: "#c084fc", bg: "rgba(192,132,252,0.08)" },
-  beverage:    { accent: "#34d399", bg: "rgba(52,211,153,0.08)" },
-  snack:       { accent: "#60a5fa", bg: "rgba(96,165,250,0.08)" },
-  grain_oil:   { accent: "#c084fc", bg: "rgba(192,132,252,0.08)" },
+  daily_fresh:  { accent: "#0d9488", bg: "rgba(13,148,136,0.08)" },
+  bakery:       { accent: "#0d9488", bg: "rgba(13,148,136,0.08)" },
+  fresh:       { accent: "#dc2626", bg: "rgba(220,38,38,0.08)" },
+  meat_poultry: { accent: "#d97706", bg: "rgba(217,119,6,0.08)" },
+  seafood:     { accent: "#0369a1", bg: "rgba(3,105,161,0.08)" },
+  dairy:       { accent: "#22c55e", bg: "rgba(34,197,94,0.08)" },
+  frozen:      { accent: "#7c3aed", bg: "rgba(124,58,237,0.08)" },
+  beverage:    { accent: "#22c55e", bg: "rgba(34,197,94,0.08)" },
+  snack:       { accent: "#d97706", bg: "rgba(217,119,6,0.08)" },
+  grain_oil:   { accent: "#92400e", bg: "rgba(146,64,14,0.08)" },
 };
 
 function ProgressRing({ percent }) {
@@ -141,13 +141,13 @@ export default function DashboardStats() {
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", display: "inline-block" }} />
-                <span className="stat-num" style={{ fontSize: 12, color: "#fbbf24" }}>{pending}</span>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+                <span className="stat-num" style={{ fontSize: 12, color: "#f59e0b" }}>{pending}</span>
                 <span style={{ fontSize: 10, color: "var(--text-3)" }}>待处理</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#60a5fa", display: "inline-block" }} />
-                <span className="stat-num" style={{ fontSize: 12, color: "#60a5fa" }}>{inProgress}</span>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0d9488", display: "inline-block" }} />
+                <span className="stat-num" style={{ fontSize: 12, color: "#0d9488" }}>{inProgress}</span>
                 <span style={{ fontSize: 10, color: "var(--text-3)" }}>进行中</span>
               </div>
             </div>
@@ -169,7 +169,7 @@ export default function DashboardStats() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <span className="section-label">紧急提醒</span>
           {alerts.length > 0 && (
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(248,113,113,0.1)", color: "#f87171", fontWeight: 600 }}>
+            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(239,68,68,0.1)", color: "#ef4444", fontWeight: 600 }}>
               {alerts.length}条
             </span>
           )}

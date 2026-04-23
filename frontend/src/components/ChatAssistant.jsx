@@ -4,9 +4,9 @@ import { unifiedChat } from "../api";
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "10px 14px" }}>
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite", opacity: 0.4 }} />
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite 0.15s", opacity: 0.6 }} />
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1.2s ease-in-out infinite 0.3s", opacity: 0.8 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0d9488", animation: "pulse-dot 1.2s ease-in-out infinite", opacity: 0.4 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0d9488", animation: "pulse-dot 1.2s ease-in-out infinite 0.15s", opacity: 0.6 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0d9488", animation: "pulse-dot 1.2s ease-in-out infinite 0.3s", opacity: 0.8 }} />
     </div>
   );
 }
@@ -47,17 +47,17 @@ function DiscountCard({ result }) {
   const exempt = result.exemption_type != null;
   if (exempt) {
     return (
-      <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 18 }}>⚠️</span>
         <div>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#fbbf24", margin: 0 }}>{result.exemption_reason || "豁免商品"}</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", margin: 0 }}>{result.exemption_reason || "豁免商品"}</p>
           <p style={{ fontSize: 10, color: "var(--text-3)", margin: "2px 0 0" }}>该商品不参与临期打折</p>
         </div>
       </div>
     );
   }
   return (
-    <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(72,200,180,0.08)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", gap: 12 }}>
+    <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.2)", display: "flex", alignItems: "center", gap: 12 }}>
       <span className="stat-num" style={{ fontSize: 28, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{Math.round(rate * 100)}%</span>
       <div>
         <p style={{ fontSize: 11, color: "var(--text-2)", margin: "0 0 2px" }}>建议折扣率</p>
@@ -79,7 +79,7 @@ function WelcomeMessage() {
   return (
     <div>
       <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-start" }}>
-        <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(72,200,180,0.12)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 16px rgba(72,200,180,0.1)" }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(13,148,136,0.10)", border: "1px solid rgba(13,148,136,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
@@ -94,9 +94,9 @@ function WelcomeMessage() {
           <button
             key={p.label}
             onClick={() => window.__chatSend && window.__chatSend(p.prompt)}
-            style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", cursor: "pointer", textAlign: "left", transition: "all 0.15s ease", display: "flex", alignItems: "center", gap: 8 }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-glow)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+            style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)", border: "1px solid var(--border)", cursor: "pointer", textAlign: "left", transition: "all 0.15s ease", display: "flex", alignItems: "center", gap: 8 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "rgba(13,148,136,0.08)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "rgba(0,0,0,0.04)"; }}
           >
             <span style={{ fontSize: 14 }}>{p.icon}</span>
             <span style={{ fontSize: 12, color: "var(--text-2)" }}>{p.label}</span>
@@ -205,7 +205,7 @@ export default function ChatAssistant() {
               </div>
             ) : (
               <div style={{ display: "flex", gap: 9, alignItems: "flex-start", maxWidth: "90%" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(72,200,180,0.12)", border: "1px solid rgba(72,200,180,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(13,148,136,0.10)", border: "1px solid rgba(13,148,136,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
                   </svg>
@@ -241,7 +241,7 @@ export default function ChatAssistant() {
             color: input.trim() ? "#0a1614" : "var(--text-3)",
             border: "none", cursor: input.trim() ? "pointer" : "default",
             transition: "all 0.15s ease",
-            boxShadow: input.trim() ? "0 0 14px rgba(72,200,180,0.25)" : "none",
+            boxShadow: input.trim() ? "0 0 14px rgba(13,148,136,0.20)" : "none",
           }}
         >
           发送
