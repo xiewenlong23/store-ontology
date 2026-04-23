@@ -19,7 +19,7 @@ from typing import Any, Optional
 from app.tools.registry import registry
 from app.services.llm_service import get_minimax_llm
 from app.services.context import ToolContext, ContextManager
-from app.services.reasoning_engine import FastPathRuleEngine
+from app.services.reasoning_engine import FastPathRuleEngine, MediumPathRuleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,7 @@ class AgentExecutor:
         self._tools = registry.get_all_tools()
         self._tool_descs = _build_tool_descriptions(self._tools)
         self._fast_path = FastPathRuleEngine()
+        self._medium_path = MediumPathRuleEngine()
 
     def execute(self, user_message: str, context: Optional[dict] = None) -> dict:
         """
@@ -134,6 +135,19 @@ class AgentExecutor:
                 })
 
         messages.append({"role": "user", "content": user_message})
+
+        # Medium Path 路由：直接处理语义查询，无需 LLM 参与
+        query_lower = user_message.lower()
+        if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有", "统计"]):
+            medium_result = self._medium_path.evaluate(user_message, context)
+            return {
+                "success": medium_result.action.value == "APPLY_DISCOUNT",
+                "tool_name": None,
+                "tool_result": medium_result.to_dict(),
+                "response": medium_result.reasoning,
+                "steps": 0,
+                "conversation": messages,
+            }
 
         final_response = None
         final_tool_name = None
