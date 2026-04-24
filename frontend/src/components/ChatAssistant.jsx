@@ -5,6 +5,118 @@ const STATUS_COLOR = {
   pending: "#d97706", confirmed: "#d97706", executed: "#e07b39", reviewed: "#16a34a", completed: "#16a34a"
 };
 
+/* ── BarChart ─────────────────────────────────────── */
+function BarChart({ title, data }) {
+  // data: [{ label, value, color? }]
+  if (!data || data.length === 0) return null;
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+  const chartH = 120;
+  const barW = 36;
+  const gap = 20;
+  const totalW = data.length * (barW + gap) - gap;
+  const colors = ["#e07b39", "#16a34a", "#d97706", "#dc2626", "#7c3aed"];
+
+  return (
+    <div style={{ padding: "14px 16px", borderRadius: 14, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginTop: 4 }}>
+      {title && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-2)", margin: "0 0 12px", letterSpacing: "0.02em" }}>{title}</p>}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: gap, height: chartH }}>
+        {data.map((d, i) => {
+          const barH = Math.max((d.value / maxVal) * chartH, 4);
+          const color = d.color || colors[i % colors.length];
+          return (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+              <span className="stat-num" style={{ fontSize: 13, fontWeight: 700, color }}>{d.value}</span>
+              <div style={{ width: barW, height: barH, background: `linear-gradient(180deg, ${color}cc, ${color}66)`, borderRadius: "6px 6px 4px 4px", minHeight: 4, transition: "height 0.6s cubic-bezier(0.34,1.56,0.64,1)" }} />
+              <span style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center", whiteSpace: "nowrap" }}>{d.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── ASCII chart detector ──────────────────────────── */
+// Detects chart patterns like:
+// 3 ┤   █
+// 2 ┤   █   █ █
+// 1 ┤ █ █ █ █ █
+// 0 ┼─────────────────────
+//   0天  1天  2天  3天  4天及以上
+function detectChart(text) {
+  if (!text || typeof text !== "string") return null;
+  // Pattern: lines with "┤" and "█" characters
+  const chartRegex = /(\d+)\s*[┤├│][ \t]*(█+|[ ▐░])+\s*$/gm;
+  const lines = text.split("\n");
+  const chartLines = [];
+  let title = "";
+  let inChart = false;
+
+  for (const line of lines) {
+    if (line.includes("┤") || line.includes("├")) {
+      inChart = true;
+      chartLines.push(line);
+    } else if (inChart && (line.trim().startsWith("0") || line.trim().startsWith("─") || line.match(/^\d+\s*[┤├│]/))) {
+      chartLines.push(line);
+    } else if (line.includes("█")) {
+      chartLines.push(line);
+    } else if (inChart && !line.includes("█") && !line.includes("┤")) {
+      // End of chart - maybe bottom labels
+      if (chartLines.length > 0 && line.match(/[\u4e00-\u9fff]|[0-9]+天/)) {
+        chartLines.push(line);
+      } else if (chartLines.length > 0) {
+        inChart = false;
+      }
+    }
+  }
+
+  if (chartLines.length < 2) return null;
+
+  // Parse: extract y-values and labels
+  // Find the bottom labels line
+  const bottomLine = chartLines[chartLines.length - 1];
+  const labels = bottomLine.trim().split(/\s+/).filter(l => l.length > 0);
+
+  // For each non-bottom line, count bars and match to label position
+  // Y-axis format: "3 ┤" → value 3
+  const dataMap = {};
+  for (const ln of chartLines) {
+    const yMatch = ln.match(/^(\d+)\s*[┤├│]/);
+    if (!yMatch) continue;
+    const yVal = parseInt(yMatch[1]);
+    // Find bar segments after the axis
+    const barPart = ln.replace(/^\d+\s*[┤├│]\s*/, "");
+    // Count groups of █ characters
+    const barGroups = barPart.match(/█+/g) || [];
+    // Assign to labels by position
+    barGroups.forEach((bar, i) => {
+      if (i < labels.length) {
+        if (!dataMap[labels[i]]) dataMap[labels[i]] = yVal;
+        else dataMap[labels[i]] = Math.max(dataMap[labels[i]], yVal);
+      }
+    });
+  }
+
+  // Alternative: count total bars per position
+  const barPositions = [];
+  for (const ln of chartLines) {
+    const yMatch = ln.match(/^(\d+)\s*[┤├│]/);
+    if (!yMatch) continue;
+    const barPart = ln.replace(/^\d+\s*[┤├│]\s*/, "");
+    const barGroups = barPart.match(/█+/g) || [];
+    barGroups.forEach((bar, i) => {
+      if (!barPositions[i]) barPositions[i] = 0;
+      barPositions[i] = Math.max(barPositions[i], parseInt(yMatch[1]));
+    });
+  }
+
+  if (barPositions.length === 0) return null;
+
+  const parsed = barPositions.map((val, i) => ({ label: labels[i] || `${i}`, value: val })).filter(d => d.label);
+  return parsed.length > 0 ? parsed : null;
+}
+
+/* ── TypingIndicator ───────────────────────────────── */
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "8px 0" }}>
@@ -15,6 +127,7 @@ function TypingIndicator() {
   );
 }
 
+/* ── TaskItem ───────────────────────────────────────── */
 function TaskItem({ task }) {
   const color = STATUS_COLOR[task.status] || "#9ca3af";
   return (
@@ -34,6 +147,7 @@ function TaskItem({ task }) {
   );
 }
 
+/* ── ProductItem ─────────────────────────────────────── */
 function ProductItem({ product }) {
   return (
     <div style={{ padding: "11px 13px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginBottom: 6 }}>
@@ -45,6 +159,7 @@ function ProductItem({ product }) {
   );
 }
 
+/* ── DiscountCard ────────────────────────────────────── */
 function DiscountCard({ result }) {
   const rate = result.recommended_discount || result.discount_rate || 0;
   const exempt = result.exemption_type != null;
@@ -70,6 +185,7 @@ function DiscountCard({ result }) {
   );
 }
 
+/* ── WelcomeMessage ───────────────────────────────────── */
 function WelcomeMessage({ onSend }) {
   const quickPrompts = [
     { label: "今日临期商品", icon: "📅", prompt: "帮我看看最近7天有哪些临期商品" },
@@ -109,6 +225,7 @@ function WelcomeMessage({ onSend }) {
   );
 }
 
+/* ── Main component ─────────────────────────────────── */
 export default function ChatAssistant() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -128,6 +245,8 @@ export default function ChatAssistant() {
     try {
       const data = await unifiedChat(msgText);
       const rawResponse = data.response || "（无响应）";
+
+      // Strip tool call artifacts but preserve chart text
       let response = rawResponse
         .replace(/```json\n?\{[\s\S]*?\}\n?```/g, "")
         .replace(/\{[\s\S]*?"tool"[\s\S]*?\}/g, "")
@@ -138,13 +257,22 @@ export default function ChatAssistant() {
 
       const toolResult = data.tool_result;
       const parts = [];
+
+      // Structured chart from tool_result
       if (toolResult) {
+        // Chart data
+        if (toolResult.chart_data) {
+          parts.push({ type: "chart", data: toolResult.chart_data });
+        }
+        // Products list
         if (toolResult.products || toolResult.pending_products || toolResult.items) {
           parts.push({ type: "products", items: toolResult.products || toolResult.pending_products || toolResult.items || [] });
         }
+        // Discount
         if (toolResult.recommended_discount != null || toolResult.discount_rate != null) {
           parts.push({ type: "discount", data: toolResult });
         }
+        // Tasks
         if (toolResult.tasks) {
           parts.push({ type: "tasks", items: toolResult.tasks });
         }
@@ -164,13 +292,44 @@ export default function ChatAssistant() {
 
   useEffect(() => { window.__chatSend = send; }, []);
 
+  /* Render content: handles text + parts (chart/products/tasks/discount) */
   const renderContent = (content) => {
-    if (typeof content === "string") return <span style={{ fontSize: 14, lineHeight: 1.7 }}>{content}</span>;
+    if (typeof content === "string") {
+      // Check for ASCII chart in text
+      const chartData = detectChart(content);
+      if (chartData) {
+        // Extract text before chart (title/description)
+        const chartIdx = content.search(/[\n\r][\s\S]*?[█┤├│][\s\S]*$/m);
+        const textBefore = chartIdx > 0 ? content.slice(0, chartIdx).trim() : "";
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {textBefore && <span style={{ fontSize: 14, lineHeight: 1.7 }}>{textBefore}</span>}
+            <BarChart data={chartData} />
+          </div>
+        );
+      }
+      return <span style={{ fontSize: 14, lineHeight: 1.7 }}>{content}</span>;
+    }
+
     if (!content) return null;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {content.text && <span style={{ fontSize: 14, lineHeight: 1.7 }}>{content.text}</span>}
+        {content.text && (() => {
+          const chartData = detectChart(content.text);
+          if (chartData) {
+            const chartIdx = content.text.search(/[\n\r][\s\S]*?[█┤├│][\s\S]*$/m);
+            const textBefore = chartIdx > 0 ? content.text.slice(0, chartIdx).trim() : "";
+            return (
+              <>
+                {textBefore && <span style={{ fontSize: 14, lineHeight: 1.7 }}>{textBefore}</span>}
+                <BarChart data={chartData} />
+              </>
+            );
+          }
+          return <span style={{ fontSize: 14, lineHeight: 1.7 }}>{content.text}</span>;
+        })()}
         {content.parts?.map((part, i) => {
+          if (part.type === "chart") return <BarChart key={i} data={part.data} />;
           if (part.type === "products") return part.items.map((p, j) => <ProductItem key={j} product={p} />);
           if (part.type === "tasks") return part.items.slice(0, 5).map((t, j) => <TaskItem key={j} task={t} />);
           if (part.type === "discount") return <DiscountCard key={i} result={part.data} />;

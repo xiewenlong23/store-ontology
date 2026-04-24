@@ -512,6 +512,12 @@ class AgentExecutor:
             if count > 5:
                 lines.append(f"...还有 {count - 5} 件商品")
             result = "\n".join(lines)
+
+            # Add structured chart data for frontend rendering
+            chart_data = self._build_chart_data(products)
+            if chart_data:
+                tool_result["chart_data"] = chart_data
+
             if chart:
                 result += "\n\n" + chart
             return result
@@ -632,6 +638,29 @@ class AgentExecutor:
             enriched.append(enriched_item)
 
         return enriched
+
+    def _build_chart_data(self, products: list) -> list:
+        """Build structured chart data for frontend rendering."""
+        from collections import Counter
+        days_counts = Counter()
+        for p in products:
+            days = p.get("days_left", 0)
+            if days <= 0:
+                label = "0天"
+            elif days == 1:
+                label = "1天"
+            elif days == 2:
+                label = "2天"
+            elif days == 3:
+                label = "3天"
+            else:
+                label = "4天及以上"
+            days_counts[label] += 1
+        ordered_labels = ["0天", "1天", "2天", "3天", "4天及以上"]
+        return [
+            {"label": label, "value": days_counts.get(label, 0)}
+            for label in ordered_labels
+        ]
 
     def _generate_bar_chart(self, products: list) -> str:
         """生成临期商品柱状图（ASCII 艺术风格）。"""
