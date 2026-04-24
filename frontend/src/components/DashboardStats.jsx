@@ -9,16 +9,16 @@ const CATEGORY_NAMES = {
 };
 
 const CATEGORY_COLORS = {
-  daily_fresh:  { accent: "#0d9488", bg: "rgba(13,148,136,0.10)", text: "#0d9488" },
-  bakery:       { accent: "#0d9488", bg: "rgba(13,148,136,0.10)", text: "#0d9488" },
-  fresh:       { accent: "#dc2626", bg: "rgba(220,38,38,0.10)", text: "#dc2626" },
-  meat_poultry: { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
-  seafood:     { accent: "#0369a1", bg: "rgba(3,105,161,0.10)", text: "#0369a1" },
-  dairy:       { accent: "#16a34a", bg: "rgba(22,163,74,0.10)", text: "#16a34a" },
-  frozen:      { accent: "#7c3aed", bg: "rgba(124,58,237,0.10)", text: "#7c3aed" },
-  beverage:    { accent: "#16a34a", bg: "rgba(22,163,74,0.10)", text: "#16a34a" },
-  snack:       { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
-  grain_oil:   { accent: "#92400e", bg: "rgba(146,64,14,0.10)", text: "#92400e" },
+  daily_fresh:  { accent: "#e07b39", bg: "rgba(224,123,57,0.08)", text: "#e07b39" },
+  bakery:       { accent: "#e07b39", bg: "rgba(224,123,57,0.08)", text: "#e07b39" },
+  fresh:        { accent: "#dc2626", bg: "rgba(220,38,38,0.08)", text: "#dc2626" },
+  meat_poultry: { accent: "#d97706", bg: "rgba(217,119,6,0.08)", text: "#d97706" },
+  seafood:      { accent: "#0369a1", bg: "rgba(3,105,161,0.08)", text: "#0369a1" },
+  dairy:        { accent: "#16a34a", bg: "rgba(22,163,74,0.08)", text: "#16a34a" },
+  frozen:       { accent: "#7c3aed", bg: "rgba(124,58,237,0.08)", text: "#7c3aed" },
+  beverage:     { accent: "#16a34a", bg: "rgba(22,163,74,0.08)", text: "#16a34a" },
+  snack:        { accent: "#d97706", bg: "rgba(217,119,6,0.08)", text: "#d97706" },
+  grain_oil:    { accent: "#92400e", bg: "rgba(146,64,14,0.08)", text: "#92400e" },
 };
 
 function ProgressRing({ percent }) {
@@ -35,18 +35,18 @@ function ProgressRing({ percent }) {
   return (
     <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
       <svg width="80" height="80" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="40" cy="40" r={radius} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="6" />
+        <circle cx="40" cy="40" r={radius} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="7" />
         <circle
           cx="40" cy="40" r={radius} fill="none"
-          stroke="var(--accent)" strokeWidth="6"
+          stroke="#e07b39" strokeWidth="7"
           strokeDasharray={circ}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.34,1.56,0.64,1)" }}
+          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)" }}
         />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span className="stat-num" style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{animated}%</span>
+        <span className="stat-num" style={{ fontSize: 20, fontWeight: 700, color: "#e07b39", lineHeight: 1 }}>{animated}%</span>
       </div>
     </div>
   );
@@ -54,12 +54,12 @@ function ProgressRing({ percent }) {
 
 function CategoryCard({ name, count, color, bg }) {
   return (
-    <div style={{ borderRadius: 10, border: "1px solid var(--border)", background: bg, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+    <div style={{ borderRadius: 12, border: "1px solid var(--border)", background: bg, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>{name}</span>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600, letterSpacing: "0.02em" }}>{name}</span>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
       </div>
-      <span className="stat-num" style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+      <span className="stat-num" style={{ fontSize: 24, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
     </div>
   );
 }
@@ -103,7 +103,7 @@ export default function DashboardStats() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([cat, count]) => {
-      const meta = CATEGORY_COLORS[cat] || { accent: "#6b7280", bg: "rgba(0,0,0,0.04)", text: "#6b7280" };
+      const meta = CATEGORY_COLORS[cat] || { accent: "#9ca3af", bg: "rgba(0,0,0,0.04)", text: "#9ca3af" };
       return { cat, count, name: CATEGORY_NAMES[cat] || cat, ...meta };
     });
 
@@ -112,45 +112,47 @@ export default function DashboardStats() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 200px", gap: 12, alignItems: "stretch" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 220px", gap: 12, alignItems: "stretch" }}>
 
       {/* Left: Progress + stats */}
-      <div className="card" style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 14 }}>
+      <div className="card" style={{ padding: "18px 20px", display: "flex", alignItems: "center", gap: 16 }}>
         <ProgressRing percent={percent} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-            <span className="stat-num" style={{ fontSize: 26, fontWeight: 700, color: "var(--text)" }}>{completed}</span>
-            <span style={{ fontSize: 12, color: "var(--text-3)" }}>/ {total} 件</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+            <span className="stat-num" style={{ fontSize: 28, fontWeight: 700, color: "var(--text)" }}>{completed}</span>
+            <span style={{ fontSize: 13, color: "var(--text-3)" }}>/ {total} 件</span>
           </div>
-          <div style={{ height: 4, borderRadius: 2, background: "rgba(0,0,0,0.06)", overflow: "hidden", marginBottom: 10 }}>
-            <div style={{ height: "100%", width: `${percent}%`, background: "var(--accent)", borderRadius: 2, transition: "width 1s cubic-bezier(0.34,1.56,0.64,1)" }} />
+          <div style={{ height: 5, borderRadius: 3, background: "rgba(0,0,0,0.06)", overflow: "hidden", marginBottom: 12 }}>
+            <div style={{ height: "100%", width: `${percent}%`, background: "linear-gradient(90deg, #e07b39, #c96a2d)", borderRadius: 3, transition: "width 1.2s cubic-bezier(0.34,1.56,0.64,1)" }} />
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warn)", display: "inline-block" }} />
-              <span className="stat-num" style={{ fontSize: 12, color: "var(--warn)" }}>{pending}</span>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />
+              <span className="stat-num" style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>{pending}</span>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>待处理</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", display: "inline-block" }} />
-              <span className="stat-num" style={{ fontSize: 12, color: "var(--accent)" }}>{inProgress}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#e07b39", display: "inline-block" }} />
+              <span className="stat-num" style={{ fontSize: 13, color: "#e07b39", fontWeight: 600 }}>{inProgress}</span>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>进行中</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Center: Category breakdown */}
-      <div className="card" style={{ padding: "14px 16px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-        {topCats.map((c, i) => (
+      <div className="card" style={{ padding: "16px 18px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {topCats.map((c) => (
           <CategoryCard key={c.cat} name={c.name} count={loading ? "—" : c.count} color={c.accent} bg={c.bg} />
         ))}
       </div>
 
       {/* Right: Alerts */}
-      <div className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
+      <div className="card" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span className="section-label">紧急提醒</span>
           {alerts.length > 0 && (
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(220,38,38,0.08)", color: "var(--danger)", fontWeight: 600 }}>
+            <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 10, background: "rgba(220,38,38,0.08)", color: "#dc2626", fontWeight: 700 }}>
               {alerts.length} 条
             </span>
           )}

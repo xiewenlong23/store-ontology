@@ -13,7 +13,7 @@ function LiveClock() {
     const id = setInterval(() => setTime(new Date().toLocaleTimeString("zh-CN", { hour12: false })), 1000);
     return () => clearInterval(id);
   }, []);
-  return <span className="stat-num" style={{ fontSize: 13, color: "var(--text)" }}>{time}</span>;
+  return <span className="stat-num" style={{ fontSize: 13, color: "var(--text-2)" }}>{time}</span>;
 }
 
 export default function App() {
@@ -23,26 +23,26 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg)", overflow: "hidden" }}>
 
       {/* ── Header ── */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", background: "var(--card)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", background: "var(--surface)", borderBottom: "1px solid var(--border)", flexShrink: 0, boxShadow: "var(--shadow-sm)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #e07b39, #c96a2d)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(224,123,57,0.3)" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", margin: 0, lineHeight: 1.2 }}>门店大脑</h1>
-            <p style={{ fontSize: 12, color: "var(--text-3)", margin: "3px 0 0" }}>万达广场店 · 实时运营</p>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", margin: 0, lineHeight: 1.2 }}>门店大脑</h1>
+            <p style={{ fontSize: 12, color: "var(--text-3)", margin: "4px 0 0", letterSpacing: "0.01em" }}>万达广场店 · 实时运营</p>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 20, background: "var(--accent-light)", border: "1px solid rgba(88,166,255,0.15)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--success)", display: "inline-block" }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--success)" }}>营业中</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.12)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#16a34a" }}>营业中</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 20, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)" }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>

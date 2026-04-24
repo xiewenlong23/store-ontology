@@ -2,15 +2,15 @@ import React, { useState, useRef, useEffect } from "react";
 import { unifiedChat } from "../api";
 
 const STATUS_COLOR = {
-  pending: "var(--warn)", confirmed: "var(--warn)", executed: "var(--accent)", reviewed: "var(--success)", completed: "var(--success)"
+  pending: "#d97706", confirmed: "#d97706", executed: "#e07b39", reviewed: "#16a34a", completed: "#16a34a"
 };
 
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center", padding: "8px 0" }}>
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1s ease-in-out infinite", opacity: 0.4 }} />
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1s ease-in-out infinite 0.15s", opacity: 0.6 }} />
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "pulse-dot 1s ease-in-out infinite 0.3s", opacity: 0.8 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e07b39", animation: "pulse-dot 1s ease-in-out infinite", opacity: 0.4 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e07b39", animation: "pulse-dot 1s ease-in-out infinite 0.15s", opacity: 0.6 }} />
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e07b39", animation: "pulse-dot 1s ease-in-out infinite 0.3s", opacity: 0.8 }} />
     </div>
   );
 }
@@ -18,7 +18,7 @@ function TypingIndicator() {
 function TaskItem({ task }) {
   const color = STATUS_COLOR[task.status] || "#9ca3af";
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+    <div style={{ padding: "11px 13px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 6)}`}
@@ -27,8 +27,8 @@ function TaskItem({ task }) {
           {task.category} · {task.original_stock}件 · {task.discount_rate != null ? `${Math.round(task.discount_rate * 100)}%折扣` : "—"}
         </p>
       </div>
-      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, background: `${color}12`, color, fontWeight: 600, whiteSpace: "nowrap" }}>
-        {STATUS_COLOR[task.status] ? ["pending","confirmed"].includes(task.status) ? "待确认" : task.status === "executed" ? "执行中" : ["reviewed","completed"].includes(task.status) ? "已完成" : task.status : task.status}
+      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 8, background: `${color}15`, color, fontWeight: 600, whiteSpace: "nowrap" }}>
+        {["pending","confirmed"].includes(task.status) ? "待确认" : task.status === "executed" ? "执行中" : ["reviewed","completed"].includes(task.status) ? "已完成" : task.status}
       </span>
     </div>
   );
@@ -36,7 +36,7 @@ function TaskItem({ task }) {
 
 function ProductItem({ product }) {
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginBottom: 6 }}>
+    <div style={{ padding: "11px 13px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", marginBottom: 6 }}>
       <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: 0 }}>{product.name || product.product_id}</p>
       <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>
         {product.category} · 库存 {product.stock} · 到期 {product.expiry_date || "—"}
@@ -50,21 +50,21 @@ function DiscountCard({ result }) {
   const exempt = result.exemption_type != null;
   if (exempt) {
     return (
-      <div style={{ padding: "12px 14px", borderRadius: 12, background: "var(--warn)", border: "1px solid var(--warn)", display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 18 }}>⚠️</span>
+      <div style={{ padding: "14px 16px", borderRadius: 14, background: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.15)", display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 20 }}>⚠️</span>
         <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--warn)", margin: 0 }}>{result.exemption_reason || "豁免商品"}</p>
-          <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>该商品不参与临期打折</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#d97706", margin: 0 }}>{result.exemption_reason || "豁免商品"}</p>
+          <p style={{ fontSize: 12, color: "var(--text-3)", margin: "2px 0 0" }}>该商品不参与临期打折</p>
         </div>
       </div>
     );
   }
   return (
-    <div style={{ padding: "12px 14px", borderRadius: 12, background: "var(--accent)", border: "1px solid var(--accent)", display: "flex", alignItems: "center", gap: 12 }}>
-      <span className="stat-num" style={{ fontSize: 30, fontWeight: 700, color: "var(--accent)", lineHeight: 1 }}>{Math.round(rate * 100)}%</span>
+    <div style={{ padding: "14px 16px", borderRadius: 14, background: "rgba(224,123,57,0.08)", border: "1px solid rgba(224,123,57,0.15)", display: "flex", alignItems: "center", gap: 14 }}>
+      <span className="stat-num" style={{ fontSize: 36, fontWeight: 700, color: "#e07b39", lineHeight: 1 }}>{Math.round(rate * 100)}%</span>
       <div>
-        <p style={{ fontSize: 12, color: "var(--text-2)", margin: "0 0 2px" }}>建议折扣率</p>
-        <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>等级 {result.tier || "—"} · {result.reasoning || "—"}</p>
+        <p style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 2px" }}>建议折扣率</p>
+        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>等级 {result.tier || "—"} · {result.reasoning || "—"}</p>
       </div>
     </div>
   );
@@ -80,14 +80,14 @@ function WelcomeMessage({ onSend }) {
 
   return (
     <div style={{ paddingBottom: 8 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg, #e07b39, #c96a2d)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(224,123,57,0.3)" }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </div>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", margin: "0 0 2px" }}>门店大脑 AI</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", margin: "0 0 2px" }}>门店大脑 AI</p>
           <p style={{ fontSize: 13, color: "var(--text-3)", margin: 0 }}>你好！有什么可以帮你的？</p>
         </div>
       </div>
@@ -96,12 +96,12 @@ function WelcomeMessage({ onSend }) {
           <button
             key={p.label}
             onClick={() => onSend(p.prompt)}
-            style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "rgba(13,148,136,0.06)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "rgba(0,0,0,0.03)"; }}
+            style={{ padding: "11px 13px", borderRadius: 12, background: "var(--surface)", border: "1px solid var(--border)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 9, transition: "all 0.15s", boxShadow: "var(--shadow-sm)" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#e07b39"; e.currentTarget.style.background = "rgba(224,123,57,0.05)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--surface)"; }}
           >
-            <span style={{ fontSize: 15 }}>{p.icon}</span>
-            <span style={{ fontSize: 12, color: "var(--text-2)" }}>{p.label}</span>
+            <span style={{ fontSize: 16 }}>{p.icon}</span>
+            <span style={{ fontSize: 13, color: "var(--text-2)", fontWeight: 500 }}>{p.label}</span>
           </button>
         ))}
       </div>
@@ -181,7 +181,7 @@ export default function ChatAssistant() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "12px 16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "14px 16px" }}>
       <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 12, paddingBottom: 8 }}>
         <WelcomeMessage onSend={send} />
         {messages.map(m => (
@@ -190,8 +190,8 @@ export default function ChatAssistant() {
               <div className="msg-user">{m.content}</div>
             ) : (
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start", maxWidth: "92%" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(13,148,136,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round">
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(224,123,57,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e07b39" strokeWidth="2" strokeLinecap="round">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
                   </svg>
                 </div>
@@ -205,7 +205,7 @@ export default function ChatAssistant() {
       </div>
 
       {/* Input */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingTop: 12, borderTop: "1px solid var(--border)" }}>
         <input
           type="text"
           value={input}
@@ -214,17 +214,18 @@ export default function ChatAssistant() {
           placeholder="输入问题..."
           disabled={loading}
           className="ai-input"
-          style={{ flex: 1, padding: "10px 14px" }}
+          style={{ flex: 1, padding: "11px 15px" }}
         />
         <button
           onClick={() => send()}
           disabled={loading || !input.trim()}
           className="btn"
           style={{
-            padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-            background: input.trim() ? "var(--accent)" : "rgba(0,0,0,0.06)",
+            padding: "11px 20px", borderRadius: 12, fontSize: 14, fontWeight: 700,
+            background: input.trim() ? "linear-gradient(135deg, #e07b39, #c96a2d)" : "rgba(0,0,0,0.06)",
             color: input.trim() ? "#ffffff" : "var(--text-3)",
             border: "none", cursor: input.trim() ? "pointer" : "default",
+            boxShadow: input.trim() ? "0 2px 8px rgba(224,123,57,0.3)" : "none",
           }}
         >
           发送

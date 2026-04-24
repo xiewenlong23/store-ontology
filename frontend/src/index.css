@@ -9,22 +9,30 @@
 
 /* ── Design tokens ── */
 :root {
-  --bg:           #0d1117;
-  --surface:      #161b22;
-  --card:         #21262d;
-  --card-alt:     #1c2128;
-  --border:       rgba(255,255,255,0.08);
-  --border-strong:rgba(255,255,255,0.14);
-  --accent:       #58a6ff;
-  --accent-hover: #79b8ff;
-  --accent-light: rgba(88,166,255,0.10);
-  --success:      #3fb950;
-  --warn:         #d29922;
-  --danger:       #f85149;
-  --text:         #e6edf3;
-  --text-2:       #8b949e;
-  --text-3:       #6e7681;
+  --bg:           #f5f6f8;
+  --surface:      #ffffff;
+  --card:         #ffffff;
+  --card-alt:     #f0f1f3;
+  --card-hover:   #fafafa;
+  --border:       rgba(0,0,0,0.08);
+  --border-strong:rgba(0,0,0,0.14);
+  --accent:       #e07b39;
+  --accent-hover: #c96a2d;
+  --accent-light: rgba(224,123,57,0.08);
+  --accent-bg:    rgba(224,123,57,0.06);
+  --success:      #16a34a;
+  --success-bg:   rgba(22,163,74,0.08);
+  --warn:         #d97706;
+  --warn-bg:      rgba(217,119,6,0.08);
+  --danger:       #dc2626;
+  --danger-bg:    rgba(220,38,38,0.06);
+  --text:         #1a1d27;
+  --text-2:       #6b7280;
+  --text-3:       #9ca3af;
   --mono:         'DM Sans', system-ui, sans-serif;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:    0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:    0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.06);
 }
 
 html, body {
@@ -39,6 +47,7 @@ html, body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
+  box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
 }
@@ -49,7 +58,7 @@ html, body {
   cursor: pointer;
   font-family: inherit;
 }
-.btn:hover  { filter: brightness(1.1); }
+.btn:hover  { filter: brightness(0.95); }
 .btn:active { transform: scale(0.97); }
 
 /* ── Progress ring ── */
@@ -57,8 +66,8 @@ html, body {
 
 /* ── Live dot ── */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
-  50%       { opacity: 0.8; box-shadow: 0 0 0 4px rgba(63,185,80,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(22,163,74,0.4); }
+  50%       { opacity: 0.8; box-shadow: 0 0 0 4px rgba(22,163,74,0); }
 }
 .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
 
@@ -90,78 +99,83 @@ html, body {
 /* ── Tab ── */
 .tab {
   font-size: 13px;
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 8px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
   color: var(--text-3);
   background: transparent;
+  letter-spacing: 0.01em;
 }
-.tab:hover { color: var(--text-2); background: var(--accent-light); }
-.tab.active { color: var(--accent); background: var(--accent-light); border-color: rgba(88,166,255,0.2); }
+.tab:hover { color: var(--text-2); background: var(--card-alt); }
+.tab.active { color: var(--accent); background: var(--accent-bg); border-color: rgba(224,123,57,0.15); }
 
 /* ── Filter chip ── */
 .chip {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 20px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04);
+  background: var(--surface);
   color: var(--text-2);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
-.chip:hover    { border-color: var(--accent); color: var(--accent); }
-.chip.active   { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.chip:hover    { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.chip.active   { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.10); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.18); }
 
 /* ── AI message ── */
 .msg-user  {
   background: var(--accent);
-  color: #0d1117;
-  border-radius: 16px 16px 4px 16px;
-  padding: 9px 13px;
+  color: #ffffff;
+  border-radius: 18px 18px 4px 18px;
+  padding: 10px 14px;
   font-size: 14px;
   max-width: 80%;
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm);
 }
 .msg-ai    {
   background: var(--card-alt);
   border: 1px solid var(--border);
-  border-radius: 16px 16px 16px 4px;
+  border-radius: 18px 18px 18px 4px;
   padding: 10px 14px;
   font-size: 14px;
   color: var(--text);
+  line-height: 1.6;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Input ── */
 .ai-input {
-  background: rgba(255,255,255,0.04);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .ai-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(88,166,255,0.10);
+  box-shadow: 0 0 0 3px var(--accent-bg);
 }
 .ai-input::placeholder { color: var(--text-3); }
 
 /* ── Kanban column ── */
 .kanban-col {
-  background: rgba(255,255,255,0.02);
+  background: var(--card-alt);
   border-radius: 12px;
   border: 1px solid var(--border);
   padding: 12px;
@@ -169,21 +183,23 @@ html, body {
 
 /* ── Task card ── */
 .task-card {
-  background: var(--card-alt);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   transition: all 0.18s ease;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
 .task-card:hover {
   border-color: var(--border-strong);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 /* ── Section label ── */
 .section-label {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);

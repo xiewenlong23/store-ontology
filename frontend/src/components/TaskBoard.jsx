@@ -8,24 +8,24 @@ const CATEGORY_NAMES = {
 };
 
 const CAT_COLORS = {
-  daily_fresh:  { accent: "var(--accent)", bg: "var(--accent-light)", text: "var(--accent)" },
-  bakery:       { accent: "var(--accent)", bg: "var(--accent-light)", text: "var(--accent)" },
-  fresh:       { accent: "var(--danger)", bg: "rgba(248,81,73,0.10)", text: "var(--danger)" },
-  meat_poultry: { accent: "var(--warn)", bg: "rgba(210,153,34,0.10)", text: "var(--warn)" },
-  seafood:     { accent: "#0369a1", bg: "rgba(3,105,161,0.10)", text: "#0369a1" },
-  dairy:       { accent: "var(--success)", bg: "rgba(63,185,80,0.10)", text: "var(--success)" },
-  frozen:      { accent: "#7c3aed", bg: "rgba(124,58,237,0.10)", text: "#7c3aed" },
-  beverage:    { accent: "var(--success)", bg: "rgba(63,185,80,0.10)", text: "var(--success)" },
-  snack:       { accent: "var(--warn)", bg: "rgba(210,153,34,0.10)", text: "var(--warn)" },
-  grain_oil:   { accent: "#92400e", bg: "rgba(146,64,14,0.10)", text: "#92400e" },
+  daily_fresh:  { accent: "#e07b39", bg: "rgba(224,123,57,0.10)", text: "#c96a2d" },
+  bakery:       { accent: "#e07b39", bg: "rgba(224,123,57,0.10)", text: "#c96a2d" },
+  fresh:        { accent: "#dc2626", bg: "rgba(220,38,38,0.10)", text: "#dc2626" },
+  meat_poultry: { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
+  seafood:      { accent: "#0369a1", bg: "rgba(3,105,161,0.10)", text: "#0369a1" },
+  dairy:        { accent: "#16a34a", bg: "rgba(22,163,74,0.10)", text: "#16a34a" },
+  frozen:       { accent: "#7c3aed", bg: "rgba(124,58,237,0.10)", text: "#7c3aed" },
+  beverage:     { accent: "#16a34a", bg: "rgba(22,163,74,0.10)", text: "#16a34a" },
+  snack:        { accent: "#d97706", bg: "rgba(217,119,6,0.10)", text: "#d97706" },
+  grain_oil:    { accent: "#92400e", bg: "rgba(146,64,14,0.10)", text: "#92400e" },
 };
 
 const STATUS_CONFIG = {
-  pending:   { color: "var(--warn)", label: "待确认" },
-  confirmed: { color: "var(--warn)", label: "已确认" },
-  executed:  { color: "var(--accent)", label: "执行中" },
-  reviewed:  { color: "var(--success)", label: "已复核" },
-  completed: { color: "var(--success)", label: "已完成" },
+  pending:   { color: "#d97706", bg: "rgba(217,119,6,0.10)", label: "待确认" },
+  confirmed: { color: "#d97706", bg: "rgba(217,119,6,0.10)", label: "已确认" },
+  executed:  { color: "#e07b39", bg: "rgba(224,123,57,0.10)", label: "执行中" },
+  reviewed:  { color: "#16a34a", bg: "rgba(22,163,74,0.10)", label: "已复核" },
+  completed: { color: "#16a34a", bg: "rgba(22,163,74,0.10)", label: "已完成" },
 };
 
 function TaskCard({ task }) {
@@ -33,51 +33,59 @@ function TaskCard({ task }) {
   const catMeta = CAT_COLORS[cat] || CAT_COLORS.daily_fresh;
   const urgent = task.priority === "urgent" || task.risk_level === "high";
   const isDone = ["reviewed", "completed"].includes(task.status);
-  const statusCfg = STATUS_CONFIG[task.status] || { color: "#9ca3af", label: task.status };
+  const statusCfg = STATUS_CONFIG[task.status] || { color: "#9ca3af", bg: "rgba(0,0,0,0.06)", label: task.status };
 
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: `1px solid ${isDone ? "rgba(0,0,0,0.04)" : "var(--border)"}`,
+        background: "var(--surface)",
+        border: `1px solid ${isDone ? "rgba(0,0,0,0.05)" : "var(--border)"}`,
         borderRadius: 12,
-        padding: "12px 14px",
+        padding: "13px 15px",
         marginBottom: 8,
-        opacity: isDone ? 0.65 : 1,
+        opacity: isDone ? 0.6 : 1,
         borderLeft: `3px solid ${catMeta.accent}`,
+        transition: "all 0.15s ease",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, fontWeight: 600, background: catMeta.bg, color: catMeta.text }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, fontWeight: 600, background: catMeta.bg, color: catMeta.text }}>
             {CATEGORY_NAMES[cat] || cat}
           </span>
           {urgent && (
-            <span className="blink" style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: "rgba(220,38,38,0.08)", color: "#dc2626", fontWeight: 600 }}>
+            <span className="blink" style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(220,38,38,0.08)", color: "#dc2626", fontWeight: 700 }}>
               紧急
             </span>
           )}
         </div>
-        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: `${statusCfg.color}12`, color: statusCfg.color, fontWeight: 600 }}>
+        <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: statusCfg.bg, color: statusCfg.color, fontWeight: 600 }}>
           {statusCfg.label}
         </span>
       </div>
 
-      <p style={{ fontSize: 14, fontWeight: 600, color: isDone ? "var(--text-3)" : "var(--text)", margin: "0 0 8px", textDecoration: isDone ? "line-through" : "none", textDecorationColor: statusCfg.color }}>
+      <p style={{
+        fontSize: 14, fontWeight: 600,
+        color: isDone ? "var(--text-3)" : "var(--text)",
+        margin: "0 0 10px",
+        textDecoration: isDone ? "line-through" : "none",
+        textDecorationColor: statusCfg.color,
+        lineHeight: 1.4
+      }}>
         {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 8)}`}
       </p>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 10 }}>
           {task.expiry_date && (
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}>📅 {task.expiry_date}</span>
+            <span style={{ fontSize: 12, color: "var(--text-3)" }}>📅 {task.expiry_date}</span>
           )}
           {task.original_stock && (
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}>📦 {task.original_stock} 件</span>
+            <span style={{ fontSize: 12, color: "var(--text-3)" }}>📦 {task.original_stock} 件</span>
           )}
         </div>
         {task.discount_rate != null && (
-          <span className="stat-num" style={{ fontSize: 13, color: catMeta.text, fontWeight: 700 }}>
+          <span className="stat-num" style={{ fontSize: 14, color: catMeta.text, fontWeight: 700 }}>
             {Math.round(task.discount_rate * 100)}%
           </span>
         )}
@@ -89,17 +97,17 @@ function TaskCard({ task }) {
 function KanbanColumn({ label, count, color, tasks }) {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "0 2px" }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{label}</span>
-        <span style={{ fontSize: 11, padding: "1px 8px", borderRadius: 20, background: `${color}14`, color, fontWeight: 700, marginLeft: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "0 2px" }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{label}</span>
+        <span style={{ fontSize: 12, padding: "2px 9px", borderRadius: 20, background: `${color}15`, color, fontWeight: 700, marginLeft: 2 }}>
           {count}
         </span>
       </div>
       <div style={{ flex: 1 }}>
         {tasks.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", borderRadius: 12, border: "1px dashed rgba(0,0,0,0.08)", background: "rgba(0,0,0,0.02)" }}>
-            <span style={{ fontSize: 12, color: "var(--text-3)" }}>暂无任务</span>
+          <div style={{ padding: 28, textAlign: "center", borderRadius: 12, border: "1px dashed rgba(0,0,0,0.08)", background: "rgba(0,0,0,0.02)" }}>
+            <span style={{ fontSize: 13, color: "var(--text-3)" }}>暂无任务</span>
           </div>
         ) : (
           tasks.map((t, i) => (
@@ -130,9 +138,9 @@ export default function TaskBoard() {
   const done       = filtered.filter(t => ["reviewed", "completed"].includes(t.status));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "12px 16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", padding: "14px 16px" }}>
       {/* Filter */}
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12, flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14, flexShrink: 0 }}>
         <button onClick={() => setFilter("all")} className={`chip ${filter === "all" ? "active" : ""}`}>
           全部 ({tasks.length})
         </button>
@@ -149,12 +157,12 @@ export default function TaskBoard() {
       {/* Kanban */}
       {loading ? (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 13, color: "var(--text-3)" }}>加载中...</span>
+          <span style={{ fontSize: 14, color: "var(--text-3)" }}>加载中...</span>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, flex: 1, overflow: "auto", alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, flex: 1, overflow: "auto", alignItems: "start" }}>
           <KanbanColumn label="待处理" count={todo.length} color="#d97706" tasks={todo} />
-          <KanbanColumn label="进行中" count={inProgress.length} color="#0d9488" tasks={inProgress} />
+          <KanbanColumn label="进行中" count={inProgress.length} color="#e07b39" tasks={inProgress} />
           <KanbanColumn label="已完成" count={done.length} color="#16a34a" tasks={done} />
         </div>
       )}
