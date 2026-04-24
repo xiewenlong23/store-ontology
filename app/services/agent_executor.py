@@ -516,7 +516,23 @@ class AgentExecutor:
             # Add structured chart data for frontend rendering
             chart_data = self._build_chart_data(products)
             if chart_data:
+                tool_result["chart_type"] = "bar"
                 tool_result["chart_data"] = chart_data
+                # Also add table data for the full product list
+                tool_result["table_data"] = {
+                    "title": "临期商品明细",
+                    "columns": ["商品名称", "品类", "剩余天数", "库存", "建议折扣"],
+                    "rows": [
+                        [
+                            p.get("name", "未知"),
+                            p.get("category", ""),
+                            f"{p.get('days_left', '?')}天",
+                            f"{p.get('stock', '?')}件",
+                            self._format_discount(p.get("_fast_path", {})),
+                        ]
+                        for p in enriched[:8]
+                    ],
+                }
 
             if chart:
                 result += "\n\n" + chart
@@ -543,6 +559,44 @@ class AgentExecutor:
             if count > 5:
                 lines.append(f"...还有 {count - 5} 件商品")
             result = "\n".join(lines)
+
+            # Add structured chart data: scatter (库存 vs 折扣) + bar (临期天数分布)
+            scatter_data = [
+                {"x": p.get("stock", 0), "y": round(p.get("recommended_discount", 0) * 100, 1), "label": p.get("name", "")}
+                for p in products if p.get("recommended_discount") is not None
+            ]
+            if scatter_data:
+                tool_result["chart_type"] = "scatter"
+                tool_result["scatter_data"] = scatter_data
+                tool_result["scatter_config"] = {
+                    "title": "库存 vs 建议折扣率",
+                    "xLabel": "库存数量",
+                    "yLabel": "建议折扣(%)",
+                }
+
+            # Also add bar chart for days distribution
+            chart_data = self._build_chart_data(products)
+            if chart_data:
+                tool_result["chart_data"] = chart_data
+                if not tool_result.get("chart_type"):
+                    tool_result["chart_type"] = "bar"
+
+            # Table data
+            tool_result["table_data"] = {
+                "title": "临期商品折扣明细",
+                "columns": ["商品名称", "剩余天数", "库存", "建议折扣", "风险"],
+                "rows": [
+                    [
+                        p.get("name", "未知"),
+                        f"{p.get('days_left', '?')}天",
+                        f"{p.get('stock', '?')}件",
+                        f"{p.get('recommended_discount', 0)*10:.0f}折",
+                        {"low": "低", "medium": "中", "high": "高"}.get(p.get("risk_level", ""), p.get("risk_level", "?")),
+                    ]
+                    for p in products[:8]
+                ],
+            }
+
             if chart:
                 result += "\n\n" + chart
             return result
@@ -556,17 +610,31 @@ class AgentExecutor:
             for t in tasks:
                 status = t.get("status", "unknown")
                 by_status[status] = by_status.get(status, 0) + 1
+
+            STATUS_LABELS = {
+                "pending": "待确认", "confirmed": "已确认",
+                "executed": "已执行", "reviewed": "已复核", "completed": "已完成",
+            }
+            STATUS_COLORS = {
+                "pending": "#d97706", "confirmed": "#d97706",
+                "executed": "#e07b39", "reviewed": "#16a34a", "completed": "#16a34a",
+            }
+
             lines = [f"当前共有 {count} 个任务："]
             for status, num in by_status.items():
-                status_text = {
-                    "pending": "待确认",
-                    "confirmed": "已确认",
-                    "executed": "已执行",
-                    "reviewed": "已复核",
-                    "completed": "已完成",
-                }.get(status, status)
+                status_text = STATUS_LABELS.get(status, status)
                 lines.append(f"- {status_text}：{num} 个")
-            return "\\n".join(lines)
+            result = "\n".join(lines)
+
+            # Add pie chart data for status distribution
+            pie_data = [
+                {"label": STATUS_LABELS.get(s, s), "value": n, "color": STATUS_COLORS.get(s, "#9ca3af")}
+                for s, n in by_status.items()
+            ]
+            if pie_data:
+                tool_result["chart_type"] = "pie"
+                tool_result["pie_data"] = pie_data
+            return result
 
         if tool_name == "query_discount":
             if tool_result.get("discount_rate") is not None:
@@ -590,7 +658,24 @@ class AgentExecutor:
                 disc_range = r.get("discount_range", [])
                 range_str = f"{disc_range[0]*100:.0f}%-{disc_range[1]*100:.0f}%" if disc_range else "?"
                 lines.append(f"- Tier{tier}：建议 {rec*100:.0f}%（范围 {range_str}）")
-            return "\\n".join(lines)
+            result = "\\n".join(lines)
+
+            # Add table data
+            tool_result["chart_type"] = "table"
+            tool_result["table_data"] = {
+                "title": "折扣规则明细",
+                "columns": ["等级", "建议折扣", "折扣范围", "紧迫度"],
+                "rows": [
+                    [
+                        f"Tier {r.get('tier', '?')}",
+                        f"{r.get('recommended_discount', 0)*100:.0f}%",
+                        f"{r.get('discount_range', ['?', '?'])[0]*100:.0f}% - {r.get('discount_range', ['?', '?'])[1]*100:.0f}%" if r.get("discount_range") else "?",
+                        {"low": "低", "medium": "中", "high": "高", "critical": "紧急"}.get(str(r.get("urgency", "")), r.get("urgency", "?")),
+                    ]
+                    for r in rules
+                ],
+            }
+            return result
 
         if tool_name in ("create_task", "confirm_task", "execute_task", "review_task"):
             return tool_result.get("message", "操作完成。")
@@ -638,6 +723,21 @@ class AgentExecutor:
             enriched.append(enriched_item)
 
         return enriched
+
+    def _format_discount(self, fast_info: dict) -> str:
+        """Format discount info from FastPath result."""
+        if not fast_info:
+            return "—"
+        action = fast_info.get("action", "")
+        rate = fast_info.get("discount_rate")
+        tier = fast_info.get("tier")
+        if action == "EXEMPTED":
+            return f"豁免"
+        elif action == "APPLY_DISCOUNT" and rate:
+            return f"{rate*10:.0f}折"
+        elif action == "NEEDS_APPROVAL" and rate:
+            return f"{rate*10:.0f}折(需审批)"
+        return "—"
 
     def _build_chart_data(self, products: list) -> list:
         """Build structured chart data for frontend rendering."""
