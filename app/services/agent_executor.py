@@ -20,10 +20,27 @@ from app.tools.registry import registry
 from app.services.llm_service import get_minimax_llm
 from app.services.context import ToolContext, ContextManager
 from app.services.reasoning_engine import FastPathRuleEngine, MediumPathRuleEngine, SlowPathRuleEngine
+from app.models import ActionType
 
 logger = logging.getLogger(__name__)
 
 MAX_STEPS = 6
+
+# ActionType → Tool 直接映射（覆盖 80%+ 查询类请求，跳过 LLM 循环）
+ACTION_TO_TOOL = {
+    "query_pending": "query_pending_products",
+    "query_tasks": "query_tasks",
+    "query_discount": "query_pending_with_discount",
+    "query_discount_rules": "query_discount_rules",
+    "create_task": "create_task",
+    "confirm_task": "confirm_task",
+    "execute_task": "execute_task",
+    "review_task": "review_task",
+    "scan_inventory": "query_pending_products",
+}
+
+# 需要 LLM 参与的动作（多步决策/复杂推理）
+LLM_MODE_ACTIONS = {"report_completion", "unknown"}
 
 
 SYSTEM_PROMPT = """你是一个门店大脑 AI 助手，负责帮助店长管理临期商品出清流程。
@@ -35,6 +52,7 @@ SYSTEM_PROMPT = """你是一个门店大脑 AI 助手，负责帮助店长管理
 
 可用工具：
 {tool_descriptions}
+{extra_section}
 
 重要原则：
 - 每次决策都要基于已有的上下文，不要重复查询相同信息
@@ -124,7 +142,7 @@ class AgentExecutor:
         )
 
         # 构建初始消息列表
-        system_content = SYSTEM_PROMPT.format(tool_descriptions=self._tool_descs)
+        system_content = SYSTEM_PROMPT.format(tool_descriptions=self._tool_descs, extra_section="（当前无特定意图）")
         messages = [{"role": "system", "content": system_content}]
 
         if context:
@@ -137,30 +155,43 @@ class AgentExecutor:
 
         messages.append({"role": "user", "content": user_message})
 
-        # Slow Path 路由：复杂推理，直接处理无需 LLM 参与
-        query_lower = user_message.lower()
-        if any(kw in query_lower for kw in ["为什么", "分析", "建议", "比较", "预测"]):
-            slow_result = self._slow_path.evaluate(user_message, context)
+        # 意图分类（关键词 + LLM 兜底），作为主流程入口
+        from app.services.intent_classifier import get_intent_classifier
+        classifier = get_intent_classifier()
+        action = classifier.classify(user_message)
+
+        # 直接工具模式：命中已知 action → 直接调工具 → 返回（覆盖 80%+ 查询）
+        action_value = action.value if hasattr(action, "value") else str(action)
+        if action_value in ACTION_TO_TOOL and action_value not in LLM_MODE_ACTIONS:
+            tool_name = ACTION_TO_TOOL[action_value]
+            with ContextManager(tool_ctx):
+                tool_result = registry.dispatch(tool_name, context or {})
+            response_text = self._build_response_from_result(tool_name, tool_result, user_message)
             return {
-                "success": slow_result.action.value != "NO_ACTION",
-                "tool_name": None,
-                "tool_result": slow_result.to_dict(),
-                "response": slow_result.reasoning,
-                "steps": 0,
+                "success": tool_result.get("success", False),
+                "tool_name": tool_name,
+                "tool_result": tool_result,
+                "response": response_text,
+                "steps": 1,
                 "conversation": messages,
             }
 
-        # Medium Path 路由：直接处理语义查询，无需 LLM 参与
-        if any(kw in query_lower for kw in ["缺货", "销量", "品类", "所有", "统计"]):
-            medium_result = self._medium_path.evaluate(user_message, context)
-            return {
-                "success": medium_result.action.value == "APPLY_DISCOUNT",
-                "tool_name": None,
-                "tool_result": medium_result.to_dict(),
-                "response": medium_result.reasoning,
-                "steps": 0,
-                "conversation": messages,
-            }
+        # LLM 参与模式：携带 action 上下文进 LLM 循环
+        system_with_intent = SYSTEM_PROMPT.format(
+            tool_descriptions=self._tool_descs,
+            extra_section=f"（当前识别意图：{action_value}）"
+        )
+        messages = [{"role": "system", "content": system_with_intent}]
+
+        if context:
+            ctx_lines = [f"- {k}: {v}" for k, v in context.items() if v is not None]
+            if ctx_lines:
+                messages.append({
+                    "role": "system",
+                    "content": "附加上下文（已知信息）：\n" + "\n".join(ctx_lines),
+                })
+
+        messages.append({"role": "user", "content": user_message})
 
         final_response = None
         final_tool_name = None
