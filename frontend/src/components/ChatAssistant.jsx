@@ -15,7 +15,7 @@ function TaskItem({ task }) {
   const STATUS_COLOR = { pending: "#fbbf24", confirmed: "#fbbf24", executed: "#60a5fa", reviewed: "#34d399", completed: "#34d399" };
   const color = STATUS_COLOR[task.status] || "#666";
   return (
-    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(0,0,0,0.04)", border: "1px solid var(--border)", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {task.product_name || task.description || `任务 ${task.task_id?.slice(0, 6)}`}
@@ -24,7 +24,7 @@ function TaskItem({ task }) {
           {task.category} · {task.original_stock}件 · {task.discount_rate != null ? `${Math.round(task.discount_rate * 100)}%折扣` : "—"}
         </p>
       </div>
-      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 8, background: `${color}18`, color, fontWeight: 700, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 8, background: "rgba(0,0,0,0.06)", color: "#f59e0b", fontWeight: 700, whiteSpace: "nowrap" }}>
         {task.status === "pending" ? "待确认" : task.status === "confirmed" ? "已确认" : task.status === "executed" ? "执行中" : task.status === "reviewed" ? "已复核" : task.status === "completed" ? "已完成" : task.status}
       </span>
     </div>
@@ -33,7 +33,7 @@ function TaskItem({ task }) {
 
 function ProductItem({ product }) {
   return (
-    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", marginBottom: 6 }}>
+    <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(0,0,0,0.04)", border: "1px solid var(--border)", marginBottom: 6 }}>
       <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", margin: 0 }}>{product.name || product.product_id}</p>
       <p style={{ fontSize: 10, color: "var(--text-3)", margin: "2px 0 0" }}>
         {product.category} · 库存 {product.stock} · 到期 {product.expiry_date || "—"}

@@ -35,7 +35,7 @@ function ProgressRing({ percent }) {
   return (
     <div style={{ position: "relative", width: 96, height: 96 }}>
       <svg width="96" height="96" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="48" cy="48" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="7" />
+        <circle cx="48" cy="48" r={radius} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="7" />
         <circle
           cx="48" cy="48" r={radius} fill="none"
           stroke="var(--accent)" strokeWidth="7"
@@ -55,7 +55,7 @@ function ProgressRing({ percent }) {
 
 function StatCard({ label, value, sub, color, delay }) {
   return (
-    <div className="animate" style={{ animationDelay: `${delay}s`, padding: "14px 16px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
+    <div className="animate" style={{ animationDelay: `${delay}s`, padding: "14px 16px", borderRadius: 10, background: "rgba(0,0,0,0.04)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 4 }}>
       <span className="section-label">{label}</span>
       <span className="stat-num" style={{ fontSize: 26, fontWeight: 700, color: color || "var(--text)", lineHeight: 1 }}>{value}</span>
       {sub && <span style={{ fontSize: 10, color: "var(--text-3)" }}>{sub}</span>}
@@ -122,7 +122,7 @@ export default function DashboardStats() {
 
   // Pad to 4 slots
   while (topCats.length < 4) {
-    topCats.push({ cat: "empty", count: 0, name: "—", accent: "var(--text-3)", bg: "rgba(255,255,255,0.02)" });
+    topCats.push({ cat: "empty", count: 0, name: "—", accent: "var(--text-3)", bg: "rgba(0,0,0,0.04)" });
   }
 
   return (
@@ -136,7 +136,7 @@ export default function DashboardStats() {
               <span className="stat-num" style={{ fontSize: 28, fontWeight: 700 }}>{completed}</span>
               <span style={{ fontSize: 11, color: "var(--text-3)" }}>/ {total}</span>
             </div>
-            <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{ height: 3, borderRadius: 2, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${percent}%`, background: "var(--accent)", borderRadius: 2, transition: "width 1s cubic-bezier(0.34,1.56,0.64,1)" }} />
             </div>
             <div style={{ display: "flex", gap: 10 }}>
