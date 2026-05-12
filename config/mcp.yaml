@@ -1,0 +1,55 @@
+# ============================================================
+# MCP Server 连接配置 — Phase 6.3
+# 配置说明：
+#   type: erp / wms / feishu
+#   transport: stdio / sse / http
+#   command: stdio 模式下的启动命令
+#   url: SSE/HTTP 模式的端点
+# ============================================================
+mcp_servers:
+  erp:
+    type: erp
+    name: ERP商品主数据
+    description: 查询商品主数据（名称/条码/分类/进价/供应商）
+    transport: stdio
+    command: ["python", "-m", "mcp_impl.erp_mcp"]
+    env:
+      ERP_API_URL: "https://erp.example.com/api/v1"
+      ERP_API_KEY: "${ERP_API_KEY}"
+    enabled: true
+    # 共享实例：所有门店共用一个连接
+    shared: true
+
+  wms:
+    type: wms
+    name: WMS库存管理
+    description: 查询实时库存/在途量/批次信息
+    transport: stdio
+    command: ["python", "-m", "mcp_impl.wms_mcp"]
+    env:
+      WMS_API_URL: "https://wms.example.com/api/v1"
+      WMS_API_KEY: "${WMS_API_KEY}"
+    enabled: true
+    shared: true
+
+  feishu:
+    type: feishu
+    name: 飞书通知
+    description: 发送审批卡片/消息推送
+    transport: stdio
+    command: ["python", "-m", "mcp_impl.feishu_mcp"]
+    env:
+      FEISHU_BOT_TOKEN: "${FEISHU_BOT_TOKEN}"
+      FEISHU_APP_ID: "${FEISHU_APP_ID}"
+      FEISHU_APP_SECRET: "${FEISHU_APP_SECRET}"
+    enabled: true
+    shared: true
+
+# LangChain MCP Adapters 配置
+langchain_mcp:
+  # 同时连接多个 MCP Server 时等待并发安全
+  max_concurrent: 5
+  # 连接超时（秒）
+  connect_timeout: 10
+  # 读取超时（秒）
+  read_timeout: 30

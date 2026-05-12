@@ -1,0 +1,63 @@
+# ============================================================
+# HITL 审批规则配置 — Phase 4.3
+# 所有 HITL 审批相关的业务规则外置到此文件
+# ============================================================
+hitl:
+  # 折扣审批规则
+  discount:
+    # 触发 HITL 的条件
+    trigger_on:
+      - condition: "clerk_initiates"
+        description: "店员发起的折扣申请"
+        requires_approval_from: "store_manager"
+      - condition: "rate_above_store_manager_limit"
+        description: "折扣率超出店长权限（>70%）"
+        requires_approval_from: "headquarters"
+
+    # 审批人查找策略
+    approver_lookup:
+      clerk:
+        primary: "store_manager"  # 店员 → 店长
+        fallback: "headquarters"
+      store_manager:
+        primary: "headquarters"  # 店长超额 → 总部
+        fallback: null
+
+    # 审批卡片配置
+    card:
+      expire_hours: 48          # 审批卡片有效期
+      reminder_hours: 24        # 多久后发送催办提醒
+      approve_label: "批准"
+      edit_label: "修改折扣率"
+      reject_label: "拒绝"
+
+  # 任务审批规则
+  task:
+    trigger_on:
+      - condition: "clerk_creates"
+        description: "店员创建的任务"
+        requires_approval_from: "store_manager"
+
+    approver_lookup:
+      clerk:
+        primary: "store_manager"
+        fallback: null
+
+    card:
+      expire_hours: 72
+      reminder_hours: 24
+      approve_label: "批准"
+      reject_label: "拒绝"
+
+# 审批结果后续处理
+post_approval:
+  approved:
+    notify_requester: true
+    update_task_status: true
+    write_audit_log: true
+  rejected:
+    notify_requester: true
+    write_audit_log: true
+  edited:
+    notify_requester: true
+    log_original_and_final: true

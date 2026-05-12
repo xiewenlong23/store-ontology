@@ -1,0 +1,60 @@
+# ============================================================
+# 角色权限矩阵配置 — Phase 4.2
+# 三级角色：clerk / store_manager / headquarters
+# 所有业务规则在此文件中配置，不写死在代码中
+# ============================================================
+roles:
+  clerk:
+    discount:
+      can_initiate: false
+      can_approve: false
+      max_rate: 0.0
+      needs_approval_if_rate_above: 0.0
+    task:
+      can_create: true
+      can_approve: false
+      needs_approval: true
+    data_visibility:
+      cost_price: false
+      supplier_info: false
+
+  store_manager:
+    discount:
+      can_initiate: true
+      can_approve: true
+      max_rate: 0.70
+      needs_approval_if_rate_above: 0.70
+    task:
+      can_create: true
+      can_approve: true
+      needs_approval: false
+    data_visibility:
+      cost_price: true
+      supplier_info: false
+
+  headquarters:
+    discount:
+      can_initiate: true
+      can_approve: true
+      max_rate: 1.0
+      needs_approval_if_rate_above: 1.0
+    task:
+      can_create: true
+      can_approve: true
+      needs_approval: false
+    data_visibility:
+      cost_price: true
+      supplier_info: true
+
+# HITL 审批规则
+hitl_rules:
+  discount:
+    trigger: "rate_above_role_limit"
+    default_approver: "store_manager"
+    escalation:
+      - if_rate_above: 0.70
+        escalate_to: "headquarters"
+  task:
+    trigger: "clerk_creates"
+    default_approver: "store_manager"
+    escalation: []

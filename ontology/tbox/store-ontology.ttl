@@ -1,0 +1,57 @@
+# ============================================================
+# 门店大脑本体（store-ontology.ttl）
+# 主本体文件 - 合并所有模块
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/store-ontology>
+    a owl:Ontology ;
+    rdfs:label "门店大脑本体"@zh ;
+    rdfs:comment "零售门店 AI 助手的核心本体，涵盖商品、折扣、任务、员工等领域"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/store-ontology/1.0.0> ;
+
+    # 导入所有模块
+    owl:imports <http://store-ontology.org/ontology/EnumsModule> ;
+    owl:imports <http://store-ontology.org/ontology/ProductModule> ;
+    owl:imports <http://store-ontology.org/ontology/DiscountModule> ;
+    owl:imports <http://store-ontology.org/ontology/TaskModule> ;
+    owl:imports <http://store-ontology.org/ontology/EmployeeModule> ;
+
+    # 本体元数据
+    rdfs:seeAlso <https://github.com/store-ontology/docs> ;
+    owl:priorVersion <http://store-ontology.org/ontology/store-ontology/0.9.0> .
+
+# ============================================================
+# 全局注释（供文档生成使用）
+# ============================================================
+<http://store-ontology.org/ontology/store-ontology> rdfs:comment """
+门店大脑 TBOX 本体 V1.0
+
+模块结构：
+  00-enums   - 枚举类型（折扣层级/任务状态/员工角色/优先级）
+  01-product - 商品、品类、门店实体
+  02-discount- 折扣规则、折扣任务
+  03-task    - 工作任务、任务分配
+  04-employee- 员工、角色
+
+核心设计原则：
+  1. 所有查询必须包含 store_id 过滤
+  2. 业务规则在 TBOX，Skill 代码不写死业务规则
+  3. owl:imports 建立模块间依赖关系
+
+文件路径：ontology/tbox/modules/
+"""@zh .
+
+# ============================================================
+# 本体版本历史（供变更追踪）
+# ============================================================
+<http://store-ontology.org/ontology/store-ontology/0.9.0>
+    rdfs:label "门店大脑本体 V0.9.0"@zh ;
+    rdfs:comment "初始版本"@zh .

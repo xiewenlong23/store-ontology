@@ -1,0 +1,149 @@
+# ============================================================
+# 任务模块（TASK-MODULE.ttl）
+# 门店大脑 TBOX 本体 - 门店任务管理定义
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/TaskModule>
+    a owl:Ontology ;
+    rdfs:label "门店任务本体模块"@zh ;
+    rdfs:comment "门店任务、工作分配及状态流转定义"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/TaskModule/1.0.0> ;
+    owl:imports <http://store-ontology.org/ontology/ProductModule> ,
+                 <http://store-ontology.org/ontology/EmployeeModule> ,
+                 <http://store-ontology.org/ontology/EnumsModule> .
+
+# ============================================================
+# 类定义
+# ============================================================
+
+# 任务（WorkTask）
+store:WorkTask a owl:Class ;
+    rdfs:label "工作任务"@zh ;
+    rdfs:comment "门店工作任务基类，包含折扣任务和其他任务"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# 任务分配（TaskAssignment）
+store:TaskAssignment a owl:Class ;
+    rdfs:label "任务分配"@zh ;
+    rdfs:comment "将某任务分配给特定员工"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# ============================================================
+# 对象属性
+# ============================================================
+
+# 任务 → 负责人
+store:assignee a owl:ObjectProperty ;
+    rdfs:label "任务负责人"@zh ;
+    rdfs:comment "被分配执行该任务的员工"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:Employee ;
+    rdfs:subPropertyOf store:taskAssignment .
+
+# 任务 → 创建人
+store:taskCreator a owl:ObjectProperty ;
+    rdfs:label "任务创建人"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:Employee .
+
+# 任务 → 所属门店
+store:taskStore a owl:ObjectProperty ;
+    rdfs:label "任务所属门店"@zh ;
+    rdfs:comment "任务所属的门店（所有查询的必选过滤条件）"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:Store ;
+    rdfs:subPropertyOf store:contextualEntity .
+
+# 任务 → 优先级
+store:hasPriority a owl:ObjectProperty ;
+    rdfs:label "优先级"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:Priority .
+
+# 任务 → 任务类型
+store:taskType a owl:ObjectProperty ;
+    rdfs:label "任务类型"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:DiscountTaskType .
+
+# 任务分配 → 任务
+store:assignmentTask a owl:ObjectProperty ;
+    rdfs:label "分配的任务"@zh ;
+    rdfs:domain store:TaskAssignment ;
+    rdfs:range store:WorkTask ;
+    owl:inverseOf store:assignee .
+
+# 任务分配 → 员工
+store:assignmentEmployee a owl:ObjectProperty ;
+    rdfs:label "分配给"@zh ;
+    rdfs:domain store:TaskAssignment ;
+    rdfs:range store:Employee ;
+    owl:inverseOf store:assignee .
+
+# 任务分配通用属性（顶层）
+store:taskAssignment a owl:ObjectProperty ;
+    rdfs:label "任务分配"@zh ;
+    rdfs:comment "标记任务分配关系的顶层属性"@zh ;
+    rdfs:domain owl:Thing ;
+    rdfs:range owl:Thing .
+
+# ============================================================
+# 数据属性
+# ============================================================
+
+store:taskId a owl:DatatypeProperty ;
+    rdfs:label "任务编号"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:string ;
+    owl:hasKey ( store:taskId ) .
+
+store:taskTitle a owl:DatatypeProperty ;
+    rdfs:label "任务标题"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:string .
+
+store:taskDescription a owl:DatatypeProperty ;
+    rdfs:label "任务描述"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:string .
+
+store:taskCreatedAt a owl:DatatypeProperty ;
+    rdfs:label "创建时间"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:dateTime .
+
+store:taskUpdatedAt a owl:DatatypeProperty ;
+    rdfs:label "更新时间"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:dateTime .
+
+store:taskDeadline a owl:DatatypeProperty ;
+    rdfs:label "截止时间"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:dateTime .
+
+store:taskCompletedAt a owl:DatatypeProperty ;
+    rdfs:label "完成时间"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range xsd:dateTime .
+
+# ============================================================
+# 状态机约束（OWL约束表示）
+# ============================================================
+# 注意：OWL本身不表达状态机，此处通过注释说明状态流转规则
+# 状态流转规则（供 Skill 层实现）：
+#   pending  → approved（店长审批通过）
+#   pending  → rejected（店长拒绝）
+#   pending  → cancelled（创建人取消）
+#   approved → executed（执行完成）
+#   approved → cancelled（执行前取消）
+#
+# 状态独占约束（用 SKOS notation 枚举）：
+#   每个 WorkTask 在任意时刻只能处于一种 TaskStatus

@@ -1,0 +1,167 @@
+# ============================================================
+# 折扣模块（DISCOUNT-MODULE.ttl）
+# 门店大脑 TBOX 本体 - 临期折扣规则定义
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/DiscountModule>
+    a owl:Ontology ;
+    rdfs:label "门店折扣本体模块"@zh ;
+    rdfs:comment "临期折扣规则、折扣任务及审批流程定义"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/DiscountModule/1.0.0> ;
+    owl:imports <http://store-ontology.org/ontology/ProductModule> ,
+                 <http://store-ontology.org/ontology/EnumsModule> .
+
+# ============================================================
+# 类定义
+# ============================================================
+
+# 折扣规则（DiscountRule）
+store:DiscountRule a owl:Class ;
+    rdfs:label "折扣规则"@zh ;
+    rdfs:comment "临期商品的折扣规则定义，基于剩余保质期"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# 折扣任务（DiscountTask）
+store:DiscountTask a owl:Class ;
+    rdfs:label "折扣任务"@zh ;
+    rdfs:comment "针对某个商品的折扣申请任务"@zh ;
+    rdfs:subClassOf store:WorkTask .
+
+# 豁免商品（ExemptProduct）
+store:ExemptProduct a owl:Class ;
+    rdfs:label "豁免商品"@zh ;
+    rdfs:comment "不参与折扣的商品"@zh ;
+    rdfs:subClassOf store:Product .
+
+# ============================================================
+# 对象属性
+# ============================================================
+
+# 折扣任务 → 商品
+store:appliesTo a owl:ObjectProperty ;
+    rdfs:label "适用于"@zh ;
+    rdfs:comment "折扣任务或规则适用的商品"@zh ;
+    rdfs:domain [ owl:unionOf ( store:DiscountTask store:DiscountRule ) ] ;
+    rdfs:range store:Product .
+
+# 折扣任务 → 审批人
+store:approvedBy a owl:ObjectProperty ;
+    rdfs:label "审批人"@zh ;
+    rdfs:comment "批准该折扣任务的店长"@zh ;
+    rdfs:domain store:DiscountTask ;
+    rdfs:range store:Employee .
+
+# 折扣任务 → 创建人
+store:createdBy a owl:ObjectProperty ;
+    rdfs:label "创建人"@zh ;
+    rdfs:comment "创建该折扣任务的人"@zh ;
+    rdfs:domain store:DiscountTask ;
+    rdfs:range store:Employee .
+
+# 折扣任务 → 当前状态
+store:hasStatus a owl:ObjectProperty ;
+    rdfs:label "当前状态"@zh ;
+    rdfs:comment "任务的当前状态"@zh ;
+    rdfs:domain store:WorkTask ;
+    rdfs:range store:TaskStatus .
+
+# 折扣任务 → 建议折扣率
+store:suggestedRate a owl:DatatypeProperty ;
+    rdfs:label "建议折扣率"@zh ;
+    rdfs:comment "AI 推荐的建议折扣率"@zh ;
+    rdfs:domain store:DiscountTask ;
+    rdfs:range xsd:decimal .
+
+# 折扣任务 → 审批折扣率
+store:approvedRate a owl:DatatypeProperty ;
+    rdfs:label "审批折扣率"@zh ;
+    rdfs:comment "店长实际批准的折扣率"@zh ;
+    rdfs:domain store:DiscountTask ;
+    rdfs:range xsd:decimal .
+
+# 折扣任务 → 折扣类型
+store:hasDiscountType a owl:ObjectProperty ;
+    rdfs:label "折扣类型"@zh ;
+    rdfs:domain store:DiscountTask ;
+    rdfs:range store:DiscountTaskType .
+
+# 折扣规则 → 适用层级
+store:hasTier a owl:ObjectProperty ;
+    rdfs:label "适用折扣层级"@zh ;
+    rdfs:domain store:DiscountRule ;
+    rdfs:range store:DiscountTier .
+
+# 折扣规则 → 最低折扣率（下限保护）
+store:minRate a owl:DatatypeProperty ;
+    rdfs:label "最低折扣率"@zh ;
+    rdfs:comment "该规则允许的最低折扣率，防止过度折扣"@zh ;
+    rdfs:domain store:DiscountRule ;
+    rdfs:range xsd:decimal .
+
+# 折扣规则 → 有效期
+store:validFrom a owl:DatatypeProperty ;
+    rdfs:label "规则生效时间"@zh ;
+    rdfs:domain store:DiscountRule ;
+    rdfs:range xsd:dateTime .
+
+store:validUntil a owl:DatatypeProperty ;
+    rdfs:label "规则失效时间"@zh ;
+    rdfs:domain store:DiscountRule ;
+    rdfs:range xsd:dateTime .
+
+# ============================================================
+# 实例：默认折扣规则（可由业务配置覆盖）
+# ============================================================
+
+# T1 规则：剩余 ≤ 7 天 → 8 折
+<http://store-ontology.org/ontology/Rule_T1_7days>
+    a store:DiscountRule ;
+    rdfs:label "T1 折扣规则（剩余 ≤ 7 天）"@zh ;
+    store:hasTier store:TierT1 ;
+    store:minRate 0.70 ;
+    store:validFrom "2026-01-01T00:00:00"^^xsd:dateTime ;
+    store:validUntil "2026-12-31T23:59:59"^^xsd:dateTime ;
+    rdfs:comment "剩余保质期不超过 7 天的商品，最低可打 7 折（8 折出售）"@zh .
+
+# T2 规则：剩余 ≤ 14 天 → 8.5 折
+<http://store-ontology.org/ontology/Rule_T2_14days>
+    a store:DiscountRule ;
+    rdfs:label "T2 折扣规则（剩余 ≤ 14 天）"@zh ;
+    store:hasTier store:TierT2 ;
+    store:minRate 0.80 ;
+    store:validFrom "2026-01-01T00:00:00"^^xsd:dateTime ;
+    store:validUntil "2026-12-31T23:59:59"^^xsd:dateTime ;
+    rdfs:comment "剩余保质期不超过 14 天的商品，最低可打 8 折（8.5 折出售）"@zh .
+
+# T3 规则：剩余 ≤ 30 天 → 9 折
+<http://store-ontology.org/ontology/Rule_T3_30days>
+    a store:DiscountRule ;
+    rdfs:label "T3 折扣规则（剩余 ≤ 30 天）"@zh ;
+    store:hasTier store:TierT3 ;
+    store:minRate 0.85 ;
+    store:validFrom "2026-01-01T00:00:00"^^xsd:dateTime ;
+    store:validUntil "2026-12-31T23:59:59"^^xsd:dateTime ;
+    rdfs:comment "剩余保质期不超过 30 天的商品，最低可打 8.5 折（9 折出售）"@zh .
+
+# ============================================================
+# 实例：豁免商品类目（特殊商品不参与折扣）
+# ============================================================
+<http://store-ontology.org/ontology/Category_ExemptTobacco>
+    a store:ExemptProduct ;
+    rdfs:label "烟草类豁免"@zh ;
+    store:categoryName "烟草"@zh ;
+    store:exemptReason "烟草价格受政府监管，不得折扣销售"@zh .
+
+<http://store-ontology.org/ontology/Category_ExemptAlcohol>
+    a store:ExemptProduct ;
+    rdfs:label "酒类豁免"@zh ;
+    store:categoryName "酒类"@zh ;
+    store:exemptReason "部分酒类价格受监管，不参与折扣"@zh .

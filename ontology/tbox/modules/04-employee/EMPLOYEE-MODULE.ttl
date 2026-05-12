@@ -1,0 +1,84 @@
+# ============================================================
+# 员工模块（EMPLOYEE-MODULE.ttl）
+# 门店大脑 TBOX 本体 - 员工、角色定义
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/EmployeeModule>
+    a owl:Ontology ;
+    rdfs:label "门店员工本体模块"@zh ;
+    rdfs:comment "员工、角色定义及权限层级"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/EmployeeModule/1.0.0> ;
+    owl:imports <http://store-ontology.org/ontology/ProductModule> ,
+                 <http://store-ontology.org/ontology/EnumsModule> .
+
+# ============================================================
+# 类定义
+# ============================================================
+
+# 员工（Employee）
+store:Employee a owl:Class ;
+    rdfs:label "员工"@zh ;
+    rdfs:comment "门店员工"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# ============================================================
+# 对象属性
+# ============================================================
+
+# 员工 → 角色
+store:hasRole a owl:ObjectProperty ;
+    rdfs:label "拥有角色"@zh ;
+    rdfs:comment "员工的角色（总部/店长/店员）"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range store:EmployeeRole .
+
+# 员工 → 所属门店
+store:employeeStore a owl:ObjectProperty ;
+    rdfs:label "所属门店"@zh ;
+    rdfs:comment "员工所属的门店"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range store:Store ;
+    rdfs:subPropertyOf store:contextualEntity .
+
+# ============================================================
+# 数据属性
+# ============================================================
+
+store:employeeId a owl:DatatypeProperty ;
+    rdfs:label "员工编号"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:string ;
+    owl:hasKey ( store:employeeId ) .
+
+store:employeeName a owl:DatatypeProperty ;
+    rdfs:label "员工姓名"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:string .
+
+store:employeePhone a owl:DatatypeProperty ;
+    rdfs:label "手机号"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:string .
+
+store:feishuUserId a owl:DatatypeProperty ;
+    rdfs:label "飞书用户ID"@zh ;
+    rdfs:comment "员工的飞书 User ID，用于消息推送"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:string .
+
+store:isActive a owl:DatatypeProperty ;
+    rdfs:label "是否在职"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:boolean .
+
+store:joinedAt a owl:DatatypeProperty ;
+    rdfs:label "入职日期"@zh ;
+    rdfs:domain store:Employee ;
+    rdfs:range xsd:date .

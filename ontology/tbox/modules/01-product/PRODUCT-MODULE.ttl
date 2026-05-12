@@ -1,0 +1,186 @@
+# ============================================================
+# 商品模块（PRODUCT-MODULE.ttl）
+# 门店大脑 TBOX 本体 - 商品、品类、门店实体定义
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/ProductModule>
+    a owl:Ontology ;
+    rdfs:label "门店商品本体模块"@zh ;
+    rdfs:comment "定义商品、品类、门店等核心实体及关系"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/ProductModule/1.0.0> ;
+    owl:imports <http://store-ontology.org/ontology/EnumsModule> ;
+    rdfs:seeAlso <http://store-ontology.org/ontology/DiscountModule> .
+
+# ============================================================
+# 类定义
+# ============================================================
+
+# 门店（Store）
+store:Store a owl:Class ;
+    rdfs:label "门店"@zh ;
+    rdfs:comment "零售门店实体"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# 品类（Category）
+store:Category a owl:Class ;
+    rdfs:label "品类"@zh ;
+    rdfs:comment "商品品类分类，如生鲜、零食、饮料等"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# 商品（Product）
+store:Product a owl:Class ;
+    rdfs:label "商品"@zh ;
+    rdfs:comment "零售门店商品实体"@zh ;
+    rdfs:subClassOf owl:Thing .
+
+# ============================================================
+# 对象属性（Object Properties）
+# ============================================================
+
+# 所属门店
+store:belongsToStore a owl:ObjectProperty ;
+    rdfs:label "所属门店"@zh ;
+    rdfs:comment "商品或员工所属的门店"@zh ;
+    rdfs:domain [ owl:unionOf ( store:Product store:Employee ) ] ;
+    rdfs:range store:Store ;
+    rdfs:subPropertyOf store:contextualEntity .
+
+# 所属品类
+store:belongsToCategory a owl:ObjectProperty ;
+    rdfs:label "所属品类"@zh ;
+    rdfs:comment "商品所属的品类"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range store:Category ;
+    rdfs:subPropertyOf store:contextualEntity .
+
+# 品类父类（支持多级分类）
+store:parentCategory a owl:ObjectProperty ;
+    rdfs:label "父品类"@zh ;
+    rdfs:comment "品类的父级品类（如 零食 -> 食品）"@zh ;
+    rdfs:domain store:Category ;
+    rdfs:range store:Category ;
+    owl:inverseOf store:subCategory .
+
+store:subCategory a owl:ObjectProperty ;
+    rdfs:label "子品类"@zh ;
+    rdfs:inverseOf store:parentCategory .
+
+# 基础实体关联（上下文实体归属）
+store:contextualEntity a owl:ObjectProperty ;
+    rdfs:label "上下文实体"@zh ;
+    rdfs:comment "标记实体归属关系的顶层属性（如属于某门店/某仓库）"@zh ;
+    rdfs:domain owl:Thing ;
+    rdfs:range owl:Thing .
+
+# ============================================================
+# 数据属性（Datatype Properties）
+# ============================================================
+
+# --- Store 属性 ---
+store:storeId a owl:DatatypeProperty ;
+    rdfs:label "门店编号"@zh ;
+    rdfs:domain store:Store ;
+    rdfs:range xsd:string ;
+    owl:hasKey ( store:storeId ) .
+
+store:storeName a owl:DatatypeProperty ;
+    rdfs:label "门店名称"@zh ;
+    rdfs:domain store:Store ;
+    rdfs:range xsd:string .
+
+store:region a owl:DatatypeProperty ;
+    rdfs:label "区域"@zh ;
+    rdfs:domain store:Store ;
+    rdfs:range xsd:string .
+
+store:storeAddress a owl:DatatypeProperty ;
+    rdfs:label "门店地址"@zh ;
+    rdfs:domain store:Store ;
+    rdfs:range xsd:string .
+
+# --- Category 属性 ---
+store:categoryId a owl:DatatypeProperty ;
+    rdfs:label "品类编号"@zh ;
+    rdfs:domain store:Category ;
+    rdfs:range xsd:string ;
+    owl:hasKey ( store:categoryId ) .
+
+store:categoryName a owl:DatatypeProperty ;
+    rdfs:label "品类名称"@zh ;
+    rdfs:domain store:Category ;
+    rdfs:range xsd:string .
+
+# --- Product 属性 ---
+store:productId a owl:DatatypeProperty ;
+    rdfs:label "商品编号"@zh ;
+    rdfs:comment "商品唯一标识（ERP系统中的SKU）"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:string ;
+    owl:hasKey ( store:productId ) .
+
+store:productName a owl:DatatypeProperty ;
+    rdfs:label "商品名称"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:string .
+
+store:barcode a owl:DatatypeProperty ;
+    rdfs:label "条形码"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:string .
+
+store:shelfDate a owl:DatatypeProperty ;
+    rdfs:label "保质期"@zh ;
+    rdfs:comment "商品保质期天数"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:integer .
+
+store:productionDate a owl:DatatypeProperty ;
+    rdfs:label "生产日期"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:date .
+
+store:expirationDate a owl:DatatypeProperty ;
+    rdfs:label "到期日期"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:date .
+
+store:remainingDays a owl:DatatypeProperty ;
+    rdfs:label "剩余保质期天数"@zh ;
+    rdfs:comment "计算属性：从生产日期和保质期推算剩余天数"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:integer .
+
+store:unit a owl:DatatypeProperty ;
+    rdfs:label "单位"@zh ;
+    rdfs:comment "商品计量单位（袋/瓶/箱等）"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:string .
+
+store:unitPrice a owl:DatatypeProperty ;
+    rdfs:label "单价"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:decimal .
+
+store:stockQuantity a owl:DatatypeProperty ;
+    rdfs:label "库存数量"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:integer .
+
+store:isExempt a owl:DatatypeProperty ;
+    rdfs:label "豁免标志"@zh ;
+    rdfs:comment "该商品是否豁免折扣（某些商品不得打折）"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:boolean .
+
+# 豁免理由（当 isExempt=true 时）
+store:exemptReason a owl:DatatypeProperty ;
+    rdfs:label "豁免理由"@zh ;
+    rdfs:domain store:Product ;
+    rdfs:range xsd:string .

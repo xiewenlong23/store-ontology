@@ -1,0 +1,216 @@
+# ============================================================
+# ABOX 测试数据 — Phase 3.4
+# 模拟家家悦某门店的商品 + 库存 + 员工数据
+# 格式：Turtle (TTL)，可导入 GraphDB
+# ============================================================
+@prefix store: <http://store-ontology.org/ontology/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+# ============================================================
+# 门店
+# ============================================================
+store:STORE_001
+    a store:Store ;
+    store:storeId "STORE_001" ;
+    store:storeName "家家悦威海经开区店" ;
+    store:location "山东省威海市经开区" ;
+    store:manager store:EMP_001 .
+
+# ============================================================
+# 品类
+# ============================================================
+store:CAT_生鲜
+    a store:Category ; store:categoryName "生鲜" ; store:parentCategory "null" .
+
+store:CAT_乳制品
+    a store:Category ; store:categoryName "乳制品" ; store:parentCategory "null" .
+
+store:CAT_饮料
+    a store:Category ; store:categoryName "饮料" ; store:parentCategory "null" .
+
+store:CAT_零食
+    a store:Category ; store:categoryName "零食" ; store:parentCategory "null" .
+
+store:CAT_酒类
+    a store:Category ; store:categoryName "酒类" ; store:parentCategory "null" .
+
+# ============================================================
+# 商品（临期商品：shelf_date 较小 = 即将过期）
+# shelf_date 表示保质期总天数，数值越小越接近过期
+# ============================================================
+
+# --- 生鲜类（临期）---
+store:P_0001
+    a store:Product ; store:productId "0001" ;
+    store:productName "有机西红柿 300g" ;
+    store:belongsToCategory store:CAT_生鲜 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "5"^^xsd:integer ;   # 5天后过期
+    store:retailPrice "12.80"^^xsd:decimal ;
+    store:costPrice "8.50"^^xsd:decimal .
+
+store:P_0002
+    a store:Product ; store:productId "0002" ;
+    store:productName "新鲜五花肉 500g" ;
+    store:belongsToCategory store:CAT_生鲜 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "3"^^xsd:integer ;   # 3天后过期（紧急）
+    store:retailPrice "35.60"^^xsd:decimal ;
+    store:costPrice "28.00"^^xsd:decimal .
+
+store:P_0003
+    a store:Product ; store:productId "0003" ;
+    store:productName "活鲈鱼 400g" ;
+    store:belongsToCategory store:CAT_生鲜 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "2"^^xsd:integer ;   # 2天后过期
+    store:retailPrice "28.90"^^xsd:decimal ;
+    store:costPrice "22.00"^^xsd:decimal .
+
+# --- 乳制品（临期）---
+store:P_0004
+    a store:Product ; store:productId "0004" ;
+    store:productName "蒙牛纯牛奶 250ml*12" ;
+    store:belongsToCategory store:CAT_乳制品 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "8"^^xsd:integer ;   # 8天后过期
+    store:retailPrice "42.00"^^xsd:decimal ;
+    store:costPrice "32.00"^^xsd:decimal .
+
+store:P_0005
+    a store:Product ; store:productId "0005" ;
+    store:productName "安慕希酸奶 200g*4" ;
+    store:belongsToCategory store:CAT_乳制品 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "12"^^xsd:integer ;  # 12天后过期
+    store:retailPrice "36.00"^^xsd:decimal ;
+    store:costPrice "28.00"^^xsd:decimal .
+
+# --- 饮料类（正常保质期）---
+store:P_0006
+    a store:Product ; store:productId "0006" ;
+    store:productName "农夫山泉 550ml*24" ;
+    store:belongsToCategory store:CAT_饮料 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "365"^^xsd:integer ;
+    store:retailPrice "36.00"^^xsd:decimal ;
+    store:costPrice "28.00"^^xsd:decimal .
+
+store:P_0007
+    a store:Product ; store:productId "0007" ;
+    store:productName "可口可乐 330ml*6" ;
+    store:belongsToCategory store:CAT_饮料 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "180"^^xsd:integer ;
+    store:retailPrice "18.00"^^xsd:decimal ;
+    store:costPrice "13.50"^^xsd:decimal .
+
+# --- 零食类 ---
+store:P_0008
+    a store:Product ; store:productId "0008" ;
+    store:productName "乐事薯片 150g" ;
+    store:belongsToCategory store:CAT_零食 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "90"^^xsd:integer ;
+    store:retailPrice "9.90"^^xsd:decimal ;
+    store:costPrice "7.00"^^xsd:decimal .
+
+# --- 酒类（豁免商品，不参与折扣）---
+store:P_0009
+    a store:Product, store:ExemptProduct ;
+    store:productId "0009" ;
+    store:productName "茅台王子酒 500ml" ;
+    store:belongsToCategory store:CAT_酒类 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "730"^^xsd:integer ;
+    store:retailPrice "268.00"^^xsd:decimal ;
+    store:costPrice "220.00"^^xsd:decimal .
+
+# --- 正常保质期商品 ---
+store:P_0010
+    a store:Product ; store:productId "0010" ;
+    store:productName "伊利纯牛奶 250ml*16" ;
+    store:belongsToCategory store:CAT_乳制品 ;
+    store:belongsToStore store:STORE_001 ;
+    store:shelfDate "60"^^xsd:integer ;
+    store:retailPrice "48.00"^^xsd:decimal ;
+    store:costPrice "38.00"^^xsd:decimal .
+
+# ============================================================
+# 员工
+# ============================================================
+store:EMP_001
+    a store:Employee, store:StoreManager ;
+    store:employeeId "EMP_001" ;
+    store:employeeName "张店长" ;
+    store:belongsToStore store:STORE_001 ;
+    store:feishuOpenId "ou_abc123" ;
+    store:role store:StoreManager .
+
+store:EMP_002
+    a store:Employee, store:Clerk ;
+    store:employeeId "EMP_002" ;
+    store:employeeName "李店员" ;
+    store:belongsToStore store:STORE_001 ;
+    store:feishuOpenId "ou_def456" ;
+    store:role store:Clerk .
+
+store:EMP_003
+    a store:Employee, store:Headquarters ;
+    store:employeeId "EMP_003" ;
+    store:employeeName "王总部" ;
+    store:feishuOpenId "ou_ghi789" ;
+    store:role store:Headquarters .
+
+# ============================================================
+# 库存
+# ============================================================
+store:INV_0001
+    a store:Inventory ;
+    store:inventoryId "INV_0001" ;
+    store:product store:P_0001 ;
+    store:store store:STORE_001 ;
+    store:quantity 25 ;
+    store:lastRestockDate "2026-04-28"^^xsd:date .
+
+store:INV_0002
+    a store:Inventory ;
+    store:inventoryId "INV_0002" ;
+    store:product store:P_0002 ;
+    store:store store:STORE_001 ;
+    store:quantity 8 ;
+    store:lastRestockDate "2026-05-09"^^xsd:date .
+
+store:INV_0003
+    a store:Inventory ;
+    store:inventoryId "INV_0003" ;
+    store:product store:P_0003 ;
+    store:store store:STORE_001 ;
+    store:quantity 5 ;
+    store:lastRestockDate "2026-05-10"^^xsd:date .
+
+store:INV_0004
+    a store:Inventory ;
+    store:inventoryId "INV_0004" ;
+    store:product store:P_0004 ;
+    store:store store:STORE_001 ;
+    store:quantity 60 ;
+    store:lastRestockDate "2026-05-01"^^xsd:date .
+
+store:INV_0005
+    a store:Inventory ;
+    store:inventoryId "INV_0005" ;
+    store:product store:P_0005 ;
+    store:store store:STORE_001 ;
+    store:quantity 40 ;
+    store:lastRestockDate "2026-05-03"^^xsd:date .
+
+store:INV_0006
+    a store:Inventory ;
+    store:inventoryId "INV_0006" ;
+    store:product store:P_0006 ;
+    store:store store:STORE_001 ;
+    store:quantity 100 ;
+    store:lastRestockDate "2026-05-08"^^xsd:date .

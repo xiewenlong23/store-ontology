@@ -1,0 +1,134 @@
+# ============================================================
+# docker-compose.yml — Phase 7.2
+# 启动顺序：postgres(10s) → graphdb(健康检查) → app
+# ============================================================
+version: '3.8'
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # PostgreSQL：审计日志 + HITL 审批记录（Phase 5+）
+  # ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: store-ontology-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: store_ontology
+      POSTGRES_USER: store_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U store_user -d store_ontology"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ──────────────────────────────────────────────────────────
+  # GraphDB：SPARQL 查询引擎（Phase 3+）
+  # 仅测试/开发使用；生产使用 NebulaGraph（见 nebula 服务）
+  # ──────────────────────────────────────────────────────────
+  graphdb:
+    image: ontotext/graphdb:10.6.0
+    container_name: store-ontology-graphdb
+    restart: unless-stopped
+    profiles:
+      - dev  # 仅 dev 模式启动：docker-compose --profile dev up
+    ports:
+      - "7200:7200"        # GraphDB Workbench + SPARQL endpoint
+      - "7130:7130"        # GraphDB RDF4J API
+    environment:
+      GDB_HEAP_SIZE: 2g
+      GraphDB_USERNAME: admin
+      GraphDB_PASSWORD: ${GRAPHDB_PASSWORD:-admin}
+    volumes:
+      - graphdb_data:/opt/graphdb/home/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7200/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────────────────
+  # NebulaGraph：生产 ABOX 图数据库（Phase 7 Review Fix #2）
+  # 启动：docker-compose --profile production up
+  # ──────────────────────────────────────────────────────────
+  nebula:
+    image: vesoft/nebula-graph:3.7.0
+    container_name: store-ontology-nebula
+    restart: unless-stopped
+    profiles:
+      - production  # 仅 production 模式启动
+    ports:
+      - "9669:9669"   # NebulaGraph Nebula 服务端口
+      - "9667:9667"   # Meta 服务端口
+    environment:
+      USER: root
+      PASSWORD: ${NEBULA_PASSWORD:-nebula123}
+    volumes:
+      - nebula_data:/data
+      - nebula_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "nebula-console -addr localhost -port 9669 -exec 'SHOW HOSTS'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────────────────
+  # FastAPI App
+  # ──────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: store-ontology-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # App
+      APP_ENV: ${APP_ENV:-production}
+      STORE_ID: ${STORE_ID:-STORE_001}
+      # Database
+      DATABASE_URL: postgresql://store_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/store_ontology
+      # SPARQL
+      SPARQL_ENDPOINT: http://graphdb:7200
+      # 飞书
+      FEISHU_BOT_TOKEN: ${FEISHU_BOT_TOKEN}
+      FEISHU_APP_ID: ${FEISHU_APP_ID}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
+      # LangSmith
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-store-ontology}
+    volumes:
+      - ./app:/app/app:ro
+      - ./config:/app/config:ro
+    depends_on:
+      graphdb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  postgres_data:
+  graphdb_data:
+  nebula_data:        # ⭐ Phase 7 新增
+  nebula_logs:        # ⭐ Phase 7 新增

@@ -1,0 +1,63 @@
+# ============================================================
+# Skill 动态配置（skills.yaml）
+# Phase 1.3 核心配置：allowed-tools 由此处注入，Skill 代码不写死
+# ============================================================
+skills:
+  discount-skill:
+    allowed-tools:
+      - sparql_query
+      - calculate_discount_tier
+      - create_discount_task
+      - approve_discount
+      - reject_discount
+      - query_discount_task
+      - query_pending_approvals
+    roles:
+      - store_manager
+      - headquarters
+    max-discount-rate: 0.70
+    # 审批超时（小时）
+    approval-timeout-hours: 24
+    # 豁免商品品类（来自 TBOX ExemptProduct 实例）
+    exempt-categories:
+      - tobacco
+      - alcohol
+
+  task-skill:
+    allowed-tools:
+      - create_task
+      - query_tasks
+      - update_task_status
+      - assign_task
+    roles:
+      - store_manager
+      - clerk
+      - headquarters
+
+  product-skill:
+    allowed-tools:
+      - query_product
+      - query_products_by_category
+      - query_expiring_products
+    roles:
+      - store_manager
+      - clerk
+      - headquarters
+
+  inventory-skill:
+    allowed-tools:
+      - query_stock
+      - query_low_stock
+    roles:
+      - store_manager
+      - clerk
+      - headquarters
+
+  display-skill:
+    allowed-tools:
+      - query_low_turnover_products
+      - query_high_demand_products
+      - suggest_display_rearrangement
+    roles:
+      - store_manager
+      - headquarters

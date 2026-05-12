@@ -1,1 +1,1 @@
-# app/__init__.py
+# Store Ontology Application Package

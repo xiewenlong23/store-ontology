@@ -1,0 +1,168 @@
+# ============================================================
+# 枚举模块（ENUMS-MODULE.ttl）
+# 门店大脑 TBOX 本体 - 所有枚举类型定义
+# 命名空间：http://store-ontology.org/ontology/
+# ============================================================
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix store: <http://store-ontology.org/ontology/> .
+
+<http://store-ontology.org/ontology/EnumsModule>
+    a owl:Ontology ;
+    rdfs:label "门店大脑枚举模块"@zh ;
+    rdfs:comment "所有枚举类型定义：折扣层级、任务状态、员工角色等"@zh ;
+    owl:versionInfo "1.0.0" ;
+    owl:versionIRI <http://store-ontology.org/ontology/EnumsModule/1.0.0> ;
+    rdfs:seeAlso <http://store-ontology.org/ontology/DiscountModule> ,
+                  <http://store-ontology.org/ontology/TaskModule> ,
+                  <http://store-ontology.org/ontology/EmployeeModule> .
+
+# ============================================================
+# 1. 折扣层级（DiscountTier）
+# ============================================================
+store:DiscountTier a owl:Class ;
+    rdfs:label "折扣层级"@zh ;
+    rdfs:comment "临期商品折扣层级，按剩余保质期天数划分"@zh .
+
+store:TierT1 a store:DiscountTier ;
+    rdfs:label "T1 折扣"@zh ;
+    rdfs:comment "剩余保质期 ≤ 7 天，折扣率 20%"@zh ;
+    store:tierDays 7 ;
+    store:tierRate 0.20 ;
+    skos:notation "T1" .
+
+store:TierT2 a store:DiscountTier ;
+    rdfs:label "T2 折扣"@zh ;
+    rdfs:comment "剩余保质期 ≤ 14 天且 > 7 天，折扣率 15%"@zh ;
+    store:tierDays 14 ;
+    store:tierRate 0.15 ;
+    skos:notation "T2" .
+
+store:TierT3 a store:DiscountTier ;
+    rdfs:label "T3 折扣"@zh ;
+    rdfs:comment "剩余保质期 ≤ 30 天且 > 14 天，折扣率 10%"@zh ;
+    store:tierDays 30 ;
+    store:tierRate 0.10 ;
+    skos:notation "T3" .
+
+# ============================================================
+# 2. 任务状态（TaskStatus）
+# ============================================================
+store:TaskStatus a owl:Class ;
+    rdfs:label "任务状态"@zh ;
+    rdfs:comment "任务生命周期状态"@zh .
+
+store:StatusPending a store:TaskStatus ;
+    rdfs:label "待审批"@zh ;
+    rdfs:comment "任务已创建，等待店长审批"@zh ;
+    skos:notation "pending" .
+
+store:StatusApproved a store:TaskStatus ;
+    rdfs:label "已批准"@zh ;
+    rdfs:comment "店长已批准，待执行"@zh ;
+    skos:notation "approved" .
+
+store:StatusRejected a store:TaskStatus ;
+    rdfs:label "已拒绝"@zh ;
+    rdfs:comment "店长拒绝该任务"@zh ;
+    skos:notation "rejected" .
+
+store:StatusExecuted a store:TaskStatus ;
+    rdfs:label "已执行"@zh ;
+    rdfs:comment "任务已完成执行"@zh ;
+    skos:notation "executed" .
+
+store:StatusCancelled a store:TaskStatus ;
+    rdfs:label "已取消"@zh ;
+    rdfs:comment "任务被创建者取消"@zh ;
+    skos:notation "cancelled" .
+
+# ============================================================
+# 3. 员工角色（EmployeeRole）
+# ============================================================
+store:EmployeeRole a owl:Class ;
+    rdfs:label "员工角色"@zh ;
+    rdfs:comment "门店员工角色类型"@zh .
+
+store:RoleHeadquarters a store:EmployeeRole ;
+    rdfs:label "总部"@zh ;
+    rdfs:comment "总部管理人员"@zh ;
+    skos:notation "headquarters" .
+
+store:RoleStoreManager a store:EmployeeRole ;
+    rdfs:label "店长"@zh ;
+    rdfs:comment "门店店长，拥有审批权限"@zh ;
+    skos:notation "store_manager" .
+
+store:RoleClerk a store:EmployeeRole ;
+    rdfs:label "店员"@zh ;
+    rdfs:comment "普通店员，可创建任务和查询"@zh ;
+    skos:notation "clerk" .
+
+# ============================================================
+# 4. 折扣任务类型（DiscountTaskType）
+# ============================================================
+store:DiscountTaskType a owl:Class ;
+    rdfs:label "折扣任务类型"@zh ;
+    rdfs:comment "折扣任务的业务类型"@zh .
+
+store:TypeExpiration a store:DiscountTaskType ;
+    rdfs:label "临期折扣"@zh ;
+    rdfs:comment "因临期而产生的折扣任务"@zh ;
+    skos:notation "expiration" .
+
+store:TypeOverstock a store:DiscountTaskType ;
+    rdfs:label "滞销折扣"@zh ;
+    rdfs:comment "因滞销而产生的折扣任务"@zh ;
+    skos:notation "overstock" .
+
+store:TypePromotion a store:DiscountTaskType ;
+    rdfs:label "促销折扣"@zh ;
+    rdfs:comment "营销活动折扣任务"@zh ;
+    skos:notation "promotion" .
+
+# ============================================================
+# 5. 优先级（Priority）
+# ============================================================
+store:Priority a owl:Class ;
+    rdfs:label "优先级"@zh ;
+    rdfs:comment "任务和工单的优先级"@zh .
+
+store:PriorityHigh a store:Priority ;
+    rdfs:label "高优先级"@zh ;
+    skos:notation "high" ;
+    store:priorityValue 3 .
+
+store:PriorityMedium a store:Priority ;
+    rdfs:label "中优先级"@zh ;
+    skos:notation "medium" ;
+    store:priorityValue 2 .
+
+store:PriorityLow a store:Priority ;
+    rdfs:label "低优先级"@zh ;
+    skos:notation "low" ;
+    store:priorityValue 1 .
+
+# ============================================================
+# 6. 数据属性（供其他模块直接引用）
+# ============================================================
+
+# tierDays: 该层级对应的剩余保质期天数上限
+store:tierDays a owl:DatatypeProperty ;
+    rdfs:label "层级天数"@zh ;
+    rdfs:comment "该折扣层级对应的剩余保质期天数上限"@zh ;
+    rdfs:range xsd:integer .
+
+# tierRate: 该层级对应的折扣率
+store:tierRate a owl:DatatypeProperty ;
+    rdfs:label "折扣率"@zh ;
+    rdfs:comment "折扣比例（如 0.20 表示 8 折）"@zh ;
+    rdfs:range xsd:decimal .
+
+# priorityValue: 优先级数值（越大越高）
+store:priorityValue a owl:DatatypeProperty ;
+    rdfs:label "优先级数值"@zh ;
+    rdfs:range xsd:integer .
