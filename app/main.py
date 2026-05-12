@@ -7,6 +7,7 @@ Phase 2.1: CopilotKitRemoteEndpoint + Deep Agents
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from copilotkit import CopilotKitRemoteEndpoint
+from copilotkit.integrations.fastapi import add_fastapi_endpoint
 from app.config import settings
 from app.integrations.feishu_identity import resolve_copilotkit_user
 from app.integrations.feishu_notifier import router as feishu_router
@@ -61,7 +62,7 @@ async def get_copilotkit_agents(context: dict):
 
 
 sdk = CopilotKitRemoteEndpoint(agents=get_copilotkit_agents)
-sdk.mount(app, "/api/copilotkit")
+add_fastapi_endpoint(app, sdk, "/api/copilotkit")
 
 
 # ============================================================

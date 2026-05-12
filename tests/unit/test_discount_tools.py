@@ -1,115 +1,121 @@
-"""
-tests/unit/test_discount_tools.py — Phase 7.1
-折扣工具单元测试（Mock SPARQL）
-"""
+# ============================================================
+# 折扣工具测试 — 按实际 discount_tools.py 实现重写
+# ============================================================
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from app.agent.tools.discount_tools import (
     calculate_discount_tier,
     create_discount_task,
-    query_discount_task,
+    approve_discount,
+    reject_discount,
+    TIER_RULES,
+    EXEMPT_CATEGORIES,
 )
 
 
-class MockState:
-    """Mock AgentState"""
-    def __init__(self):
-        self.messages = []          # ⭐ Fix #4：discount_tools 依赖 messages.append
-        self.discount_task = None
-        self.session_id = "test-session"
-        self.user_id = "u001"
-        self.store_id = "STORE_001"
-        self.role = "clerk"
-        self.expiring_products = []
-        self.tier_config = {}
+class TestCalculateDiscountTier:
+    """测试折扣层级计算"""
+
+    async def test_tier_t1_normal_product(self):
+        """T1: ≤7天 → 8折（20% off），最低保护价70%"""
+        with patch("app.agent.tools.discount_tools.query_product_info", new_callable=AsyncMock) as mock_query:
+            mock_query.return_value = {"product_id": "P001", "category": "dairy", "is_exempt": False}
+            result = await calculate_discount_tier("P001", remaining_days=5, store_id="STORE_001")
+
+        assert result["tier"] == "T1"
+        assert result["rate"] == 0.20
+        assert result["rate_display"] == "8折"
+        assert result["min_rate"] == 0.70
+
+    async def test_tier_t2_expiring_product(self):
+        """T2: 8-14天 → 8.5折（15% off），最低保护价80%"""
+        with patch("app.agent.tools.discount_tools.query_product_info", new_callable=AsyncMock) as mock_query:
+            mock_query.return_value = {"product_id": "P001", "category": "dairy", "is_exempt": False}
+            result = await calculate_discount_tier("P001", remaining_days=10, store_id="STORE_001")
+
+        assert result["tier"] == "T2"
+        assert result["rate"] == 0.15
+        assert result["rate_display"] == "8.5折"
+        assert result["min_rate"] == 0.80
+
+    async def test_tier_t3_near_expiry(self):
+        """T3: 15-30天 → 9折（10% off），最低保护价85%"""
+        with patch("app.agent.tools.discount_tools.query_product_info", new_callable=AsyncMock) as mock_query:
+            mock_query.return_value = {"product_id": "P001", "category": "dairy", "is_exempt": False}
+            result = await calculate_discount_tier("P001", remaining_days=20, store_id="STORE_001")
+
+        assert result["tier"] == "T3"
+        assert result["rate"] == 0.10
+        assert result["rate_display"] == "9折"
+        assert result["min_rate"] == 0.85
+
+    async def test_exempt_product(self):
+        """豁免商品（烟草/酒类）不参与折扣"""
+        with patch("app.agent.tools.discount_tools.query_product_info", new_callable=AsyncMock) as mock_query:
+            mock_query.return_value = {"product_id": "P001", "category": "tobacco", "is_exempt": True}
+            result = await calculate_discount_tier("P001", remaining_days=3, store_id="STORE_001")
+
+        assert result["tier"] == "EXEMPT"
+        assert result["rate"] == 0.0
+        assert result["rate_display"] == "不参与折扣"
 
 
-class MockSparqlResult:
-    """Mock SPARQL 查询结果"""
-    def __init__(self, data):
-        self.data = data
+class TestCreateDiscountTask:
+    """测试折扣任务创建"""
+
+    async def test_create_pending_task(self):
+        """创建待审批折扣任务"""
+        tier = {"tier": "T1", "rate": 0.20, "rate_display": "8折", "remaining_days": 5, "min_rate": 0.70}
+        task = await create_discount_task(
+            product_id="P001",
+            discount_tier="T1",
+            suggested_rate=0.80,
+            store_id="STORE_001",
+            created_by="clerk001",
+            product_name="牛奶",
+        )
+
+        assert task["status"] == "pending"
+        assert task["product_id"] == "P001"
+        assert task["store_id"] == "STORE_001"
+        assert task["created_by"] == "clerk001"
+        assert task["suggested_rate"] == 0.80
+        assert task["approved_rate"] is None
+        assert task["task_id"].startswith("DT")
 
 
-@patch("app.agent.tools.discount_tools.query_sparql")
-@patch("app.agent.tools.discount_tools.write_audit_log")
-async def test_calculate_discount_tier_normal_product(mock_audit, mock_sparql):
-    """普通商品：正常折扣率 → tier=1"""
-    mock_sparql.return_value = MockSparqlResult({
-        "expiry_date": {"value": "2025-06-01"},
-        "current_stock": {"value": "50"},
-    })
+class TestApproveRejectDiscount:
+    """测试折扣审批和拒绝"""
 
-    result = await calculate_discount_tier(
-        product_id="P00001",
-        original_price=100.0,
-        discount_rate=0.15,
-        state=MockState(),
-    )
+    async def test_approve_discount(self):
+        """店长批准折扣"""
+        task = {
+            "task_id": "DT12345678",
+            "product_id": "P001",
+            "status": "pending",
+            "suggested_rate": 0.80,
+            "approved_rate": None,
+            "approver_id": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z",
+        }
+        result = await approve_discount(task, approved_rate=0.80, approver_id="sm001")
 
-    assert result["tier"] == 1
-    assert result["discount_rate"] == 0.15
-    assert result["final_price"] == 85.0
-    assert result["requires_approval"] is False
-    mock_audit.assert_called_once()
+        assert result["status"] == "approved"
+        assert result["approved_rate"] == 0.80
+        assert result["approver_id"] == "sm001"
 
+    async def test_reject_discount(self):
+        """店长拒绝折扣"""
+        task = {
+            "task_id": "DT12345678",
+            "product_id": "P001",
+            "status": "pending",
+            "approver_id": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z",
+        }
+        result = await reject_discount(task, reason="折扣率过高", approver_id="sm001")
 
-@patch("app.agent.tools.discount_tools.query_sparql")
-@patch("app.agent.tools.discount_tools.write_audit_log")
-async def test_calculate_discount_tier_expiring_product(mock_audit, mock_sparql):
-    """临期商品：折扣率放宽到 tier=2"""
-    mock_sparql.return_value = MockSparqlResult({
-        "expiry_date": {"value": "2025-05-20"},  # 距今8天
-        "current_stock": {"value": "50"},
-    })
-
-    result = await calculate_discount_tier(
-        product_id="P00001",
-        original_price=100.0,
-        discount_rate=0.30,
-        state=MockState(),
-    )
-
-    assert result["tier"] == 2
-    assert result["requires_approval"] is False  # tier2 仍在阈值内
-
-
-@patch("app.agent.tools.discount_tools.query_sparql")
-@patch("app.agent.tools.discount_tools.write_audit_log")
-async def test_calculate_discount_tier_exceeds_tier2(mock_audit, mock_sparql):
-    """商品折扣率超 tier2 阈值：需要审批"""
-    mock_sparql.return_value = MockSparqlResult({
-        "expiry_date": {"value": "2025-06-01"},
-        "current_stock": {"value": "50"},
-    })
-
-    result = await calculate_discount_tier(
-        product_id="P00001",
-        original_price=100.0,
-        discount_rate=0.40,
-        state=MockState(),
-    )
-
-    assert result["tier"] == 3
-    assert result["requires_approval"] is True  # tier3 需要审批
-
-
-@patch("app.agent.tools.discount_tools.query_sparql")
-@patch("app.agent.tools.discount_tools.write_audit_log")
-async def test_create_discount_task_stores_in_state(mock_audit, mock_sparql):
-    """create_discount_task 将任务写入 state"""
-    mock_sparql.return_value = MockSparqlResult({
-        "expiry_date": {"value": "2025-06-01"},
-        "current_stock": {"value": "50"},
-    })
-
-    state = MockState()
-    result = await create_discount_task(
-        product_id="P00001",
-        discount_rate=0.20,
-        state=state,
-    )
-
-    assert result["task_id"] is not None
-    assert result["status"] == "pending_approval"
-    assert state.discount_task is not None
-    assert state.discount_task["product_id"] == "P00001"
+        assert result["status"] == "rejected"
+        assert result["approver_id"] == "sm001"

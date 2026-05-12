@@ -7,12 +7,6 @@ import pytest_asyncio
 from unittest.mock import patch, MagicMock
 
 
-# ============================================================
-# pytest-asyncio 模式配置（推荐写法）
-# ============================================================
-pytest.mark.asyncio = pytest_asyncio.fixture
-
-
 @pytest.fixture
 def mock_settings():
     """测试用 Settings"""

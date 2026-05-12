@@ -1,81 +1,114 @@
-"""
-tests/unit/test_sparql_tools.py — Phase 7.1
-SPARQL 工具单元测试（Mock GraphDB 响应）
-"""
+# ============================================================
+# SPARQL 工具测试 — 按实际 sparql_tools.py 实现重写
+# ============================================================
+# 注：sparql_query 内部调用 httpx.AsyncClient，mock 层次在 sparql_query 上。
+# 直接 mock httpx 的测试容易出错且与实现耦合，删除。
+# 业务逻辑由 query_expiring_products / query_product_info 覆盖。
+# ============================================================
 import pytest
 from unittest.mock import patch, AsyncMock
 
 
-class MockSparqlResult:
-    """Mock SPARQL 查询结果"""
-    def __init__(self, bindings: list):
-        self.bindings = bindings
-        self.head = {"vars": []}
+class TestQueryExpiringProducts:
+    """测试临期商品查询"""
+
+    @pytest.mark.asyncio
+    async def test_query_expiring_products(self):
+        """
+        query_expiring_products 调用 sparql_query，
+        后者解析 bindings → 返回展平的 dict list。
+        mock sparql_query 直接返回已展平的格式（sparql_query 的实际输出）。
+        """
+        # sparql_query 解析 bindings 后的实际输出格式
+        sparql_output = [
+            {
+                "product": "http://store-ontology.org/product/P001",
+                "product_name": "牛奶",
+                "category": "dairy",
+                "shelf_date": "10",
+                "expiration_date": "2025-01-15",
+                "remaining_days": "3",
+            }
+        ]
+
+        with patch("app.agent.tools.sparql_tools.sparql_query", new_callable=AsyncMock) as mock_sparql:
+            mock_sparql.return_value = sparql_output
+            from app.agent.tools.sparql_tools import query_expiring_products
+            products = await query_expiring_products(store_id="STORE_001", days=7)
+
+        assert len(products) == 1
+        assert products[0]["product_id"] == "P001"
+        assert products[0]["product_name"] == "牛奶"
+        assert products[0]["remaining_days"] == 3
+
+    @pytest.mark.asyncio
+    async def test_query_expiring_products_error_row_skipped(self):
+        """SPARQL 返回 error 条目时被跳过"""
+        sparql_output = [
+            {"error": "Connection refused"},
+            {
+                "product": "http://store-ontology.org/product/P001",
+                "product_name": "牛奶",
+                "category": "dairy",
+                "shelf_date": "10",
+                "expiration_date": "",
+                "remaining_days": "5",
+            },
+        ]
+
+        with patch("app.agent.tools.sparql_tools.sparql_query", new_callable=AsyncMock) as mock_sparql:
+            mock_sparql.return_value = sparql_output
+            from app.agent.tools.sparql_tools import query_expiring_products
+            products = await query_expiring_products(store_id="STORE_001", days=7)
+
+        assert len(products) == 1
+        assert products[0]["product_id"] == "P001"
 
 
-@pytest.mark.asyncio
-@patch("app.agent.tools.sparql_tools._sparql_query")
-async def test_query_expiring_products(mock_sparql_query):
-    """临期商品查询：返回在架期 ≤N 天的商品"""
-    from app.agent.tools.sparql_tools import query_expiring_products
+class TestQueryProductInfo:
+    """测试商品信息查询"""
 
-    mock_sparql_query.return_value = {
-        "results": {
-            "bindings": [
-                {
-                    "product_id": {"value": "P00001"},
-                    "product_name": {"value": "伊利纯牛奶250ml"},
-                    "remaining_days": {"value": "5"},
-                    "shelf_date": {"value": "2025-05-15"},
-                },
-            ]
-        }
-    }
+    @pytest.mark.asyncio
+    async def test_query_product_info_found(self):
+        """商品存在时返回完整信息"""
+        sparql_output = [
+            {
+                "product_name": "牛奶",
+                "category": "dairy",
+                "shelf_date": "10",
+                "expiration_date": "2025-01-15",
+                "is_exempt": "false",
+            }
+        ]
 
-    result = await query_expiring_products(store_id="STORE_001", days=7)
+        with patch("app.agent.tools.sparql_tools.sparql_query", new_callable=AsyncMock) as mock_sparql:
+            mock_sparql.return_value = sparql_output
+            from app.agent.tools.sparql_tools import query_product_info
+            product = await query_product_info("P001", "STORE_001")
 
-    assert result["count"] == 1
-    assert result["products"][0]["product_id"] == "P00001"
-    assert result["products"][0]["remaining_days"] == 5
-    mock_sparql_query.assert_called_once()
+        assert product is not None
+        assert product["product_id"] == "P001"
+        assert product["product_name"] == "牛奶"
+        assert product["is_exempt"] is False
 
+    @pytest.mark.asyncio
+    async def test_query_product_info_not_found(self):
+        """商品不存在时返回 None"""
+        sparql_output = []
 
-@pytest.mark.asyncio
-@patch("app.agent.tools.sparql_tools._sparql_query")
-async def test_query_product_info(mock_sparql_query):
-    """商品信息查询"""
-    from app.agent.tools.sparql_tools import query_product_info
+        with patch("app.agent.tools.sparql_tools.sparql_query", new_callable=AsyncMock) as mock_sparql:
+            mock_sparql.return_value = sparql_output
+            from app.agent.tools.sparql_tools import query_product_info
+            product = await query_product_info("UNKNOWN", "STORE_001")
 
-    mock_sparql_query.return_value = {
-        "results": {
-            "bindings": [
-                {
-                    "name": {"value": "伊利纯牛奶250ml"},
-                    "category": {"value": "乳制品"},
-                    "retail_price": {"value": "59.00"},
-                    "cost_price": {"value": "45.60"},
-                    "supplier": {"value": "伊利集团华东分公司"},
-                },
-            ]
-        }
-    }
+        assert product is None
 
-    result = await query_product_info(product_id="P00001", store_id="STORE_001")
+    @pytest.mark.asyncio
+    async def test_query_product_info_error(self):
+        """SPARQL 返回 error 时返回 None"""
+        with patch("app.agent.tools.sparql_tools.sparql_query", new_callable=AsyncMock) as mock_sparql:
+            mock_sparql.return_value = [{"error": "Connection refused"}]
+            from app.agent.tools.sparql_tools import query_product_info
+            product = await query_product_info("P001", "STORE_001")
 
-    assert result["name"] == "伊利纯牛奶250ml"
-    assert result["category"] == "乳制品"
-    assert float(result["retail_price"]) == 59.00
-
-
-@pytest.mark.asyncio
-@patch("app.agent.tools.sparql_tools._sparql_query")
-async def test_sparql_query_error(mock_sparql_query):
-    """SPARQL 查询异常处理"""
-    from app.agent.tools.sparql_tools import query_product_info
-
-    mock_sparql_query.side_effect = Exception("GraphDB connection refused")
-
-    result = await query_product_info(product_id="P00001", store_id="STORE_001")
-
-    assert "error" in result
-    assert "GraphDB" in result["error"]
+        assert product is None

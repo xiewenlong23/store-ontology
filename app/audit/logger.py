@@ -3,6 +3,7 @@
 # 标准 JSON 日志输出，输出到 stdout（容器日志收集）
 # ============================================================
 import structlog
+import structlog.processors
 import logging
 import sys
 from app.config import settings
@@ -20,17 +21,14 @@ logging.basicConfig(
 # 配置 structlog
 structlog.configure(
     processors=[
-        # 1. 过滤 DEBUG 日志（生产环境不输出）
-        structlog.filter_by_level,
-        # 2. 添加时间戳和日志级别
-        structlog.add_log_level,
-        structlog.add_logger_name,
-        # 3. 渲染异常堆栈
+        # 1. 添加日志级别
+        structlog.processors.add_log_level,
+        # 2. 渲染异常堆栈
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
-        # 4. 渲染时间戳
+        # 3. 渲染时间戳
         structlog.processors.TimeStamper(fmt="iso", utc=True),
-        # 5. 统一 JSON 输出
+        # 4. 统一 JSON 输出
         structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(log_level),

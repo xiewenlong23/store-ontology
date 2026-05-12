@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     openai_base_url: Optional[str] = None
     dashscope_api_key: Optional[str] = None
+    # 审计配置
+    database_url: Optional[str] = None
+    audit_secret_key: str = "dev-secret-key"
+    debug: bool = False
 
     class Config:
         env_file = ".env"

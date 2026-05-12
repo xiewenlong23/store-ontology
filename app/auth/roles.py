@@ -4,7 +4,6 @@
 # 配置来源：config/roles.yaml（业务规则外置）
 # ============================================================
 from typing import Literal
-from app.agent.tools import get_tools_for_role
 
 Role = Literal["clerk", "store_manager", "headquarters"]
 
@@ -84,9 +83,26 @@ def can_create_task(role: Role) -> tuple[bool, bool]:
     return True, False  # 店长/总部直接通过
 
 
+def get_role_level(role: Role) -> int:
+    """角色层级数值：clerk=1 < store_manager=2 < headquarters=3"""
+    levels = {"clerk": 1, "store_manager": 2, "headquarters": 3}
+    return levels.get(role, 0)
+
+
+def get_store_manager_for_store(store_id: str) -> dict | None:
+    """返回指定门店的店长信息（测试用 Mock 数据）"""
+    # TODO: 真实场景从 GraphDB 查询
+    mock_store_managers = {
+        "STORE_001": {"user_id": "sm001", "name": "张店长", "role": "store_manager", "store_id": "STORE_001"},
+    }
+    return mock_store_managers.get(store_id)
+
+
 def get_allowed_tools(role: Role) -> list[str]:
     """返回某角色可使用的工具列表（来自 skills.yaml 动态配置）"""
-    return get_tools_for_role(role)
+    from app.agent.tools import get_tools
+    tools = get_tools(skill_name="discount-skill", role=role)
+    return [t.__name__ for t in tools]
 
 
 async def resolve_user_role(user_id: str, store_id: str = None) -> Role:
