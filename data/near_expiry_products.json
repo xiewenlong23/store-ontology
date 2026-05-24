@@ -1,0 +1,50 @@
+[
+  {
+    "id": "nep_001",
+    "product_id": "prod_001",
+    "store_id": "store_001",
+    "batch_no": "B20260515",
+    "production_date": "2026-05-10",
+    "expiry_date": "2026-05-27",
+    "stock_quantity": 50,
+    "days_left": 5,
+    "discount_tier": "T2",
+    "status": "expiring"
+  },
+  {
+    "id": "nep_002",
+    "product_id": "prod_002",
+    "store_id": "store_001",
+    "batch_no": "B20260512",
+    "production_date": "2026-05-08",
+    "expiry_date": "2026-05-30",
+    "stock_quantity": 30,
+    "days_left": 8,
+    "discount_tier": "T3",
+    "status": "expiring"
+  },
+  {
+    "id": "nep_003",
+    "product_id": "prod_003",
+    "store_id": "store_001",
+    "batch_no": "B20260510",
+    "production_date": "2026-05-05",
+    "expiry_date": "2026-06-05",
+    "stock_quantity": 100,
+    "days_left": 14,
+    "discount_tier": "T3",
+    "status": "normal"
+  },
+  {
+    "id": "nep_004",
+    "product_id": "prod_001",
+    "store_id": "store_002",
+    "batch_no": "B20260516",
+    "production_date": "2026-05-12",
+    "expiry_date": "2026-05-25",
+    "stock_quantity": 20,
+    "days_left": 3,
+    "discount_tier": "T1",
+    "status": "expiring"
+  }
+]

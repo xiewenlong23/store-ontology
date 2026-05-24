@@ -1,0 +1,30 @@
+[
+  {
+    "id": "emp_001",
+    "name": "张三",
+    "store_id": "store_001",
+    "role": "manager",
+    "phone": "13800138001"
+  },
+  {
+    "id": "emp_002",
+    "name": "李四",
+    "store_id": "store_001",
+    "role": "clerk",
+    "phone": "13800138002"
+  },
+  {
+    "id": "emp_003",
+    "name": "王五",
+    "store_id": "store_002",
+    "role": "manager",
+    "phone": "13800138003"
+  },
+  {
+    "id": "emp_004",
+    "name": "赵六",
+    "store_id": "store_002",
+    "role": "clerk",
+    "phone": "13800138004"
+  }
+]

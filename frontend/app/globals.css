@@ -1,0 +1,245 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary-color: #2563eb;
+  --secondary-color: #64748b;
+  --success-color: #22c55e;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --background-color: #f8fafc;
+  --card-background: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ====== 黄金比例布局 ====== */
+.golden-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+.golden-left {
+  flex: 1.618;          /* 黄金比例 61.8% */
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.golden-right {
+  flex: 1;              /* 38.2% */
+  border-left: 1px solid var(--border-color);
+  background: var(--card-background);
+  display: flex;
+  flex-direction: column;
+  min-width: 380px;
+  max-width: 500px;
+  overflow: hidden;       /* 防止内容溢出 */
+}
+
+/* CopilotChat 嵌入容器：确保撑满并支持滚动 */
+.golden-right > * {
+  flex: 1;
+  min-height: 0;          /* 关键：允许 flex 子元素收缩 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* CopilotKit v1 Chat 嵌入滚动修复 */
+.golden-right .copilotKitChat {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+.golden-right .copilotKitChatBody {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  min-height: 0 !important;
+}
+
+.golden-right .copilotKitMessagesContainer {
+  min-height: 0 !important;
+}
+
+.golden-right .copilotKitInputContainer {
+  flex-shrink: 0 !important;
+}
+
+/* ====== 页面内容 ====== */
+.app-container {
+  min-height: 100vh;
+}
+
+.main {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  font-size: 1.75rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.content {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.section {
+  background: var(--card-background);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.section h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.button-group {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--primary-color);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+}
+
+.btn-secondary:hover {
+  background-color: #475569;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+ul li {
+  padding: 0.4rem 0;
+  padding-left: 1.2rem;
+  position: relative;
+  font-size: 0.9rem;
+}
+
+ul li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--primary-color);
+}
+
+/* ====== 响应式 ====== */
+@media (max-width: 900px) {
+  .golden-layout {
+    flex-direction: column;
+  }
+  .golden-left {
+    flex: 1;
+    padding: 1rem;
+  }
+  .golden-right {
+    flex: none;
+    height: 50vh;
+    min-width: unset;
+    max-width: unset;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+  .header h1 { font-size: 1.4rem; }
+}
+
+/* Generative UI 组件样式 */
+.action-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 400px;
+}
+
+.action-modal h3 {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.action-modal p {
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.action-buttons button {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.action-buttons button:first-child {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.action-buttons button:last-child {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+.store-detail-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}

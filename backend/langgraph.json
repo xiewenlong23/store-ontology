@@ -1,0 +1,10 @@
+{
+    "python_version": "3.11",
+    "dockerfile_lines": [],
+    "dependencies": ["."],
+    "package_manager": "uv",
+    "graphs": {
+        "store_agent": "./main.py:agent"
+    },
+    "env": ".env"
+}

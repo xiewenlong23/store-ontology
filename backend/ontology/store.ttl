@@ -1,0 +1,106 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# Object Types (对象类型)
+# ============================================================
+
+store:Region a rdfs:Class ;
+    rdfs:label "区域"@zh , "Region"@en ;
+    rdfs:comment "地理区域，用于组织门店"@zh ;
+    store:properties "id:string,name:string,code:string" ;
+    store:storage "regions.json" .
+
+store:Store a rdfs:Class ;
+    rdfs:label "门店"@zh , "Store"@en ;
+    rdfs:comment "零售门店"@zh ;
+    store:properties "id:string,name:string,region_id:string,address:string,manager_id:string,created_at:datetime" ;
+    store:storage "stores.json" .
+
+store:Employee a rdfs:Class ;
+    rdfs:label "员工"@zh , "Employee"@en ;
+    rdfs:comment "门店员工"@zh ;
+    store:properties "id:string,name:string,store_id:string,role:EmployeeRole,phone:string" ;
+    store:storage "employees.json" .
+
+store:Product a rdfs:Class ;
+    rdfs:label "商品"@zh , "Product"@en ;
+    rdfs:comment "销售商品"@zh ;
+    store:properties "id:string,name:string,category:string,brand:string,unit:string,cost_price:float,retail_price:float" ;
+    store:storage "products.json" .
+
+store:NearExpiryProduct a rdfs:Class ;
+    rdfs:label "临期商品"@zh , "Near Expiry Product"@en ;
+    rdfs:comment "即将过期的商品实例"@zh ;
+    store:properties "id:string,product_id:string,store_id:string,batch_no:string,production_date:date,expiry_date:date,stock_quantity:int,days_left:int,discount_tier:DiscountTier,status:ProductStatus" ;
+    store:storage "near_expiry_products.json" .
+
+store:DiscountRule a rdfs:Class ;
+    rdfs:label "折扣规则"@zh , "Discount Rule"@en ;
+    rdfs:comment "临期商品折扣规则"@zh ;
+    store:properties "id:string,tier:DiscountTier,days_min:int,days_max:int,discount_rate:float,description:string" ;
+    store:storage "discount_rules.json" .
+
+store:ClearanceTask a rdfs:Class ;
+    rdfs:label "出清任务"@zh , "Clearance Task"@en ;
+    rdfs:comment "出清操作的任务实例"@zh ;
+    store:properties "id:string,action_type:string,near_expiry_product_id:string,store_id:string,assignee_id:string,status:TaskStatus,actual_discount:float,quantity:int,notes:string,created_at:datetime,started_at:datetime,completed_at:datetime" ;
+    store:storage "clearance_tasks.json" .
+
+# ============================================================
+# Link Types (关系类型)
+# ============================================================
+
+store:located_in a rdfs:Property ;
+    rdfs:label "位于"@zh , "located in"@en ;
+    rdfs:domain store:Store ;
+    rdfs:range store:Region ;
+    store:via "region_id" .
+
+store:has_employee a rdfs:Property ;
+    rdfs:label "拥有员工"@zh , "has employee"@en ;
+    rdfs:domain store:Store ;
+    rdfs:range store:Employee ;
+    store:via "store_id" .
+
+store:has_near_expiry a rdfs:Property ;
+    rdfs:label "拥有临期商品"@zh , "has near expiry product"@en ;
+    rdfs:domain store:Store ;
+    rdfs:range store:NearExpiryProduct ;
+    store:via "store_id" .
+
+store:is_instance_of a rdfs:Property ;
+    rdfs:label "是...的实例"@zh , "is instance of"@en ;
+    rdfs:domain store:NearExpiryProduct ;
+    rdfs:range store:Product ;
+    store:via "product_id" .
+
+store:manages a rdfs:Property ;
+    rdfs:label "管理"@zh , "manages"@en ;
+    rdfs:domain store:Employee ;
+    rdfs:range store:Store ;
+    store:via "manager_id" .
+
+store:has_task a rdfs:Property ;
+    rdfs:label "有任务"@zh , "has task"@en ;
+    rdfs:domain store:Store ;
+    rdfs:range store:ClearanceTask ;
+    store:via "store_id" .
+
+# ============================================================
+# Action Types (动作类型)
+# ============================================================
+
+store:ClearanceAction a rdfs:Class ;
+    rdfs:label "出清"@zh , "Clearance"@en ;
+    rdfs:comment "对临期商品进行出清处理"@zh ;
+    store:input "near_expiry_product_id:string,quantity:int,assignee_id:string,target_discount:float" ;
+    store:output store:ClearanceTask ;
+    store:requires_approval "true" .
+
+store:CompleteClearanceAction a rdfs:Class ;
+    rdfs:label "完成任务"@zh , "Complete Clearance"@en ;
+    rdfs:comment "完成出清任务"@zh ;
+    store:input "task_id:string,actual_discount:float,notes:string" ;
+    store:output store:ClearanceTask .

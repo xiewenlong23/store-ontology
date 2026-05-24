@@ -1,0 +1,1276 @@
+# AI门店大脑 - 临期商品管理
+
+## 1. 项目概述
+
+### 1.1 项目背景
+
+零售门店面临临期商品管理难题：商品过期造成损耗、临期折扣策略执行不到位、人工管理效率低。通过AI助手赋能门店，实现临期商品的智能查询、自动出清任务创建与执行，降低损耗、提升运营效率。
+
+### 1.2 项目目标
+
+搭建基于CopilotKit + DeepAgents的AI门店大脑，为店员、店长、总部管理者提供临期商品管理的智能助手。
+
+### 1.3 项目范围
+
+**本期实现：**
+- AI助手对话能力（查询临期商品、创建/完成出清任务）
+- 临期商品本体建模与数据存储
+- 多店数据隔离
+- 基于 DeepSeek-chat 模型的 AI 对话
+- CopilotKit v1.57.4 五大功能：Chat UI / Generative UI / Shared State / Backend Tool Rendering / Human-in-the-Loop
+- LangGraph agent 工具调用 + 人工确认中断机制
+
+**后续扩展：**
+- 外部系统对接（ERP、POS）
+- 移动端支持
+- 数据库持久化
+- CopilotKit v2 正式版升级
+
+---
+
+## 2. 系统架构
+
+### 2.1 整体架构
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Frontend (Next.js)                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
+│  │  AI助手对话  │  │  任务管理    │  │  数据看板   │                 │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                 │
+│         │                │                │                         │
+│  ┌──────┴────────────────┴────────────────┴──────┐                  │
+│  │  @copilotkit/react-core v1.57.4              │                  │
+│  │  CopilotKit runtimeUrl="/api/copilotkit"     │                  │
+│  │  renderToolCalls={[...]} (Generative UI)     │                  │
+│  └─────────────────────┬───────────────────────┘                  │
+└────────────────────────┼────────────────────────────────────────────┘
+                         │ POST /api/copilotkit
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Frontend API Route (Next.js)                      │
+│              app/api/copilotkit/route.ts                           │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  CopilotRuntime + LangGraphHttpAgent                          │  │
+│  │  - 代理请求到 Deep Agent 服务                                  │  │
+│  │  - url: http://localhost:8123/api/copilotkit                  │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ HTTP (AG-UI 协议)
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Deep Agent 服务 (FastAPI)                        │
+│                    端口: 8123                                       │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  LangGraph StateGraph + LangGraphAGUIAgent                     │  │
+│  │  - 模型: DeepSeek-chat (OpenAI兼容API)                        │  │
+│  │  - Tools: @tool (get_near_expiry_products, create_clearance)  │  │
+│  │  - HITL: interrupt() → human_approval → execute_action        │  │
+│  │  - AG-UI: add_langgraph_fastapi_endpoint 暴露 SSE 端点        │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 技术选型
+
+| 层级 | 技术 | 说明 |
+|------|------|------|
+| 前端框架 | Next.js 15 (App Router) | React 19, TypeScript |
+| AI前端组件 | @copilotkit/react-core @copilotkit/react-ui **v1.57.4** | 对话UI、Generative UI、Shared State、HITL |
+| 前端API代理 | @copilotkit/runtime (LangGraphHttpAgent) | 前端与Deep Agent的桥梁 |
+| 后端框架 | FastAPI | Python异步框架 |
+| Agent 框架 | LangGraph (StateGraph) + LangGraphAGUIAgent | 工具调用 + 人工确认中断 |
+| AI模型 | **DeepSeek-chat** (OpenAI兼容API) | `https://api.deepseek.com/v1` |
+| 本体建模 | 自定义Ontology模块 | 概念模型+实例存储 |
+| 数据存储 | JSON文件 | 后续扩展数据库 |
+
+**官方参考文档：**
+- [CopilotKit 文档](https://docs.copilotkit.ai/)
+- [CopilotKit GitHub](https://github.com/CopilotKit/CopilotKit)
+- [LangGraph 文档](https://langchain-ai.github.io/langgraph/)
+
+**重要说明：**
+- 当前使用 **CopilotKit v1.57.4**（v2 仅 alpha 阶段 `2.0.0-next.1`）
+- Generative UI 通过 `<CopilotKit renderToolCalls={[...]}>` prop 实现
+- HITL 通过 LangGraph 原生 `interrupt()` 实现
+- 前端使用 `useCoAgent` 实现 Shared State
+- Agent 使用 LangGraph StateGraph（非 deepagents）
+
+### 2.3 端口规划
+
+| 服务 | 端口/地址 | 说明 |
+|------|------|------|
+| Frontend (Next.js) | localhost:3000 | 前端开发服务器 |
+| Frontend API Route | localhost:3000/api/copilotkit | 前端API代理 |
+| Deep Agent (FastAPI) | localhost:8123 | Deep Agent服务 |
+| DeepSeek API | api.deepseek.com/v1 | DeepSeek 云端 API |
+
+---
+
+## 3. 本体建模
+
+### 3.1 本体论概述
+
+本体论(Ontology)是对现实世界概念的形式化表示。参考 Palantir Foundry Ontology 标准，本体包含以下类型：
+
+| 类型 | 说明 |
+|------|------|
+| **Object Types** | 对象类型，实体定义（如 Store, Product, Employee） |
+| **Link Types** | 链接类型，对象之间的关系 |
+| **Action Types** | 动作类型，对对象的操作集合（含业务逻辑） |
+| **Functions** | 函数，业务逻辑实现（TypeScript/Python） |
+| **Interfaces** | 接口，对象类型的抽象形状 |
+
+**核心概念：**
+- **Object Type Definition**：类型级别的定义（如"所有员工"）
+- **Object Instance**：具体的实例（如"张三"）
+- **Action Type**：操作的定义（如"出清"）
+- **Action Instance (= Task)**：Action Type 的具体执行实例（如"出清任务 #001"）
+
+### 3.2 本体结构图
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Ontology: 门店临期商品本体                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Object Types                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │  Region  │  │  Store   │  │ Product  │  │ Employee │  │NearExpiry│  │
+│  │  区域    │◄─┤  门店    │  │  商品    │  │  员工    │  │ Product  │  │
+│  └──────────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  │
+│                      │             │             │             │           │
+│  Link Types          │             │             │             │           │
+│  ──────────          │             │             │             │           │
+│  located_in ─────────┘             │             │             │           │
+│  has_near_expiry_product ───────────┘             │             │           │
+│  belongs_to ─────────────────────────┘             │             │           │
+│  assigned_to ─────────────────────────────────────┘             │           │
+│                                                                  │           │
+│  Action Types                         Link from Object            │           │
+│  ───────────                                         │           │
+│  ┌──────────────────────────────────────────────────────────────┐ │           │
+│  │  Clearance (出清)                                          │─┘           │
+│  │  - 输入: near_expiry_product_id, quantity, assignee_id     │             │
+│  │  - 规则: DiscountRule (折扣、流程)                         │             │
+│  │  - 输出: ClearanceTask                                     │             │
+│  │  - 业务逻辑: 计算折扣 → 验证 → 创建任务 → 执行 → 完成       │             │
+│  └──────────────────────────────────────────────────────────────┘             │
+│                                              │                               │
+│  Action Instance (= Task)                    ▼                               │
+│  ───────────────────              ┌──────────────────┐                        │
+│  ClearanceTask #001  ────────────►│ ClearanceTask    │                        │
+│  ClearanceTask #002              │  出清任务实例    │                        │
+│                                  │  (Action执行记录)│                        │
+│                                  └──────────────────┘                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.3 Object Types 定义
+
+#### 3.3.1 Region (区域)
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 区域唯一标识 |
+| name | string | 区域名称 |
+| code | string | 区域编码 |
+
+#### 3.3.2 Store (门店)
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 门店唯一标识 |
+| name | string | 门店名称 |
+| region_id | string | 所属区域 |
+| address | string | 门店地址 |
+| manager_id | string | 店长ID |
+| created_at | datetime | 创建时间 |
+
+#### 3.3.3 Employee (员工)
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 员工唯一标识 |
+| name | string | 员工姓名 |
+| store_id | string | 所属门店 |
+| role | enum | 角色：clerk/manager/admin |
+| phone | string | 联系电话 |
+
+#### 3.3.4 Product (商品)
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 商品唯一标识 |
+| name | string | 商品名称 |
+| category | string | 商品类别 |
+| brand | string | 品牌 |
+| unit | string | 单位 |
+| cost_price | number | 成本价 |
+| retail_price | number | 零售价 |
+
+#### 3.3.5 NearExpiryProduct (临期商品)
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 临期商品实例ID |
+| product_id | string | 关联商品 |
+| store_id | string | 所属门店 |
+| batch_no | string | 批次号 |
+| production_date | date | 生产日期 |
+| expiry_date | date | 过期日期 |
+| stock_quantity | number | 库存数量 |
+| days_left | number | 剩余天数(计算属性) |
+| discount_tier | enum | 折扣层级：T1/T2/T3 |
+| status | enum | 状态：normal/low_stock/expiring/expired |
+
+### 3.4 Link Types 定义
+
+| Link Type ID | 源 Object | 目标 Object | Cardinality | 说明 |
+|--------------|-----------|-------------|-------------|------|
+| located_in | Store | Region | many-to-one | 门店位于区域 |
+| has_near_expiry_product | Store | NearExpiryProduct | one-to-many | 门店拥有临期商品 |
+| is_instance_of | NearExpiryProduct | Product | many-to-one | 临期商品是商品实例 |
+| belongs_to | Employee | Store | many-to-one | 员工属于门店 |
+| manages | Employee | Store | many-to-one | 店长管理门店 |
+| subject_to | NearExpiryProduct | DiscountRule | many-to-one | 临期商品适用折扣规则 |
+
+### 3.5 Action Types 定义
+
+#### 3.5.1 Clearance (出清)
+
+**Action Type 定义：**
+
+| 字段 | 值 |
+|------|-----|
+| ID | clearance |
+| Display Name | 出清 |
+| Description | 对临期商品进行出清处理，创建出清任务 |
+
+**Parameters（参数）：**
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| near_expiry_product_id | string | 是 | 临期商品ID |
+| quantity | integer | 是 | 出清数量 |
+| assignee_id | string | 是 | 负责人ID |
+| target_discount | number | 否 | 目标折扣(默认根据规则) |
+| notes | string | 否 | 备注 |
+
+**Submission Criteria（提交条件）：**
+
+| 条件类型 | 表达式 | 失败消息 |
+|----------|--------|----------|
+| 参数校验 | quantity > 0 | 出清数量必须大于0 |
+| 参数校验 | quantity <= stock_quantity | 出清数量不能超过库存 |
+| 参数校验 | assignee_id exists | 负责人不存在 |
+| 状态校验 | product.status != 'expired' | 已过期商品不能出清 |
+
+**Side Effects（副作用）：**
+
+| 类型 | 配置 | 说明 |
+|------|------|------|
+| Notification | 通知店长 | 新建出清任务时通知 |
+| Webhook | 记录日志 | 任务状态变更时记录 |
+
+---
+
+#### 3.5.2 CompleteClearance (完成任务)
+
+**Action Type 定义：**
+
+| 字段 | 值 |
+|------|-----|
+| ID | complete_clearance |
+| Display Name | 完成任务 |
+| Description | 完成出清任务，记录实际折扣 |
+
+**Parameters（参数）：**
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| task_id | string | 是 | 任务ID |
+| actual_discount | number | 是 | 实际折扣 |
+| notes | string | 否 | 备注 |
+
+**Submission Criteria（提交条件）：**
+
+| 条件类型 | 表达式 | 失败消息 |
+|----------|--------|----------|
+| 参数校验 | actual_discount >= 0 && actual_discount <= 1 | 折扣率必须在0-1之间 |
+| 状态校验 | task.status == 'in_progress' | 任务必须处于进行中状态 |
+
+---
+
+### 3.6 Functions 定义
+
+#### 3.6.1 calculate_discount
+
+```python
+def calculate_discount(near_expiry_product: NearExpiryProduct) -> dict:
+    """
+    根据临期商品计算折扣
+    
+    Returns:
+        {
+            "tier": "T1",
+            "discount_rate": 0.5,
+            "suggested_price": 2.5,
+            "description": "即将过期，5折"
+        }
+    """
+    rule = discount_service.get_rule(near_expiry_product.discount_tier)
+    return {
+        "tier": rule.tier,
+        "discount_rate": rule.discount_rate,
+        "suggested_price": near_expiry_product.retail_price * rule.discount_rate,
+        "description": rule.description
+    }
+```
+
+#### 3.6.2 get_clearance_tasks
+
+```python
+def get_clearance_tasks(store_id: str = None, status: str = None) -> list[ClearanceTask]:
+    """
+    获取出清任务列表
+    
+    Args:
+        store_id: 门店ID筛选
+        status: 任务状态筛选
+    
+    Returns:
+        符合条件的 ClearanceTask 实例列表
+    """
+    pass
+```
+
+#### 3.6.3 execute_clearance_action
+
+```python
+def execute_clearance_action(params: ClearanceParams) -> ClearanceTask:
+    """
+    执行出清Action
+    
+    业务逻辑：
+    1. 验证提交条件 (Submission Criteria)
+    2. 计算目标折扣（根据 DiscountRule）
+    3. 创建 ClearanceTask 实例
+    4. 更新 NearExpiryProduct 状态
+    5. 触发 Side Effects（通知）
+    
+    Returns:
+        创建的 ClearanceTask 实例
+    """
+    pass
+```
+
+### 3.7 ClearanceTask = Action Instance
+
+**重要：Task 是 Action 的具体执行实例**
+
+| 概念 | 说明 |
+|------|------|
+| Action Type | Clearance（出清）的定义 |
+| Action Instance | ClearanceTask（出清任务）是 Clearance 的具体执行记录 |
+
+**ClearanceTask 属性：**
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 任务ID |
+| action_type | string | 动作类型：clearance |
+| near_expiry_product_id | string | 关联临期商品 |
+| store_id | string | 所属门店 |
+| assignee_id | string | 负责人 |
+| input_params | object | Action 输入参数 |
+| output_result | object | Action 输出结果 |
+| status | enum | 状态：pending/executing/completed/failed/cancelled |
+| actual_discount | number | 实际折扣 |
+| quantity | number | 出清数量 |
+| created_at | datetime | 创建时间 |
+| started_at | datetime | 开始时间 |
+| completed_at | datetime | 完成时间 |
+
+**任务状态流转：**
+
+```
+pending ──execute──► executing ──complete──► completed
+                      │                          ▲
+                      └──cancel──► cancelled ◀────┘
+```
+
+### 3.8 DiscountRule（折扣规则）
+
+作为 Action Type 的业务规则配置。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| id | string | 规则ID |
+| tier | enum | 层级：T1/T2/T3 |
+| days_min | number | 最小天数 |
+| days_max | number | 最大天数 |
+| discount_rate | number | 折扣率(0-1) |
+| description | string | 规则描述 |
+
+---
+
+## 4. 数据模型
+
+### 4.1 数据目录结构
+
+```
+data/
+├── stores.json             # 门店数据（顶层数组）
+├── regions.json            # 区域数据（独立文件，顶层数组）
+├── employees.json          # 员工数据
+├── products.json           # 商品数据
+├── near_expiry_products.json  # 临期商品数据（2026年日期）
+├── clearance_tasks.json    # 出清任务数据
+└── discount_rules.json     # 折扣规则数据（T1:0-3天,T2:4-7天,T3:8-14天）
+```
+
+### 4.2 JSON Schema
+
+#### 4.2.1 stores.json
+
+```json
+[
+  {
+    "id": "store_001",
+    "name": "北京朝阳店",
+    "region_id": "region_002",
+    "address": "北京市朝阳区建国路88号",
+    "manager_id": "emp_001",
+    "created_at": "2024-01-15T08:00:00"
+  },
+  {
+    "id": "store_002",
+    "name": "上海浦东店",
+    "region_id": "region_001",
+    "address": "上海市浦东新区世纪大道100号",
+    "manager_id": "emp_003",
+    "created_at": "2024-02-01T08:00:00"
+  }
+]
+```
+
+#### 4.2.1b regions.json
+
+```json
+[
+  { "id": "region_001", "name": "华东区", "code": "HD" },
+  { "id": "region_002", "name": "华北区", "code": "HB" }
+]
+```
+
+#### 4.2.2 employees.json
+
+```json
+{
+  "employees": [
+    {
+      "id": "emp_001",
+      "name": "张三",
+      "store_id": "store_001",
+      "role": "manager",
+      "phone": "13800138000"
+    },
+    {
+      "id": "emp_002",
+      "name": "李四",
+      "store_id": "store_001",
+      "role": "clerk",
+      "phone": "13800138001"
+    }
+  ]
+}
+```
+
+#### 4.2.3 products.json
+
+```json
+{
+  "products": [
+    {
+      "id": "prod_001",
+      "name": "蒙牛纯牛奶",
+      "category": "乳制品",
+      "brand": "蒙牛",
+      "unit": "盒",
+      "cost_price": 3.5,
+      "retail_price": 5.0
+    }
+  ]
+}
+```
+
+#### 4.2.4 near_expiry_products.json
+
+```json
+{
+  "near_expiry_products": [
+    {
+      "id": "nep_001",
+      "product_id": "prod_001",
+      "store_id": "store_001",
+      "batch_no": "B20260501",
+      "production_date": "2026-04-25",
+      "expiry_date": "2026-05-25",
+      "stock_quantity": 50,
+      "days_left": 4,
+      "discount_tier": "T1",
+      "status": "expiring"
+    }
+  ]
+}
+```
+
+#### 4.2.5 discount_rules.json
+
+```json
+{
+  "discount_rules": [
+    {
+      "id": "rule_T1",
+      "tier": "T1",
+      "days_min": 0,
+      "days_max": 3,
+      "discount_rate": 0.5,
+      "description": "即将过期，5折"
+    },
+    {
+      "id": "rule_T2",
+      "tier": "T2",
+      "days_min": 4,
+      "days_max": 7,
+      "discount_rate": 0.7,
+      "description": "中期临期，7折"
+    },
+    {
+      "id": "rule_T3",
+      "tier": "T3",
+      "days_min": 8,
+      "days_max": 14,
+      "discount_rate": 0.9,
+      "description": "初期临期，9折"
+    }
+  ]
+}
+```
+
+#### 4.2.6 clearance_tasks.json
+
+```json
+{
+  "clearance_tasks": [
+    {
+      "id": "task_001",
+      "near_expiry_product_id": "nep_001",
+      "store_id": "store_001",
+      "assignee_id": "emp_002",
+      "target_discount": 0.5,
+      "actual_discount": null,
+      "quantity": 30,
+      "status": "created",
+      "priority": "high",
+      "notes": "优先处理",
+      "created_at": "2026-05-21T08:00:00Z",
+      "started_at": null,
+      "completed_at": null
+    }
+  ]
+}
+```
+
+---
+
+## 5. API设计
+
+### 5.1 AI对话接口
+
+**前端API Route:** `POST /api/copilotkit` (Next.js)
+
+由 `CopilotRuntime` + `LangGraphHttpAgent` 代理到 Deep Agent 服务。
+
+```typescript
+// app/api/copilotkit/route.ts
+import { CopilotRuntime, ExperimentalEmptyAdapter, copilotRuntimeNextJSAppRouterEndpoint } from "@copilotkit/runtime";
+import { LangGraphHttpAgent } from "@copilotkit/runtime/langgraph";
+import { NextRequest } from "next/server";
+
+const serviceAdapter = new ExperimentalEmptyAdapter();
+const runtime = new CopilotRuntime({
+    agents: {
+        default: new LangGraphHttpAgent({
+            url: process.env.LANGGRAPH_DEPLOYMENT_URL || "http://localhost:8123/api/copilotkit",
+        }),
+    }
+});
+
+export const POST = async (req: NextRequest) => {
+    const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+        runtime,
+        serviceAdapter,
+        endpoint: "/api/copilotkit",
+    });
+    return handleRequest(req);
+};
+```
+
+**Deep Agent 服务:** `POST http://localhost:8123/api/copilotkit` (FastAPI)
+
+```python
+# backend/main.py
+from copilotkit import LangGraphAGUIAgent
+from ag_ui_langgraph import add_langgraph_fastapi_endpoint
+from langgraph.graph import StateGraph, END
+
+# ... 定义 Tools, Graph 节点 ...
+
+compiled_graph = graph.compile(checkpointer=MemorySaver())
+
+add_langgraph_fastapi_endpoint(
+    app=app,
+    agent=LangGraphAGUIAgent(
+        name="default",
+        description="门店临期商品管理助手",
+        graph=compiled_graph,
+    ),
+    path="/api/copilotkit",
+)
+```
+
+### 5.2 RESTful API
+
+#### 5.2.1 门店管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/stores | 获取门店列表 |
+| GET | /api/stores/{id} | 获取门店详情 |
+| POST | /api/stores | 创建门店 |
+| PUT | /api/stores/{id} | 更新门店 |
+
+#### 5.2.2 员工管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/employees | 获取员工列表 |
+| GET | /api/employees/{id} | 获取员工详情 |
+| POST | /api/employees | 创建员工 |
+| PUT | /api/employees/{id} | 更新员工 |
+
+#### 5.2.3 商品管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/products | 获取商品列表 |
+| GET | /api/products/{id} | 获取商品详情 |
+| POST | /api/products | 创建商品 |
+| PUT | /api/products/{id} | 更新商品 |
+
+#### 5.2.4 临期商品
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/near-expiry-products | 获取临期商品列表 |
+| GET | /api/near-expiry-products/{id} | 获取临期商品详情 |
+| POST | /api/near-expiry-products | 添加临期商品 |
+| PUT | /api/near-expiry-products/{id} | 更新临期商品 |
+
+#### 5.2.5 出清任务
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/clearance-tasks | 获取任务列表 |
+| GET | /api/clearance-tasks/{id} | 获取任务详情 |
+| POST | /api/clearance-tasks | 创建任务 |
+| PUT | /api/clearance-tasks/{id} | 更新任务 |
+| POST | /api/clearance-tasks/{id}/start | 开始任务 |
+| POST | /api/clearance-tasks/{id}/complete | 完成任务 |
+| POST | /api/clearance-tasks/{id}/cancel | 取消任务 |
+
+### 5.3 请求/响应示例
+
+#### 创建出清任务
+
+**Request:**
+```json
+POST /api/clearance-tasks
+{
+  "near_expiry_product_id": "nep_001",
+  "assignee_id": "emp_002",
+  "quantity": 30,
+  "priority": "high",
+  "notes": "优先处理临期商品"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "task_002",
+  "near_expiry_product_id": "nep_001",
+  "store_id": "store_001",
+  "assignee_id": "emp_002",
+  "target_discount": 0.5,
+  "actual_discount": null,
+  "quantity": 30,
+  "status": "created",
+  "priority": "high",
+  "notes": "优先处理临期商品",
+  "created_at": "2026-05-21T10:00:00Z",
+  "started_at": null,
+  "completed_at": null
+}
+```
+
+---
+
+## 6. 功能模块
+
+### 6.1 AI助手模块
+
+#### 6.1.1 功能描述
+
+通过自然语言对话，为用户提供临期商品管理服务。Agent 可调用后端工具查询数据、创建出清任务，并在关键操作前请求用户确认。
+
+#### 6.1.2 CopilotKit 五大功能实现（实际）
+
+##### Generative UI（生成式UI）
+
+**实现方式：** `<CopilotKit renderToolCalls={[...]}>` prop。
+
+```tsx
+// app/layout.tsx - 在 CopilotKit Provider 上注册渲染器
+'use client'
+import { CopilotKit } from '@copilotkit/react-core'
+
+function ProductCard({ text }: { text: string }) {
+  return (
+    <div style={{padding:12,background:'#f0fdf4',borderRadius:8}}>
+      <strong>📋 Generative UI</strong>
+      <pre>{text}</pre>
+    </div>
+  )
+}
+
+export default function RootLayout({ children }) {
+  const renderToolCalls = useMemo(() => [
+    {
+      name: 'get_near_expiry_products',
+      render: ({ status, result }) => {
+        if (status === 'executing') return <div>🔍 查询中...</div>
+        if (status === 'complete' && result) return <ProductCard text={result} />
+        return <></>
+      },
+    },
+    {
+      name: 'create_clearance_task',
+      render: ({ status, result }) => {
+        if (status === 'executing') return <div>⚙️ 创建中...</div>
+        if (status === 'complete' && result) return <TaskCard text={result} />
+        return <></>
+      },
+    },
+  ], [])
+
+  return (
+    <html lang="zh-CN">
+      <body>
+        <CopilotKit runtimeUrl="/api/copilotkit" agent="default" renderToolCalls={renderToolCalls}>
+          {children}
+          <CopilotPopup />
+        </CopilotKit>
+      </body>
+    </html>
+  )
+}
+```
+
+**注意：** `useCopilotAction` hook 内部使用 v2 context，在 v1 provider 下不兼容。正确方式是通过 `<CopilotKit renderToolCalls={[...]}>` prop 注入渲染器数组。
+
+##### Shared State（共享状态）
+
+**实现方式：** `useCoAgent({ name, initialState })`。
+
+```tsx
+// app/home-page.tsx
+'use client'
+import { useCoAgent } from '@copilotkit/react-core'
+
+export default function HomePage() {
+  const { state: agentState, setState: setAgentState } = useCoAgent<{
+    selected_store: string
+  }>({
+    name: 'default',
+    initialState: { selected_store: 'store_001' },
+  })
+
+  const selectedStore = agentState.selected_store || 'store_001'
+
+  return (
+    <div>
+      <p>当前门店: {selectedStore}</p>
+      <button onClick={() => setAgentState({ selected_store: 'store_001' })}>
+        门店1
+      </button>
+    </div>
+  )
+}
+```
+
+**后端配置：** `AgentState` 中添加 `selected_store` 字段，`chat_node` 系统 prompt 中读取该值：
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[List[Any], "messages"]
+    selected_store: str
+    pending_action: Optional[Dict[str, Any]]
+
+def chat_node(state: AgentState) -> AgentState:
+    system_prompt = f"""当前用户选择的门店ID是: {state.get('selected_store', 'store_001')}
+用户手动切换门店时，该值会自动更新。"""
+```
+
+##### Human-in-the-Loop（人机协同）
+
+**实现方式：** LangGraph 原生 `interrupt()`，无需 CopilotKit hook。
+
+```python
+# backend/main.py - Graph 节点
+from langgraph.types import interrupt
+
+def human_approval_node(state: AgentState) -> AgentState:
+    """人工审批节点 - 暂停等待用户确认"""
+    preview = state["pending_action"]
+    # 中断执行
+    approval = interrupt({
+        "type": "confirm_clearance",
+        "message": f"即将为门店 {preview['store_name']} 创建出清任务，请确认",
+        "preview": preview,
+    })
+    if approval.get("approved"):
+        return state  # → execute_action
+    else:
+        return {**state, "messages": [AIMessage(content="用户取消了任务")]}
+
+def execute_action_node(state: AgentState) -> AgentState:
+    """执行审批通过的操作"""
+    pending = state.get("pending_action")
+    # 实际创建出清任务
+    ontology.create_clearance_task(task)
+    return {**state, "messages": [AIMessage(content="✅ 出清任务已创建！")]}
+```
+
+**Graph 路由：**
+```
+chat → tools → should_approve → human_approval (⏸️ interrupt)
+                                      ↓ 用户确认
+                                execute_action → chat
+```
+
+##### Backend Tool Rendering（后端工具渲染）
+
+**实现方式：** `ag_ui_langgraph` 原生支持，无需额外配置。
+
+后端 `@tool` 函数通过 LangGraph 执行后，结果通过 AG-UI 协议的 `ToolCallStart/Args/End` 事件流式传输到前端。CopilotKit 自动匹配 `renderToolCalls` 中注册的渲染器。
+
+##### Chat UI（对话界面）
+
+**实现方式：** `CopilotPopup` + DeepSeek-chat 流式对话。
+
+```tsx
+<CopilotKit runtimeUrl="/api/copilotkit" agent="default">
+  <CopilotPopup labels={{ title: 'AI 门店助手' }} />
+</CopilotKit>
+```
+
+---
+
+### 6.1.3 AI工具定义（Skills/Tools架构）
+
+**设计原则：** 业务逻辑写在 Tools 中，Agent 只做决策调度。
+
+```python
+# =============================================
+# Tools 层：具体业务操作（可插拔）
+# =============================================
+
+from typing import List, Optional
+from pydantic import BaseModel
+
+class GetNearExpiryProductsInput(BaseModel):
+    store_id: str
+    days_threshold: int = 7
+    status: Optional[str] = None
+
+class GetNearExpiryProductsOutput(BaseModel):
+    products: List[dict]
+    total_count: int
+
+def get_near_expiry_products(
+    store_id: str,
+    days_threshold: int = 7,
+    status: str = None
+) -> GetNearExpiryProductsOutput:
+    """
+    获取门店临期商品列表
+    
+    这是 Tools 层的具体业务操作，
+    不在 Agent 代码中写死逻辑。
+    """
+    # 1. 查询本体数据
+    store = ontology_service.get_store(store_id)
+    products = ontology_service.query_near_expiry_products(
+        store_id=store_id,
+        days_threshold=days_threshold,
+        status=status
+    )
+    
+    # 2. 应用折扣规则
+    for product in products:
+        rule = discount_service.get_rule(product.discount_tier)
+        product.discount_rate = rule.discount_rate
+        product.suggested_price = product.retail_price * rule.discount_rate
+    
+    # 3. 返回结构化结果
+    return GetNearExpiryProductsOutput(
+        products=[p.model_dump() for p in products],
+        total_count=len(products)
+    )
+
+# 更多 Tools...
+
+# =============================================
+# Skills 层：可重用行为模块
+# =============================================
+
+class ClearanceSkill:
+    """出清技能：包含多个相关 Tools"""
+    
+    tools = [
+        get_near_expiry_products,
+        get_clearance_tasks,
+        create_clearance_task,
+        complete_clearance_task,
+        calculate_discount,
+    ]
+    
+    system_prompt = """你是一个门店临期商品管理助手。
+当你需要查询或操作临期商品时，使用提供的 Tools。
+创建任务前必须确认商品和数量。
+完成任务时记录实际折扣。"""
+
+# =============================================
+# Agent 层：只做决策调度
+# =============================================
+
+from deepagents import create_deep_agent
+
+agent = create_deep_agent(
+    model="openai:JJY-Qwen3.6-27B",
+    skills=[ClearanceSkill()],  # 加载 Skills
+    tools=[],  # 直接 Tools 可选
+    system_prompt="你是一个智能门店助手。",
+    middleware=[CopilotKitMiddleware()]
+)
+```
+
+---
+
+### 6.1.3 LangGraph Agent 架构
+
+#### Graph 结构
+
+```
+                    ┌─────────┐
+         ┌──────────│  chat   │◄──────────────────┐
+         │          └────┬────┘                    │
+         │       tool    │                         │
+         │    ┌──────────▼──────────┐              │
+         │    │       tools         │              │
+         │    └──────────┬──────────┘              │
+         │               │ should_approve          │
+         │     ┌─────────▼─────────┐               │
+         │     │  human_approval   │               │
+         │     │   ⏸️ interrupt()  │               │
+         │     └─────────┬─────────┘               │
+         │      approve  │  reject                 │
+         │     ┌─────────▼─────────┐               │
+         │     │  execute_action   │               │
+         │     └─────────┬─────────┘               │
+         │               │                         │
+         └───────────────┴─────────────────────────┘
+```
+
+#### 节点说明
+
+| 节点 | 功能 | 输入 | 输出 |
+|------|------|------|------|
+| `chat` | LLM + 工具调用 | `messages`, `selected_store` | AIMessage (含 tool_calls) |
+| `tools` | 执行工具函数 | tool_calls | ToolMessage (结果) |
+| `human_approval` | 中断等待用户确认 | `pending_action` | `interrupt()` 事件 |
+| `execute_action` | 执行审批通过的操作 | `pending_action` | 实际创建任务 |
+| `should_continue` | 路由：是否需要工具 | 最后消息 | `"tools"` / `"end"` |
+| `should_approve` | 路由：是否需要审批 | 工具结果 | `"approve"` / `"end"` |
+
+#### AgentState
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[List[Any], "messages"]     # 对话历史
+    selected_store: str                             # Shared State
+    pending_action: Optional[Dict[str, Any]]        # HITL 待审批操作
+```
+
+### 6.1.4 对话能力
+
+| 能力 | 示例对话 | 触发工具 |
+|------|----------|----------|
+| 查询临期商品 | "查看门店的临期商品" | get_near_expiry_products |
+| 查询任务 | "有哪些出清任务" | get_clearance_tasks |
+| 创建任务 | "帮我创建一个出清任务" | create_clearance_task |
+| 完成任务 | "任务已完成" | complete_clearance_task |
+| 折扣计算 | "这商品打几折" | calculate_discount |
+| 门店查询 | "北京朝阳店有哪些临期商品" | get_store_near_expiry_products |
+
+#### 6.1.3 AI工具定义
+
+```python
+# 工具函数定义
+
+def get_near_expiry_products(store_id: str, days_threshold: int = 7):
+    """获取门店临期商品列表"""
+    pass
+
+def get_clearance_tasks(store_id: str = None, status: str = None):
+    """获取出清任务列表"""
+    pass
+
+def create_clearance_task(
+    near_expiry_product_id: str,
+    assignee_id: str,
+    quantity: int,
+    priority: str = "medium"
+):
+    """创建出清任务"""
+    pass
+
+def complete_clearance_task(task_id: str, actual_discount: float, notes: str = None):
+    """完成任务"""
+    pass
+
+def calculate_discount(product_id: str, days_left: int):
+    """计算折扣建议"""
+    pass
+```
+
+### 6.2 任务管理模块
+
+#### 6.2.1 任务状态流转
+
+```
+     ┌──────────┐
+     │ created  │ ← 新建任务
+     └────┬─────┘
+          │ start
+          ▼
+     ┌──────────┐
+     │ in_progress │ ← 任务进行中
+     └────┬─────┘
+          │ complete
+          ▼
+     ┌──────────┐
+     │ completed │ ← 任务完成
+     └──────────┘
+
+     ┌──────────┐
+     │  any      │ ← 任意状态可取消
+     └────┬─────┘
+          │ cancel
+          ▼
+     ┌──────────┐
+     │ cancelled │ ← 任务取消
+     └──────────┘
+```
+
+#### 6.2.2 任务优先级
+
+| 优先级 | 说明 | 折扣层级 |
+|--------|------|----------|
+| high | 即将过期(≤1天) | T1 |
+| medium | 临期(2-3天) | T2 |
+| low | 促销(4-7天) | T3 |
+
+### 6.3 本体管理模块
+
+#### 6.3.1 功能描述
+
+管理临期商品场景的本体概念和实例数据。
+
+#### 6.3.2 核心功能
+
+- 本体概念增删改查
+- 实例数据管理
+- 关系维护
+- 推理计算（计算属性如days_left）
+
+---
+
+## 7. 用户界面
+
+### 7.1 页面结构
+
+```
+/app
+├── layout.tsx           # 根布局 + CopilotKit Provider
+├── page.tsx            # 首页/仪表盘
+├── stores/
+│   └── page.tsx        # 门店列表
+├── products/
+│   └── page.tsx        # 商品管理
+├── near-expiry/
+│   └── page.tsx        # 临期商品管理
+├── tasks/
+│   ├── page.tsx        # 任务列表
+│   └── [id]/page.tsx   # 任务详情
+├── employees/
+│   └── page.tsx        # 员工管理
+└── api/
+    └── copilotkit/
+        └── route.ts    # CopilotKit Runtime
+```
+
+### 7.2 页面说明
+
+| 页面 | 说明 | 访问角色 |
+|------|------|----------|
+| 首页仪表盘 | 临期商品概览、待处理任务统计 | 全部 |
+| 门店列表 | 多店切换、门店信息 | 店长、总部 |
+| 临期商品 | 商品列表、折扣信息 | 店员、店长 |
+| 任务管理 | 出清任务列表、状态管理 | 店员、店长 |
+| 员工管理 | 员工列表、角色管理 | 店长、总部 |
+
+### 7.3 AI助手界面
+
+使用CopilotKit的`CopilotSidebar`组件，提供侧边栏对话界面。
+
+```tsx
+// app/page.tsx
+"use client"
+
+import { CopilotSidebar } from "@copilotkit/react-ui"
+import { useDefaultRenderTool } from "@copilotkit/react-core/v2"
+
+export default function Page() {
+  useDefaultRenderTool({
+    render: ({ name, status, parameters, result }) => (
+      <div className="tool-result">
+        <summary>{status === "complete" ? `已调用 ${name}` : `调用中 ${name}`}</summary>
+        <pre>{JSON.stringify({ parameters, result }, null, 2)}</pre>
+      </div>
+    ),
+  })
+
+  return (
+    <main>
+      <h1>AI门店大脑</h1>
+      <CopilotSidebar />
+    </main>
+  )
+}
+```
+
+---
+
+## 8. 部署方案
+
+### 8.1 开发环境
+
+```bash
+# 终端1: Qwen模型已部署在 192.168.12.66:6006
+
+# 终端2: 启动后端
+cd backend
+conda run -n store-ontology python -m uvicorn main:app --reload --port 8000
+
+# 终端3: 启动前端
+cd frontend
+npm run dev
+```
+
+### 8.2 环境变量
+
+#### 后端 .env
+
+```env
+# LLM配置
+LLM_MODEL=openai:JJY-Qwen3.6-27B
+OPENAI_API_KEY=lzbWq3nzGuPr2SrSkibhDr9BOP4BqCFlCh0ZzfdcjanB5p
+OPENAI_BASE_URL=http://192.168.12.66:6006/v1
+
+# 服务配置
+PORT=8000
+DATA_DIR=../data
+
+# CORS
+CORS_ORIGINS=http://localhost:3000
+```
+
+#### 前端 .env.local
+
+```env
+COPILOTKIT_AGENT_URL=http://localhost:8000
+```
+
+### 8.3 数据初始化
+
+首次部署需要初始化示例数据：
+
+```bash
+# 运行数据初始化脚本
+cd backend
+python scripts/init_data.py
+```
+
+---
+
+## 9. 后续扩展
+
+### 9.1 外部系统对接
+
+- ERP系统集成（商品档案同步）
+- POS系统集成（销售数据拉取）
+- 供应链系统集成（库存同步）
+
+### 9.2 移动端支持
+
+- 微信小程序
+- 企业微信集成
+
+### 9.3 数据库迁移
+
+当前JSON文件存储 → PostgreSQL/Neo4j图数据库
+
+---
+
+## 10. 附录
+
+### 10.1 名词解释
+
+| 术语 | 说明 |
+|------|------|
+| Deep Agent | DeepAgents框架创建的海量模型封装 |
+| CopilotKit | 前端AI组件库，提供对话UI和状态管理 |
+| AG-UI | 前端与Agent通信的协议 |
+| 本体论 | 形式化描述概念及其关系的方法 |
+| 临期商品 | 即将到期的商品，需要及时处理 |
+
+### 10.2 参考资料
+
+- [CopilotKit GitHub](https://github.com/copilotkit/copilotkit)
+- [CopilotKit 文档](https://docs.copilotkit.ai)
+- [DeepAgents GitHub](https://github.com/langchain-ai/deepagents)
+- [DeepAgents 文档](https://docs.langchain.com/oss/python/deepagents/overview)
+- [LangChain 文档](https://python.langchain.com)
