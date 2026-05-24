@@ -4,12 +4,11 @@
 - 本体语义定义: ontology/store.ttl
 - 本体解析器: ontology/parser.py → EntityRegistry
 - 通用工具: ontology/tools.py (query_entity, create_entity, traverse_relation)
-- Agent: LangGraph StateGraph + LangGraphAGUIAgent
+- Agent: Deep Agents (create_deep_agent) + LangGraphAgent (ag_ui_langgraph)
 - 前端: CopilotKit v1.57.4 via AG-UI 协议
 """
 
 import os
-import json
 import warnings
 import sys
 from dotenv import load_dotenv
@@ -23,14 +22,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
-from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
-from typing import Annotated, List, Dict, Any, Optional
-from typing_extensions import TypedDict
 
-from copilotkit import LangGraphAGUIAgent
-from ag_ui_langgraph import add_langgraph_fastapi_endpoint
+from deepagents import create_deep_agent
+from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
+
 # ===== 导入本体驱动通用工具 =====
 from ontology.tools import query_entity, traverse_relation, create_entity, update_entity, build_ontology_prompt, _registry
 
@@ -40,11 +36,11 @@ api_key = os.getenv("QWEN_API_KEY")
 if not api_key:
     raise RuntimeError("QWEN_API_KEY 环境变量未设置")
 
-base_url = os.getenv("QWEN_BASE_URL", "https://api.deepseek.com/v1")
-model = os.getenv("QWEN_MODEL", "deepseek-chat")
+base_url = os.getenv("QWEN_BASE_URL", "https://api.minimaxi.com/v1")
+model_name = os.getenv("QWEN_MODEL", "MiniMax-M2.7-highspeed")
 
 llm = ChatOpenAI(
-    model=model,
+    model=model_name,
     api_key=api_key,
     base_url=base_url,
     temperature=0.7,
@@ -121,10 +117,10 @@ def create_clearance_task(store_id: str, product_id: str, discount: int) -> str:
 @tool
 def confirm_clearance_task(store_id: str, product_id: str, discount: int) -> str:
     """用户确认后，实际创建出清任务。仅在用户明确回复"确认"/"好的"/"可以"后调用。
-    
+
     Args:
         store_id: 门店ID
-        product_id: 临期商品ID  
+        product_id: 临期商品ID
         discount: 折扣百分比(0-100)
     """
     from services.ontology_service import OntologyService
@@ -208,128 +204,60 @@ def get_store_summary(store_id: str = None) -> str:
     return "\n".join(lines)
 
 
-# ===== 绑定工具 =====
+# ===== 绑定工具列表 =====
 tools = [
     get_near_expiry_products,
     create_clearance_task,
     confirm_clearance_task,
     query_entity,
     traverse_relation,
-    create_entity,            # ← 通用创建
-    update_entity,            # ← 通用更新
+    create_entity,
+    update_entity,
     get_store_summary,
 ]
-llm_with_tools = llm.bind_tools(tools)
 
 
 # ============ Deep Agent Graph ============
 
-class AgentState(TypedDict):
-    messages: Annotated[list, add_messages]  # add_messages：自动按 ID 去重
+# 动态生成本体系统提示（Deep Agents 在启动时设置一次）
+ontology_prompt = build_ontology_prompt()
+store_context = """
+当前用户选择的门店ID是: store_001。
 
+可用工具：
+- query_entity / create_entity / update_entity → 增删改查任意实体
+- traverse_relation → 遍历实体关系
+- get_near_expiry_products / create_clearance_task / confirm_clearance_task / get_store_summary
 
-def chat_node(state: AgentState) -> AgentState:
-    """聊天节点 — LLM with ontology-driven tools"""
-    from langchain_core.messages import SystemMessage
+**关键规则：**
+- create_clearance_task 获取预览后，必须询问用户确认
+- 用户回复"确认"后，立即调用 confirm_clearance_task
+- 用户要求修改任务参数（折扣/数量等）时，直接调用 update_entity
+- 用中文回复。
+"""
 
-    messages = state.get("messages", [])
-    if not messages:
-        return {**state, "messages": []}
+system_prompt = ontology_prompt + store_context
 
-    # 动态生成本体系统提示
-    ontology_prompt = build_ontology_prompt()
-    store_context = f"\n\n当前用户选择的门店ID是: store_001。\n\n可用工具：\n- query_entity / create_entity / update_entity → 增删改查任意实体\n- traverse_relation → 遍历实体关系\n- get_near_expiry_products / create_clearance_task / confirm_clearance_task / get_store_summary\n\n**关键规则：**\n- create_clearance_task 获取预览后，必须询问用户确认\n- 用户回复\"确认\"后，立即调用 confirm_clearance_task\n- 用户要求修改任务参数（折扣/数量等）时，直接调用 update_entity\n- 用中文回复。"
-
-    full_messages = [
-        SystemMessage(content=ontology_prompt + store_context)
-    ] + list(messages)
-
-    try:
-        response = llm_with_tools.invoke(full_messages)
-    except Exception as e:
-        from langchain_core.messages import AIMessage
-        # 打印 DeepSeek 详细错误
-        err_detail = str(e)
-        if hasattr(e, 'response'):
-            try:
-                err_detail = e.response.json()
-            except:
-                err_detail = str(e.response) if hasattr(e, 'response') else str(e)
-        print(f"[ERROR] LLM调用失败: {type(e).__name__}", flush=True)
-        print(f"[ERROR] 详情: {err_detail}", flush=True)
-        print(f"[ERROR] 消息数: {len(full_messages)}, 总token估算: {sum(len(str(getattr(m,'content',''))) for m in full_messages)//4}", flush=True)
-        error_msg = f"抱歉，AI 服务暂时不可用 ({type(e).__name__})。请稍后重试。"
-        return {"messages": [AIMessage(content=error_msg)]}
-
-    return {"messages": [response]}
-
-
-def tool_node(state: AgentState) -> AgentState:
-    """工具执行节点"""
-    from langchain_core.messages import ToolMessage
-
-    messages = state.get("messages", [])
-    last_message = messages[-1] if messages else None
-
-    if last_message and hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-        tool_messages = []
-        for tool_call in last_message.tool_calls:
-            tool_name = tool_call.get("name", "")
-            tool_args = tool_call.get("args", {})
-            tool_call_id = tool_call.get("id", "")
-
-            tool_func = {t.name: t for t in tools}.get(tool_name)
-            if tool_func:
-                try:
-                    result = tool_func.invoke(tool_args)
-                except Exception as e:
-                    result = f"工具执行错误: {str(e)}"
-            else:
-                result = f"未知工具: {tool_name}"
-
-            tool_messages.append(ToolMessage(
-                content=str(result),
-                tool_call_id=tool_call_id
-            ))
-
-        return {"messages": tool_messages}
-    return {"messages": []}
-
-
-def should_continue(state: AgentState) -> str:
-    messages = state.get("messages", [])
-    if not messages:
-        return "end"
-    last = messages[-1]
-
-    # 防止无限工具循环：连续工具调用超过 3 次则强制返回
-    recent_tool_count = sum(1 for m in messages[-10:] if type(m).__name__ == "ToolMessage")
-    if recent_tool_count >= 3:
-        return "end"
-
-    if hasattr(last, 'tool_calls') and last.tool_calls:
-        return "tools"
-    if type(last).__name__ == "ToolMessage":
-        return "chat"
-    return "end"
-
-
-# ===== 构建 Graph（简化版：对话式 HITL，无 interrupt） =====
-graph = StateGraph(AgentState)
-graph.add_node("chat", chat_node)
-graph.add_node("tools", tool_node)
-graph.set_entry_point("chat")
-graph.add_conditional_edges("chat", should_continue, {"tools": "tools", "end": END})
-graph.add_conditional_edges("tools", should_continue, {"chat": "chat", "end": END})
-compiled_graph = graph.compile(checkpointer=MemorySaver())
+# 创建 Deep Agent Graph
+# - SummarizationMiddleware 默认开启，自动压缩长对话上下文（解决 BadRequestError）
+# - DeltaChannel 内置，checkpoint 增长从 O(N²) 降到 O(N)
+# - checkpointer=MemorySaver 保持多轮会话状态
+deep_agent_graph = create_deep_agent(
+    model=llm,
+    tools=tools,
+    system_prompt=system_prompt,
+    checkpointer=MemorySaver(),
+    # 排除 Deep Agents 内置的通用工具（文件系统、shell、子agent），只保留业务工具
+    # 通过 HarnessProfile 注册 excluded_tools
+)
 
 
 # ============ FastAPI 应用 ============
 
 app = FastAPI(
     title="门店临期商品管理 - 本体驱动 Agent",
-    description="基于 CopilotKit + 本体语义 + LangGraph 的 AI 助手",
-    version="0.2.0",
+    description="基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -342,17 +270,19 @@ app.add_middleware(
 
 add_langgraph_fastapi_endpoint(
     app=app,
-    agent=LangGraphAGUIAgent(
+    agent=LangGraphAgent(
         name="default",
-        description="门店临期商品管理助手（本体驱动）",
-        graph=compiled_graph,
+        description="门店临期商品管理助手（本体驱动 + Deep Agents）",
+        graph=deep_agent_graph,
     ),
     path="/api/copilotkit",
 )
 
+
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
