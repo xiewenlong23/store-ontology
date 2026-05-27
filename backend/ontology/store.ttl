@@ -36,17 +36,13 @@ store:NearExpiryProduct a rdfs:Class ;
     store:properties "id:string,product_id:string,store_id:string,batch_no:string,production_date:date,expiry_date:date,stock_quantity:int,days_left:int,discount_tier:DiscountTier,status:ProductStatus" ;
     store:storage "near_expiry_products.json" .
 
-store:DiscountRule a rdfs:Class ;
-    rdfs:label "折扣规则"@zh , "Discount Rule"@en ;
-    rdfs:comment "临期商品折扣规则"@zh ;
-    store:properties "id:string,tier:DiscountTier,days_min:int,days_max:int,discount_rate:float,description:string" ;
-    store:storage "discount_rules.json" .
-
-store:ClearanceTask a rdfs:Class ;
-    rdfs:label "出清任务"@zh , "Clearance Task"@en ;
-    rdfs:comment "出清操作的任务实例"@zh ;
-    store:properties "id:string,action_type:string,near_expiry_product_id:string,store_id:string,assignee_id:string,status:TaskStatus,actual_discount:float,quantity:int,notes:string,created_at:datetime,started_at:datetime,completed_at:datetime" ;
-    store:storage "clearance_tasks.json" .
+# Task — 通用任务 Object Type
+# Action Type 的执行记录实例
+store:Task a rdfs:Class ;
+    rdfs:label "任务"@zh , "Task"@en ;
+    rdfs:comment "Action Type 执行记录，type 字段标识操作类型"@zh ;
+    store:properties "id:string,type:ActionType,target_id:string,store_id:string,assignee_id:string,status:TaskStatus,params_json:dict,result_json:dict,priority:Priority,notes:string,created_at:datetime,started_at:datetime,completed_at:datetime" ;
+    store:storage "tasks.json" .
 
 # ============================================================
 # Link Types (关系类型)
@@ -85,22 +81,36 @@ store:manages a rdfs:Property ;
 store:has_task a rdfs:Property ;
     rdfs:label "有任务"@zh , "has task"@en ;
     rdfs:domain store:Store ;
-    rdfs:range store:ClearanceTask ;
+    rdfs:range store:Task ;
     store:via "store_id" .
+
+store:created_for a rdfs:Property ;
+    rdfs:label "针对"@zh , "created for"@en ;
+    rdfs:domain store:Task ;
+    rdfs:range store:NearExpiryProduct ;
+    store:via "target_id" .
 
 # ============================================================
 # Action Types (动作类型)
+# clearance: 对临期商品进行出清处理
+# transfer: 门店间调拨商品
+# restock: 补充商品库存
 # ============================================================
 
-store:ClearanceAction a rdfs:Class ;
+store:clearance a rdfs:Class ;
     rdfs:label "出清"@zh , "Clearance"@en ;
     rdfs:comment "对临期商品进行出清处理"@zh ;
-    store:input "near_expiry_product_id:string,quantity:int,assignee_id:string,target_discount:float" ;
-    store:output store:ClearanceTask ;
-    store:requires_approval "true" .
+    store:target store:NearExpiryProduct ;
+    store:params "discount:int,quantity:int,notes:string" .
 
-store:CompleteClearanceAction a rdfs:Class ;
-    rdfs:label "完成任务"@zh , "Complete Clearance"@en ;
-    rdfs:comment "完成出清任务"@zh ;
-    store:input "task_id:string,actual_discount:float,notes:string" ;
-    store:output store:ClearanceTask .
+store:transfer a rdfs:Class ;
+    rdfs:label "调拨"@zh , "Transfer"@en ;
+    rdfs:comment "门店间调拨商品"@zh ;
+    store:target store:Product ;
+    store:params "from_store:string,to_store:string,quantity:int,notes:string" .
+
+store:restock a rdfs:Class ;
+    rdfs:label "补货"@zh , "Restock"@en ;
+    rdfs:comment "补充商品库存"@zh ;
+    store:target store:Product ;
+    store:params "quantity:int,supplier_id:string,notes:string" .

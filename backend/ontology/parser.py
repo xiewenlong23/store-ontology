@@ -106,26 +106,25 @@ class OntologyParser:
                 via=via,
             )
 
-        # 解析 Action Types
+        # 解析 Action Types (store:target + store:params 格式)
         for match in re.finditer(
             rf'{prefix}(\w+)\s+a\s+rdfs:Class\s*;\s*'
             rf'rdfs:label\s+"([^"]+)"@zh\s*,\s*"([^"]+)"@en\s*;\s*'
             rf'rdfs:comment\s+"([^"]*)"@zh\s*;\s*'
-            rf'{prefix}input\s+"([^"]*)"\s*;\s*'
-            rf'{prefix}output\s+{prefix}(\w+)\s*;?\s*'
-            rf'(?:{prefix}requires_approval\s+"(true|false)"\s*;)?',
+            rf'{prefix}target\s+{prefix}(\w+)\s*;\s*'
+            rf'{prefix}params\s+"([^"]*)"',
             content, re.DOTALL
         ):
-            action_id, label_zh, label_en, desc, input_str, output_type, requires = match.groups()
-            input_fields = self._parse_properties(input_str)
+            action_id, label_zh, label_en, desc, target_type, params_str = match.groups()
+            input_fields = self._parse_properties(params_str)
             self.registry.action_types[action_id] = ActionType(
                 id=action_id,
                 label=f"{label_zh} ({label_en})",
                 label_zh=label_zh,
                 description=desc,
                 input_fields=input_fields,
-                output_type=output_type,
-                requires_approval=(requires == "true"),
+                output_type=target_type,
+                requires_approval=True,
             )
 
     def _parse_properties(self, props_str: str) -> List[PropertyDef]:
@@ -148,6 +147,27 @@ class OntologyParser:
         lines.append("关系（用 traverse_relation）: ")
         lines.append(", ".join(f"{lt.label_zh}({lt.domain}→{lt.range})" for lt in self.registry.link_types.values()))
         lines.append("\n")
-        lines.append("create_clearance_task → 出清预览 | confirm_clearance_task → 实际创建 | get_store_summary → 门店摘要 | get_near_expiry_products → 临期商品。")
-        lines.append("用户确认后立即调用 confirm_clearance_task。用中文回复。")
+        lines.append("操作类型（用 execute_action 执行）: ")
+        for at in self.registry.action_types.values():
+            params = ", ".join(f.name for f in at.input_fields)
+            lines.append(f"- {at.label_zh}({at.id}): {params}")
+        lines.append("用 query_task 查询任务，update_task 修改任务。用中文回复。")
         return "\n".join(lines)
+
+
+# ============ 单例模式 ============
+
+_parser_instance = None
+
+
+def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> OntologyParser:
+    """获取 OntologyParser 单例"""
+    global _parser_instance
+    if _parser_instance is None:
+        import os
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        root = os.path.dirname(base)  # backend/ -> store-ontology/
+        ttl_path = ttl_path or os.path.join(base, "ontology", "store.ttl")
+        data_dir = data_dir or os.path.join(root, "data")
+        _parser_instance = OntologyParser(ttl_path, data_dir)
+    return _parser_instance

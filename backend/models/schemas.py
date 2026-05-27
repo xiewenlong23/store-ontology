@@ -41,6 +41,13 @@ class Priority(str, Enum):
     HIGH = "high"
 
 
+class ActionType(str, Enum):
+    """Action Type 枚举 — 所有可执行操作的类型，在代码中校验。"""
+    CLEARANCE = "clearance"
+    TRANSFER = "transfer"
+    RESTOCK = "restock"
+
+
 # ============ Object Types ============
 
 class Region(BaseModel):
@@ -100,54 +107,7 @@ class NearExpiryProduct(BaseModel):
         return delta.days
 
 
-class DiscountRule(BaseModel):
-    """折扣规则 - Action Type 的业务规则"""
-    id: str = Field(..., description="规则ID")
-    tier: DiscountTier = Field(..., description="层级")
-    days_min: int = Field(..., description="最小天数")
-    days_max: int = Field(..., description="最大天数")
-    discount_rate: float = Field(..., ge=0, le=1, description="折扣率(0-1)")
-    description: str = Field(..., description="规则描述")
-
-
-# ============ Action Types & Tasks ============
-
-class ClearanceParams(BaseModel):
-    """Clearance Action - 输入参数"""
-    near_expiry_product_id: str = Field(..., description="临期商品ID")
-    quantity: int = Field(..., gt=0, description="出清数量")
-    assignee_id: str = Field(..., description="负责人ID")
-    target_discount: Optional[float] = Field(None, ge=0, le=1, description="目标折扣")
-    notes: Optional[str] = Field(None, description="备注")
-
-
-class CompleteClearanceParams(BaseModel):
-    """CompleteClearance Action - 输入参数"""
-    task_id: str = Field(..., description="任务ID")
-    actual_discount: float = Field(..., ge=0, le=1, description="实际折扣")
-    notes: Optional[str] = Field(None, description="备注")
-
-
-class ClearanceTask(BaseModel):
-    """ClearanceTask = Action Instance (任务)"""
-    id: str = Field(..., description="任务ID")
-    action_type: str = Field(default="clearance", description="动作类型")
-    near_expiry_product_id: str = Field(..., description="关联临期商品")
-    store_id: str = Field(..., description="所属门店")
-    assignee_id: str = Field(..., description="负责人")
-    input_params: ClearanceParams = Field(..., description="Action输入参数")
-    output_result: dict = Field(default_factory=dict, description="Action输出结果")
-    status: TaskStatus = Field(default=TaskStatus.PENDING, description="状态")
-    actual_discount: Optional[float] = Field(None, description="实际折扣")
-    quantity: int = Field(..., description="出清数量")
-    priority: Priority = Field(default=Priority.MEDIUM, description="优先级")
-    notes: Optional[str] = Field(None, description="备注")
-    created_at: datetime = Field(default_factory=datetime.now)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-
-
-# ============ Link Types (关系) ============
+# ============ Link Types ============
 
 class LinkTypes:
     """Link Type 定义常量"""
@@ -157,5 +117,29 @@ class LinkTypes:
     BELONGS_TO = "belongs_to"                     # Employee -> Store
     MANAGES = "manages"                          # Employee -> Store
     SUBJECT_TO = "subject_to"                    # NearExpiryProduct -> DiscountRule
-    ASSIGNED_TO = "assigned_to"                  # ClearanceTask -> Employee
-    CREATED_FOR = "created_for"                  # ClearanceTask -> NearExpiryProduct
+    HAS_TASK = "has_task"                        # Store -> Task
+    CREATED_FOR = "created_for"                  # Task -> NearExpiryProduct
+
+
+# ============ Action Types ============
+
+class Task(BaseModel):
+    """通用任务 Object Type
+
+    Action Type 的执行记录。每个 Task 对应一次操作执行。
+    type 字段标识操作类型（clearance/transfer/restock），
+    params_json 存操作参数，result_json 存执行结果。
+    """
+    id: str = Field(..., description="任务ID")
+    type: ActionType = Field(..., description="操作类型")
+    target_id: str = Field(..., description="操作目标ID（如 NearExpiryProduct.id）")
+    store_id: str = Field(..., description="所属门店")
+    assignee_id: str = Field(..., description="负责人")
+    status: TaskStatus = Field(default=TaskStatus.PENDING, description="状态")
+    params_json: dict = Field(default_factory=dict, description="操作参数字典")
+    result_json: dict = Field(default_factory=dict, description="执行结果字典")
+    priority: Priority = Field(default=Priority.MEDIUM, description="优先级")
+    notes: Optional[str] = Field(None, description="备注")
+    created_at: datetime = Field(default_factory=datetime.now)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
