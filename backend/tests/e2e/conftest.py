@@ -1,0 +1,180 @@
+"""E2E 测试夹具 —— 构造指向临时数据的 agent + 脚本化 LLM + ask() 辅助。
+
+设计要点：
+- 用临时数据目录（复制 clearance 种子），不污染真实 data/
+- 用 ScriptedLLM（按轮次返回预设工具调用），确定性、不依赖真实 LLM
+- ask() 调 graph.ainvoke，从最终 messages 提取 tool_calls 与文本
+"""
+import os
+import sys
+import json
+import shutil
+from pathlib import Path
+from collections import namedtuple
+
+import pytest
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
+
+
+# ============ E2E 调用结果 ============
+
+E2EResult = namedtuple("E2EResult", ["text", "tool_calls"])
+
+
+class E2EAgent:
+    """封装 graph + ScriptedLLM，提供 ask() 入口。"""
+
+    def __init__(self, graph, scripted_llm, tenant_id="tenant_default"):
+        self.graph = graph
+        self.scripted_llm = scripted_llm
+        self.tenant_id = tenant_id
+
+    async def ask(self, message: str, thread_id: str = "default") -> E2EResult:
+        config = {"configurable": {"thread_id": thread_id}}
+        result = await self.graph.ainvoke(
+            {"messages": [{"role": "user", "content": message}]}, config)
+        # 收集本轮所有 message 的 tool_calls + 最后一条文本
+        tool_calls = []
+        last_text = ""
+        for msg in result.get("messages", []):
+            tcs = getattr(msg, "tool_calls", None) or []
+            for tc in tcs:
+                tool_calls.append(tc.get("name", "") if isinstance(tc, dict)
+                                  else getattr(tc, "name", ""))
+            content = getattr(msg, "content", "")
+            if isinstance(content, str) and content.strip():
+                last_text = content
+        return E2EResult(text=last_text, tool_calls=tool_calls)
+
+
+# ============ 脚本化 LLM ============
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+
+
+class ScriptedLLM(BaseChatModel):
+    """按轮次返回预设响应的假 LLM（BaseChatModel 子类，满足 deepagents 要求）。
+
+    每个预设 = (tool_calls, text)：tool_calls 是 [{"name","args"}]。
+    agent 工具循环每调一次 LLM 取下一个预设。预设用尽返回空文本结束。
+
+    用法：llm.script(([], "回复"))  —— 注入预设并重置消费计数。
+    """
+
+    responses: list = []
+    _consumed: int = 0  # pydantic PrivateAttr
+
+    def script(self, *responses):
+        """注入预设响应并重置消费计数。每个 response = (tool_calls_list, text)。"""
+        # pydantic v2 私有属性赋值
+        object.__setattr__(self, "responses", list(responses))
+        object.__setattr__(self, "_consumed", 0)
+        return self
+
+    def _respond(self) -> AIMessage:
+        consumed = object.__getattribute__(self, "_consumed")
+        responses = object.__getattribute__(self, "responses")
+        if consumed >= len(responses):
+            return AIMessage(content="(已完成)")
+        tool_calls, text = responses[consumed]
+        object.__setattr__(self, "_consumed", consumed + 1)
+        tcs = [{"name": tc["name"], "args": tc.get("args", {}),
+                "id": f"call_{consumed+1}", "type": "tool_call"}
+               for tc in tool_calls]
+        return AIMessage(content=text, tool_calls=tcs)
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        msg = self._respond()
+        return ChatResult(generations=[ChatGeneration(message=msg)])
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        msg = self._respond()
+        return ChatResult(generations=[ChatGeneration(message=msg)])
+
+    @property
+    def _llm_type(self) -> str:
+        return "scripted"
+
+    @property
+    def _identifying_params(self) -> dict:
+        return {"responses_count": len(self.responses)}
+
+    def bind_tools(self, tools, **kwargs):
+        # 深度 agent 会调；脚本化 LLM 无视绑定，按预设返回
+        return self
+
+
+# ============ 夹具 ============
+
+@pytest.fixture
+def e2e_data_dir(tmp_path):
+    """复制 clearance 种子到临时目录，供 E2E agent 读写。"""
+    src = BACKEND_DIR.parent / "data"
+    if src.is_dir():
+        shutil.copytree(src, tmp_path, dirs_exist_ok=True)
+    return str(tmp_path)
+
+
+@pytest.fixture
+def scripted_llm():
+    """默认空预设；测试用 .script(...) 注入。返回 ScriptedLLM（带 script 方法）。"""
+    return ScriptedLLM(responses=[])
+
+
+@pytest.fixture
+def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
+    """构造指向临时数据、用 ScriptedLLM 的 clearance agent。
+
+    替换 parser 单例的 data_dir 指向临时目录；用 monkeypatch 让 main 用 ScriptedLLM。
+    """
+    # 1. 重置 parser 缓存，让后续 get_ontology_parser 重新构建指向临时数据
+    from ontology.parser import reset_parser_cache
+    from ontology import vertical as vertical_mod
+    reset_parser_cache()
+
+    # 2. 把 clearance config 的 data_dir 指向临时目录
+    from ontology.bootstrap import bootstrap
+    bootstrap()
+    cfg = vertical_mod.get_vertical("clearance")
+    original_data_dir = cfg.data_dir
+    cfg.data_dir = e2e_data_dir
+
+    # 3. 构造 agent（用 deepagents create_deep_agent + ScriptedLLM）
+    from ontology.tools import build_ontology_prompt
+    from ontology.parser import get_ontology_parser
+    from langgraph.checkpoint.memory import MemorySaver
+    from deepagents import create_deep_agent
+    from deepagents.backends.filesystem import FilesystemBackend
+
+    parser = get_ontology_parser("clearance")
+    prompt = parser.build_system_prompt(cfg.system_prompt_intro)
+
+    # 工具列表（与 main.py 一致：内核 + clearance vertical）
+    from ontology.tools import (query_entity, create_entity, update_entity,
+                                traverse_relation, execute_action, confirm_action,
+                                query_task, update_task)
+    from verticals.clearance.tools import query_near_expiry
+    tools = [query_entity, create_entity, update_entity, traverse_relation,
+             execute_action, confirm_action, query_task, update_task, query_near_expiry]
+
+    skills_backend = FilesystemBackend(
+        root_dir=str(BACKEND_DIR / "skills"), virtual_mode=True)
+
+    graph = create_deep_agent(
+        model=scripted_llm,
+        tools=tools,
+        system_prompt=prompt,
+        checkpointer=MemorySaver(),
+        backend=skills_backend,
+        skills=["/store-ontology/"],
+    )
+
+    yield E2EAgent(graph=graph, scripted_llm=scripted_llm)
+
+    # 清理：恢复 config data_dir
+    cfg.data_dir = original_data_dir
+    reset_parser_cache()
