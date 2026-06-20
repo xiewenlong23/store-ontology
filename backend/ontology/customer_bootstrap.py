@@ -34,7 +34,11 @@ _DEFAULT_CUSTOMER_DIR = os.path.join(
 
 
 def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
-    """构建（或取缓存）某客户的 Agent 实例。"""
+    """构建（或取缓存）某客户的 Agent 实例。
+
+    P3 升级：若客户有自己的 ontology/ 目录（ontocopy 后），从客户的 TTL/Action
+    构建 registry（本体语义隔离）；否则回退全局 store.ttl（customer_default 兼容）。
+    """
     if customer_id in _instances:
         return _instances[customer_id]
 
@@ -53,26 +57,72 @@ def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
         else:
             raise KeyError(f"未注册的客户: {customer_id}")
 
-    # 构建 registry（复用现有 parser，指向客户数据目录）
-    from ontology.parser import OntologyParser
-    from ontology.repository import JSONFileRepository
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root = os.path.dirname(base)
-    ttl_path = os.path.join(base, "ontology", "store.ttl")
     data_dir = cfg.data_dir or os.path.join(root, "data")
-    parser = OntologyParser(ttl_path=ttl_path, data_dir=data_dir)
-    # 加载 actions
-    from ontology.action_loader import load_actions
-    actions_dir = os.path.join(base, "ontology", "actions")
-    if os.path.isdir(actions_dir):
-        parser.registry.action_types = load_actions(actions_dir)
-    repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
+
+    # 检测客户 ontology 目录（ontocopy 后生成）
+    customer_root = os.path.dirname(cfg.data_dir) if cfg.data_dir else None
+    ontology_dir = os.path.join(customer_root, "ontology") if customer_root else None
+
+    if ontology_dir and os.path.isdir(os.path.join(ontology_dir, "domains")):
+        # 从客户自定义 ontology 构建（本体语义隔离）
+        registry = _build_registry_from_customer_ontology(ontology_dir, data_dir)
+    else:
+        # 回退：全局 store.ttl（兼容 customer_default）
+        from ontology.parser import OntologyParser
+        from ontology.action_loader import load_actions
+        ttl_path = os.path.join(base, "ontology", "store.ttl")
+        parser = OntologyParser(ttl_path=ttl_path, data_dir=data_dir)
+        actions_dir = os.path.join(base, "ontology", "actions")
+        if os.path.isdir(actions_dir):
+            parser.registry.action_types = load_actions(actions_dir)
+        registry = parser.registry
+
+    from ontology.repository import JSONFileRepository
+    repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
     inst = CustomerAgentInstance(
         customer_id=customer_id, config=cfg,
-        registry=parser.registry, repository=repo, executor=None)
+        registry=registry, repository=repo, executor=None)
     _instances[customer_id] = inst
     return inst
+
+
+def _build_registry_from_customer_ontology(ontology_dir: str, data_dir: str):
+    """从客户的 ontology/ 目录构建 EntityRegistry（P3）。
+
+    扫描 ontology/domains/*/domain.ttl 解析 Object/Link，
+    扫描 ontology/domains/*/actions/*.yaml + ontology/processes/*/actions/*.yaml 加载 Action。
+    """
+    from ontology.parser import OntologyParser, EntityRegistry
+    from ontology.action_loader import load_actions
+
+    registry = EntityRegistry()
+
+    # domains TTL
+    domains_dir = os.path.join(ontology_dir, "domains")
+    if os.path.isdir(domains_dir):
+        for domain_name in os.listdir(domains_dir):
+            ttl = os.path.join(domains_dir, domain_name, "domain.ttl")
+            if os.path.exists(ttl):
+                p = OntologyParser(ttl_path=ttl, data_dir=data_dir)
+                registry.object_types.update(p.registry.object_types)
+                registry.link_types.update(p.registry.link_types)
+            # domain actions
+            actions = os.path.join(domains_dir, domain_name, "actions")
+            if os.path.isdir(actions):
+                registry.action_types.update(load_actions(actions))
+
+    # process actions
+    processes_dir = os.path.join(ontology_dir, "processes")
+    if os.path.isdir(processes_dir):
+        for proc_name in os.listdir(processes_dir):
+            actions = os.path.join(processes_dir, proc_name, "actions")
+            if os.path.isdir(actions):
+                registry.action_types.update(load_actions(actions))
+
+    return registry
 
 
 def get_customer_agent_instance(customer_id: str) -> Optional[CustomerAgentInstance]:
