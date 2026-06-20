@@ -1,6 +1,9 @@
 """本体驱动工具 —— 薄封装层。
 读工具走 Repository；execute_action(preview)/confirm_action 走 ActionExecutor + PreviewCache。
-所有 @tool 仅做参数编排与结果包装，业务逻辑在 Executor/Repository（见架构 spec §1.2 第6点）。"""
+所有 @tool 仅做参数编排与结果包装，业务逻辑在 Executor/Repository（见架构 spec §1.2 第6点）。
+
+P1：租户参数从 tenant_id 迁移到 customer_id + org_unit_id（内部构造 TenantContext）。
+"""
 
 import json
 import uuid
@@ -13,6 +16,7 @@ from ontology.repository import JSONFileRepository
 from ontology.executor import ActionExecutor
 from ontology.preview_cache import PreviewCache
 from ontology.errors import OntologyError
+from ontology.tenant import TenantContext
 
 
 # ============ 依赖装配（按 vertical+tenant 构造；测试用 monkeypatch 替换）============
@@ -25,7 +29,7 @@ def _parser(vertical: str = None):
     return get_ontology_parser(vertical)
 
 
-def _get_repo(tenant: str = "tenant_default", vertical: str = None) -> JSONFileRepository:
+def _get_repo(tenant=None, vertical: str = None) -> JSONFileRepository:
     p = _parser(vertical)
     return JSONFileRepository(data_dir=str(p.data_dir), registry=p.registry)
 
@@ -47,18 +51,27 @@ def _wrap(data: dict, summary: str) -> str:
     return f"{summary}\n<!--COPILOTKIT_DATA-->\n{json.dumps(data, ensure_ascii=False)}\n<!--/COPILOTKIT_DATA-->"
 
 
+def _tc(customer_id: str, org_unit_id: str) -> TenantContext:
+    """从工具参数构造 TenantContext。"""
+    return TenantContext(customer_id=customer_id, org_unit_id=org_unit_id)
+
+
 # ============ 读工具 ============
 
 @tool
 def query_entity(entity_type: str, entity_id: Optional[str] = None,
                  filter_field: Optional[str] = None,
                  filter_value: Optional[str] = None,
-                 tenant_id: str = "tenant_default") -> str:
-    """通用实体查询。entity_type: Store/Employee/Product/NearExpiryProduct/Task/LossReport。"""
+                 customer_id: str = "customer_default",
+                 org_unit_id: str = "*") -> str:
+    """通用实体查询。entity_type: Store/Employee/Product/NearExpiryProduct/Task/LossReport。
+    customer_id + org_unit_id 决定可见范围。
+    """
+    tc = _tc(customer_id, org_unit_id)
     if not _parser().registry.object_types.get(entity_type):
         return f"未知实体类型: {entity_type}"
     filters = {filter_field: filter_value} if filter_field else None
-    rows = _get_repo(tenant_id).read(entity_type, tenant_id, filters=filters)
+    rows = _get_repo(tc).read(entity_type, tc, filters=filters)
     if entity_id:
         rows = [r for r in rows if r.get("id") == entity_id]
     if not rows:
@@ -69,17 +82,19 @@ def query_entity(entity_type: str, entity_id: Optional[str] = None,
 
 @tool
 def traverse_relation(source_type: str, source_id: str, relation: str,
-                      tenant_id: str = "tenant_default") -> str:
+                      customer_id: str = "customer_default",
+                      org_unit_id: str = "*") -> str:
     """遍历实体关系。"""
+    tc = _tc(customer_id, org_unit_id)
     link = _parser().registry.link_types.get(relation)
     if not link:
         return f"未知关系: {relation}"
-    repo = _get_repo(tenant_id)
-    src = repo.read_one(source_type, tenant_id, source_id)
+    repo = _get_repo(tc)
+    src = repo.read_one(source_type, tc, source_id)
     if not src:
         return f"未找到 {source_type}: {source_id}"
     via_val = src.get(link.via, "")
-    targets = [r for r in repo.read(link.range, tenant_id) if r.get(link.via) == via_val]
+    targets = [r for r in repo.read(link.range, tc) if r.get(link.via) == via_val]
     return _wrap({"type": "relation_result", "relation": relation,
                   "total": len(targets), "targets": targets[:20]},
                  f"找到 {len(targets)} 条 {link.label_zh} 关系。")
@@ -87,9 +102,11 @@ def traverse_relation(source_type: str, source_id: str, relation: str,
 
 @tool
 def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
-               tenant_id: str = "tenant_default") -> str:
+               customer_id: str = "customer_default",
+               org_unit_id: str = "*") -> str:
     """查询任务记录。"""
-    rows = _get_repo(tenant_id).read("Task", tenant_id)
+    tc = _tc(customer_id, org_unit_id)
+    rows = _get_repo(tc).read("Task", tc)
     if status:
         rows = [t for t in rows if t.get("status") == status]
     if store_id:
@@ -99,7 +116,7 @@ def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
 
 
 # clearance 专属工具已下沉到 verticals/clearance/tools.py。
-# 此处保留 re-export 仅作向后兼容（main.py / 旧测试过渡期）；Batch 3 后 main.py 改为注册表聚合。
+# 此处保留 re-export 仅作向后兼容（main.py / 旧测试过渡期）。
 try:
     from verticals.clearance.tools import query_near_expiry  # noqa: F401
 except ImportError:
@@ -109,11 +126,14 @@ except ImportError:
 # ============ 写工具（降级 CRUD）============
 
 @tool
-def create_entity(entity_type: str, tenant_id: str = "tenant_default", **kwargs: Any) -> str:
+def create_entity(entity_type: str,
+                  customer_id: str = "customer_default",
+                  org_unit_id: str = "*", **kwargs: Any) -> str:
     """通用创建（仅限非业务数据；受治理实体会被 Repository 拒绝）。"""
+    tc = _tc(customer_id, org_unit_id)
     kwargs.setdefault("id", f"{entity_type.lower()}_{uuid.uuid4().hex[:8]}")
     try:
-        rec = _get_repo(tenant_id).write(entity_type, tenant_id, kwargs, create=True)
+        rec = _get_repo(tc).write(entity_type, tc, kwargs, create=True)
         return _wrap({"type": "create_result", "success": True, "data": rec},
                      f"已创建 {entity_type}: {kwargs['id']}")
     except OntologyError as e:
@@ -123,16 +143,18 @@ def create_entity(entity_type: str, tenant_id: str = "tenant_default", **kwargs:
 
 @tool
 def update_entity(entity_type: str, entity_id: str,
-                  tenant_id: str = "tenant_default", **kwargs) -> str:
+                  customer_id: str = "customer_default",
+                  org_unit_id: str = "*", **kwargs) -> str:
     """通用更新（仅限非业务数据；受治理实体会被 Repository 拒绝）。"""
-    repo = _get_repo(tenant_id)
-    rec = repo.read_one(entity_type, tenant_id, entity_id)
+    tc = _tc(customer_id, org_unit_id)
+    repo = _get_repo(tc)
+    rec = repo.read_one(entity_type, tc, entity_id)
     if not rec:
         return _wrap({"type": "update_result", "success": False, "error": "未找到"},
                      f"未找到 {entity_type}: {entity_id}")
     rec.update(kwargs)
     try:
-        repo.write(entity_type, tenant_id, rec)
+        repo.write(entity_type, tc, rec)
         return _wrap({"type": "update_result", "success": True}, "已更新。")
     except OntologyError as e:
         return _wrap({"type": "update_result", "success": False, "error": str(e)},
@@ -141,7 +163,8 @@ def update_entity(entity_type: str, entity_id: str,
 
 @tool
 def update_task(task_id: str, notes: str = None, priority: str = None,
-                tenant_id: str = "tenant_default") -> str:
+                customer_id: str = "customer_default",
+                org_unit_id: str = "*") -> str:
     """任务更新（受治理实体，仅允许改 notes/priority，走受治理的 update_task_notes Action）。
 
     Task 标记为 edits-only-via-actions。本工具仅放行白名单字段（notes/priority），
@@ -149,7 +172,7 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
     （discount_percent/planned_quantity/sold_quantity/assignee_id/status 等）
     必须经各自对应的 Action 修改。
     """
-    # 走受治理的 Action（executor 内部 bypass，工具层不再 bypass）
+    tc = _tc(customer_id, org_unit_id)
     params = {"task_id": task_id}
     if notes is not None:
         params["notes"] = notes
@@ -159,7 +182,7 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
         result = _get_executor().execute(
             "update_task_notes", params,
             actor={"role": "store_manager"},
-            tenant_id=tenant_id)
+            tenant_id=tc)
         return _wrap({"type": "update_task_result", "success": True, **result},
                      "已更新任务。")
     except OntologyError as e:
@@ -172,13 +195,15 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
 @tool
 def execute_action(action_type: str, params: dict,
                    actor_role: str = "store_manager",
-                   tenant_id: str = "tenant_default") -> str:
+                   customer_id: str = "customer_default",
+                   org_unit_id: str = "*") -> str:
     """执行 Action 预览。返回 preview_id，用户确认后用 confirm_action(preview_id) 提交。
 
     params 是该 Action 的参数字典，具体参数名见系统提示中的 Action 清单。
     例如 create_clearance_task 的 params: {"target_id":"...", "store_id":"...",
     "assignee_id":"...", "discount_percent":30, "planned_quantity":50}
     """
+    tc = _tc(customer_id, org_unit_id)
     ex = _get_executor()
     actions = ex.actions
     if action_type not in actions:
@@ -199,7 +224,7 @@ def execute_action(action_type: str, params: dict,
                       "required_params": required},
                      f"预览失败: {e}。该 Action 必填参数: {required}")
     preview = {"action_type": action_type, "params": validated,
-               "actor_role": actor_role, "tenant_id": tenant_id}
+               "actor_role": actor_role, "tenant_id": tc}
     preview_id = _preview_cache.put(preview)
     return _wrap({"type": "action_preview", "valid": True, "preview_id": preview_id,
                   "action_type": action_type, "params": validated},
