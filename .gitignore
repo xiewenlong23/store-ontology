@@ -29,7 +29,7 @@ htmlcov/
 .DS_Store
 *.log
 .env.local
-backend/.env
+.env
 
 # LangChain / LangGraph
 checkpoints/

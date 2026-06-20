@@ -5,7 +5,7 @@ import { CopilotKit } from '@copilotkit/react-core'
 import { CopilotChat } from '@copilotkit/react-ui'
 import '@copilotkit/react-ui/styles.css'
 import './globals.css'
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -252,7 +252,7 @@ export default function RootLayout({
                 <div style={{padding:'12px',background:'white',border:'1px solid #e2e8f0',borderTop:'none',borderRadius:'0 0 8px 8px'}}>
                   <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'4px 12px',fontSize:13}}>
                     {Object.entries(d).filter(([k]) => k !== 'id').map(([k, v]) => (
-                      <><span key={k} style={{color:'#64748b'}}>{k}</span><span key={v} style={{fontWeight:500}}>{String(v)}</span></>
+                      <Fragment key={k}><span style={{color:'#64748b'}}>{k}</span><span style={{fontWeight:500}}>{String(v)}</span></Fragment>
                     ))}
                   </div>
                 </div>

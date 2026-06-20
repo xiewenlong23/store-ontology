@@ -13,10 +13,11 @@ import warnings
 import sys
 from dotenv import load_dotenv
 
-load_dotenv()
-
-# 确保 ontology 模块可导入
+# 从项目根目录的 .env 读取配置（不再使用 backend/.env）
+# override=True：让 .env 文件值优先于进程已有的同名环境变量（避免 shell 残留旧配置干扰）
 sys.path.insert(0, os.path.dirname(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
