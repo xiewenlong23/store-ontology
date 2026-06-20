@@ -141,14 +141,22 @@ TASK_TRANSITIONS = {
 
 **Action 定位键（locator_field）**：每个 Action 在 YAML 里声明 `locator_field`（如 `task_id` / `ticket_id`），executor 据此定位 target 记录。这是数据驱动的，取代旧的 `target_type == "Task"` 硬编码——使任意工作流对象（不止 Task）都能正确定位。
 
-**后端自动化设计**（🔜 部分留 v2）：
+**后端自动化设计**（✅ 已实现定时器 + webhook；LLM 唤醒🔜）：
 
 | 组件 | 现状/方案 | 说明 |
 |------|---------|------|
 | **状态机** | ✅ 已实现：per-vertical `state_transitions` + executor 校验 | 数据驱动，多 vertical 并存 |
-| **定时器** | 🔜 `APScheduler` | 轻量级，嵌入 FastAPI 进程。MVP 未接入，留实现 |
-| **事件源** | 🔜 不接入外部事件 | POS 扣库存、审批回调等外部事件接入留 v2；MVP 通过 Action 直接调 |
-| **LLM 唤醒** | 🔜 定时器回调中调 `agent.ainvoke()` | 后端自动化需要 LLM 段时（如报损推理），通过 headless 调用触发 |
+| **定时器** | ✅ 已实现：`AutomationScheduler`（封装 APScheduler） | 嵌入 FastAPI 进程，startup 启动/shutdown 停止。承载 inventory_check（售罄完成）与 expiry_check（到期报损）job |
+| **事件源** | ✅ webhook 模拟端点 | `/api/webhooks/approval`（审批回调→approve_clearance）、`/api/webhooks/pos`（POS 扫码→deduct_stock）。真实 POS/审批系统集成留 v2 |
+| **LLM 唤醒** | 🔜 定时器回调中调 `agent.ainvoke()` | 当前报损用计算式（loss_quantity=planned-sold，无 LLM）；真实 LLM 报损推理留后续 |
+
+**自动化实现**（`backend/ontology/scheduler.py` 内核 + `verticals/clearance/automation.py` vertical）：
+- `expiry_check_job`：查 in_progress + 关联 NEP 已过期(days_left<0)的 Task → create_loss_report（计算式 loss_value）
+- `inventory_check_job`：查 in_progress + sold≥planned 的 Task → complete_task
+- `handle_approval` / `handle_pos_scan`：webhook 回调调 executor.execute（headless，无 LLM）
+- `register_clearance_automation`：把两 job 注册进 scheduler
+
+✅ 架构 spec §1.4 的 13+ 步跨天流程已端到端验证（步骤 9/12/13/14 经后端自动化打通）。
 
 ### 1.6 Preview→Confirm 治理闭环 ✅ 已实现
 
@@ -454,7 +462,7 @@ AuditLogEntry（目标设计，Harness §4 的子集）:
 | **🔜 v2-存储** | JSON → PostgreSQL+JSONB（换 Repository 实现） | 未开始 |
 | **🔜 v2-权限** | 简化 submission_criteria → 完整 RBAC×ABAC（三维 scope、6 层 cascade、快照冻结、操作符全集 gte/matches/value_ref） | 接口预留 |
 | **🔜 v2-本体** | 零售 vertical 深化（组织5级 / 品类5级 / DC / 职能域）；transfer/restock 契约补全 | 未开始 |
-| **🔜 v2-自动化** | 定时器（APScheduler）+ 外部事件（POS/审批回调）+ LLM headless 唤醒 | 未开始 |
+| **🔜 v2-自动化** | 真实 POS/审批系统对接 + 定时器 LLM 唤醒（报损推理） | webhook 模拟端点 + 计算式报损已实现 |
 | **🔜 v2-Agent** | 单 Agent → subagent / 多 Agent 协作 | 架构预留 |
 | **🔜 v2-UI** | 手写 renderToolCalls → A2UI 标准 + 多 vertical 切换 + 图表 + 审计 UI | 未开始 |
 | **🔜 v2-长流程** | 后端自动化 → 可选 BPM/Workflow 引擎增强 | 未开始 |

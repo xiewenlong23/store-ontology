@@ -29,6 +29,7 @@ submission_criteria:
   roles:
   - store_manager
   - region_cat_mgr
+  - system_scheduler
   conditions:
   - field: target.status
     operator: is

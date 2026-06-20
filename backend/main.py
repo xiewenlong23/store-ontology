@@ -199,6 +199,66 @@ async def health():
     return {"status": "healthy"}
 
 
+# ============ 后端自动化：scheduler 生命周期 + webhook 路由 ============
+
+from ontology.scheduler import AutomationScheduler
+
+_automation_scheduler = AutomationScheduler()
+
+
+@app.on_event("startup")
+async def _start_automation():
+    """启动时注册各 vertical 的定时 job 并启动 scheduler。"""
+    try:
+        from verticals.clearance.automation import register_clearance_automation
+        register_clearance_automation(_automation_scheduler, interval_seconds=1800)
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] 注册 clearance 自动化失败: {e}")
+    _automation_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def _stop_automation():
+    _automation_scheduler.shutdown()
+
+
+@app.post("/api/webhooks/approval")
+async def webhook_approval(body: dict):
+    """审批回调（模拟端点）→ approve_clearance。
+
+    body: {task_id, approver_id, approved: bool}
+    真实审批系统集成留 v2。
+    """
+    from ontology.tools import _get_executor
+    from verticals.clearance.automation import handle_approval
+    ex = _get_executor(vertical="clearance")
+    try:
+        result = handle_approval(ex, task_id=body["task_id"],
+                                 approver_id=body["approver_id"],
+                                 approved=body.get("approved", True))
+        return result
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/webhooks/pos")
+async def webhook_pos(body: dict):
+    """POS 扫码事件（模拟端点）→ deduct_stock。
+
+    body: {target_id, task_id, quantity}
+    真实 POS 系统集成留 v2。
+    """
+    from ontology.tools import _get_executor
+    from verticals.clearance.automation import handle_pos_scan
+    ex = _get_executor(vertical="clearance")
+    try:
+        result = handle_pos_scan(ex, target_id=body["target_id"],
+                                 task_id=body["task_id"], quantity=body["quantity"])
+        return result
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 if __name__ == "__main__":

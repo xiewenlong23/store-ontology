@@ -39,6 +39,14 @@ class ActionExecutor:
         self.config = config  # Optional[VerticalConfig]：提供状态机表与工作流对象类型
 
     # ---------- 公共入口 ----------
+    def validate(self, action_type: str, params: dict) -> dict:
+        """只校验参数（不执行副作用）。供 execute_action 预览阶段调用，
+        让错误参数名在预览时就报错，不进缓存、不等到 confirm 才失败。"""
+        action = self.actions.get(action_type)
+        if not action:
+            raise ValidationError(f"未知 Action Type: {action_type}")
+        return self._validate_params(action, params)
+
     def execute(self, action_type: str, params: dict, *, actor: dict, tenant_id: str) -> dict:
         action = self.actions.get(action_type)
         if not action:

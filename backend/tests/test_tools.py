@@ -30,8 +30,8 @@ def test_execute_action_returns_preview_id(clearance_data_dir, monkeypatch):
     _setup(monkeypatch, clearance_data_dir)
     out = execute_action.invoke({
         "action_type": "create_clearance_task",
-        "target_id": "ne_001", "store_id": "store_001", "assignee_id": "emp_001",
-        "discount_percent": 30, "planned_quantity": 50})
+        "params": {"target_id": "ne_001", "store_id": "store_001",
+                   "assignee_id": "emp_001", "discount_percent": 30, "planned_quantity": 50}})
     assert "preview_id" in out
 
 
@@ -48,8 +48,8 @@ def test_update_task_blocks_governed_fields(clearance_data_dir, monkeypatch):
     # 先建一个任务
     pid = execute_action.invoke({
         "action_type": "create_clearance_task",
-        "target_id": "ne_001", "store_id": "store_001", "assignee_id": "emp_001",
-        "discount_percent": 30, "planned_quantity": 50})
+        "params": {"target_id": "ne_001", "store_id": "store_001",
+                   "assignee_id": "emp_001", "discount_percent": 30, "planned_quantity": 50}})
     import re
     m = re.search(r'"preview_id":\s*"([^"]+)"', pid)
     confirm_action.invoke({"preview_id": m.group(1)})

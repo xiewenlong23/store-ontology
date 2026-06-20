@@ -169,19 +169,39 @@ def update_task(task_id: str, tenant_id: str = "tenant_default", **kwargs) -> st
 # ============ Action 工具（Preview -> Confirm）============
 
 @tool
-def execute_action(action_type: str, actor_role: str = "store_manager",
-                   tenant_id: str = "tenant_default", **params) -> str:
-    """执行 Action 预览。返回 preview_id，用户确认后用 confirm_action(preview_id) 提交。"""
-    actions = _get_executor().actions
+def execute_action(action_type: str, params: dict,
+                   actor_role: str = "store_manager",
+                   tenant_id: str = "tenant_default") -> str:
+    """执行 Action 预览。返回 preview_id，用户确认后用 confirm_action(preview_id) 提交。
+
+    params 是该 Action 的参数字典，具体参数名见系统提示中的 Action 清单。
+    例如 create_clearance_task 的 params: {"target_id":"...", "store_id":"...",
+    "assignee_id":"...", "discount_percent":30, "planned_quantity":50}
+    """
+    ex = _get_executor()
+    actions = ex.actions
     if action_type not in actions:
         return _wrap({"type": "action_preview", "valid": False,
                       "error": f"未知 Action: {action_type}，可用: {list(actions.keys())}"},
                      f"未知操作: {action_type}")
-    preview = {"action_type": action_type, "params": params,
+    if not isinstance(params, dict):
+        params = params or {}
+    # 预览阶段就校验参数：错误参数名/缺必填/约束不满足立即报错，
+    # 不进缓存、不等到 confirm 才失败（避免 LLM 重试死循环）。
+    try:
+        validated = ex.validate(action_type, params)
+    except OntologyError as e:
+        action = actions[action_type]
+        required = [p["name"] for p in action.parameters if p.get("required")]
+        return _wrap({"type": "action_preview", "valid": False,
+                      "error": str(e),
+                      "required_params": required},
+                     f"预览失败: {e}。该 Action 必填参数: {required}")
+    preview = {"action_type": action_type, "params": validated,
                "actor_role": actor_role, "tenant_id": tenant_id}
     preview_id = _preview_cache.put(preview)
     return _wrap({"type": "action_preview", "valid": True, "preview_id": preview_id,
-                  "action_type": action_type, "params": params},
+                  "action_type": action_type, "params": validated},
                  f"预览已生成，preview_id={preview_id}，确认请调 confirm_action。")
 
 

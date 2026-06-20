@@ -21,7 +21,8 @@
     "stock_quantity": 30,
     "days_left": 10,
     "discount_tier": "T3",
-    "status": "expiring"
+    "status": "clearance",
+    "tenant_id": "tenant_default"
   },
   {
     "id": "nep_003",
