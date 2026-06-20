@@ -19,14 +19,14 @@ def set_discount_source(rules):
 
 
 def _find_rules_file():
-    """按优先级查找 discount_rules.json（M-2：客户级 > pack > 全局）。"""
+    """按优先级查找 discount_rules.json（pack rules 目录）。"""
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     candidates = [
-        # pack 默认
+        # pack rules（marketing 域规则源）
         os.path.join(root, "backend", "packs", "retail", "domains", "marketing",
                      "rules", "discount_rules.json"),
-        # 全局回退
-        os.path.join(root, "data", "discount_rules.json"),
+        # pack data（实例数据里的规则副本）
+        os.path.join(root, "backend", "packs", "retail", "data", "discount_rules.json"),
     ]
     for path in candidates:
         if os.path.exists(path):

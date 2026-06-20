@@ -102,7 +102,7 @@ def automation_data_dir(tmp_path):
 def repair_data_dir(tmp_path):
     """设备维修 vertical 种子数据副本（隔离，不污染真实 data/equipment_repair/）。"""
     import shutil
-    src = Path(__file__).resolve().parent.parent.parent / "data" / "equipment_repair"
+    src = Path(__file__).resolve().parent.parent / "packs" / "equipment_repair" / "data"
     if src.is_dir():
         shutil.copytree(src, tmp_path, dirs_exist_ok=True)
     else:

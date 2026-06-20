@@ -3,19 +3,10 @@ from engine import tools as T
 
 
 def _setup(monkeypatch, data_dir):
-    """把 tools 的 parser/repository/executor 指向临时数据目录。"""
-    from engine.parser import OntologyParser
-    from engine.action_loader import load_actions
-    from engine.repository import JSONFileRepository
-    from engine.executor import ActionExecutor
-    parser = OntologyParser(ttl_path="engine/store.ttl", data_dir=data_dir)
-    parser.registry.action_types = load_actions("engine/actions")
-    repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
-    ex = ActionExecutor(repository=repo, actions=parser.registry.action_types,
-                        registry=parser.registry)
-    # 同时 patch _parser，使 query_entity 等内部 _parser() 调用也指向临时本体
-    # （否则会读到全局默认 vertical 的 parser，受其它测试的 bootstrap 污染）
-    monkeypatch.setattr(T, "_parser", lambda vertical=None: parser)
+    from tests._clearance_helper import build_clearance_executor
+    ex, repo = build_clearance_executor(data_dir)
+    reg = repo.registry
+    monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P', (), {'registry': reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
 

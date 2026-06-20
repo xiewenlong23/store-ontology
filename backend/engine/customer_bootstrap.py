@@ -30,7 +30,7 @@ _instances: Dict[str, CustomerAgentInstance] = {}
 
 _DEFAULT_CUSTOMER_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "..", "data", "customers", "customer_default")
+    "..", "customers", "customer_default")
 
 
 def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
@@ -76,15 +76,16 @@ def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
         # 从客户自定义 ontology 构建（本体语义隔离）
         registry = _build_registry_from_customer_ontology(ontology_dir, data_dir)
     else:
-        # 回退：全局 store.ttl（兼容 customer_default）
-        from engine.parser import OntologyParser
-        from engine.action_loader import load_actions
-        ttl_path = os.path.join(base, "engine", "store.ttl")
-        parser = OntologyParser(ttl_path=ttl_path, data_dir=data_dir)
-        actions_dir = os.path.join(base, "engine", "actions")
-        if os.path.isdir(actions_dir):
-            parser.registry.action_types = load_actions(actions_dir)
-        registry = parser.registry
+        # 无客户 ontology 目录时，从 pack registry 构建（customer_default 走此路径）
+        from engine.pack import get_pack, pack_to_registry
+        from engine.bootstrap import bootstrap
+        bootstrap()
+        pack = get_pack(cfg.source_pack or "retail")
+        if pack:
+            registry = pack_to_registry(pack, data_dir=data_dir)
+        else:
+            from engine.parser import EntityRegistry
+            registry = EntityRegistry()
 
     from engine.repository import JSONFileRepository
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)

@@ -47,7 +47,7 @@ def test_load_customer_config_default():
     """加载默认客户配置（data/customers/customer_default/config.yaml）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root = os.path.dirname(base)
-    cfg = load_customer_config(os.path.join(root, "data", "customers", "customer_default"))
+    cfg = load_customer_config(os.path.join(root, "customers", "customer_default"))
     assert cfg.customer_id == "customer_default"
     assert cfg.storage_type == "json_files"
 
