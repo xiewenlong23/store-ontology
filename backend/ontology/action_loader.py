@@ -17,6 +17,7 @@ class ActionDefinition:
     parameters: List[dict]
     side_effects: List[dict]
     submission_criteria: dict = field(default_factory=dict)
+    locator_field: str = ""  # 定位 target 的参数名（如 task_id/ticket_id），缺省按 workflow 约定
 
 
 def load_actions(actions_dir: str) -> Dict[str, ActionDefinition]:
@@ -37,5 +38,6 @@ def load_actions(actions_dir: str) -> Dict[str, ActionDefinition]:
             parameters=data.get("parameters", []),
             side_effects=data.get("side_effects", []),
             submission_criteria=data.get("submission_criteria", {}) or {},
+            locator_field=data.get("locator_field", ""),
         )
     return actions

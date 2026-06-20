@@ -135,9 +135,14 @@ class OntologyParser:
                 result.append(PropertyDef(name=prop, type="string"))
         return result
 
-    def build_system_prompt(self) -> str:
-        """从本体定义生成精简系统提示。"""
-        lines = ["你是门店临期商品管理助手。\n"]
+    def build_system_prompt(self, intro: str = "") -> str:
+        """从本体定义生成精简系统提示。
+
+        intro：开场白（来自 VerticalConfig.system_prompt_intro），领域无关的通用表述，
+        如 "你是门店运营助手。" 不传则用中性默认。
+        """
+        intro = intro or "你是业务运营助手。"
+        lines = [f"{intro}\n"]
         lines.append("可用实体（用 query_entity 查询）: "
                      + ", ".join(ot.label_zh for ot in self.registry.object_types.values()))
         lines.append("\n关系（用 traverse_relation）: "
@@ -145,7 +150,7 @@ class OntologyParser:
                                  for lt in self.registry.link_types.values()))
         lines.append("\n操作（用 execute_action/confirm_action）: "
                      + ", ".join(self.registry.action_types.keys()))
-        lines.append("\n用 query_task 查询任务。用中文回复。")
+        lines.append("\n用中文回复。")
         return "\n".join(lines)
 
 

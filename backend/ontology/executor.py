@@ -32,10 +32,11 @@ def _match_constraint(value, constraint: str) -> bool:
 
 
 class ActionExecutor:
-    def __init__(self, repository, actions: Dict[str, object], registry):
+    def __init__(self, repository, actions: Dict[str, object], registry, config=None):
         self.repo = repository
         self.actions = actions
         self.registry = registry
+        self.config = config  # Optional[VerticalConfig]：提供状态机表与工作流对象类型
 
     # ---------- 公共入口 ----------
     def execute(self, action_type: str, params: dict, *, actor: dict, tenant_id: str) -> dict:
@@ -71,10 +72,18 @@ class ActionExecutor:
         target_type = action.target_object_type
         if target_type not in self.registry.object_types:
             return None
-        # 定位参数：target_object_type 为 Task 时用 task_id，否则用 target_id。
-        # 原因：complete_task/create_loss_report 的 target_object_type=Task，
-        # 但它们同时收 target_id（NearExpiryProduct）和 task_id——此处要的是 Task 记录。
-        ident = params.get("task_id") if target_type == "Task" else params.get("target_id")
+        # 定位键优先级：Action 声明的 locator_field > workflow 对象用 task_id 类约定 > target_id。
+        # locator_field 是数据驱动的（在 Action YAML 里声明，如 task_id / ticket_id），
+        # 取代旧的 target_type == "Task" 硬编码（见 docs/manual/01）。
+        locator = getattr(action, "locator_field", None)
+        if locator and locator in params:
+            ident = params[locator]
+        elif self.config and self.config.workflow_object_type == target_type \
+                and "task_id" in params:
+            # 向后兼容：未声明 locator_field 时，workflow 对象按 task_id 定位
+            ident = params["task_id"]
+        else:
+            ident = params.get("target_id")
         if not ident:
             return None
         return self.repo.read_one(target_type, tenant_id, ident)
@@ -86,9 +95,9 @@ class ActionExecutor:
             raise ValidationError(
                 f"角色 {actor.get('role')} 无权提交 {action.api_name}（需 {roles}）")
         for cond in sc.get("conditions", []):
-            # field 形如 "target.status" 或 "task.status"
+            # field 形如 "target.status" 或 "<workflow_object>.status"
             field_path = cond["field"]
-            obj = self._resolve_condition_obj(field_path, target, params, tenant_id)
+            obj = self._resolve_condition_obj(field_path, target, params, tenant_id, action)
             if obj is None:
                 raise ValidationError(f"submission 条件无法解析对象: {field_path}")
             key = field_path.split(".")[-1]
@@ -99,13 +108,19 @@ class ActionExecutor:
             if not ok:
                 raise ValidationError(cond.get("fail_msg", "submission 条件不满足"))
 
-    def _resolve_condition_obj(self, field_path, target, params, tenant_id):
+    def _resolve_condition_obj(self, field_path, target, params, tenant_id, action):
         root = field_path.split(".")[0]
         if root == "target":
             return target
-        if root == "task":
-            tid = params.get("task_id")
-            return self.repo.read_one("Task", tenant_id, tid) if tid else None
+        # 工作流对象别名：旧 YAML 用 "task.xxx"，现按 config.workflow_object_type 通用化。
+        # 如 vertical 的工作流对象是 RepairTicket，条件写 "repair_ticket.status" 即可。
+        # 注意：工作流对象的定位键是 config.workflow_object_id_field（如 task_id/ticket_id），
+        # 与 action.locator_field（定位 target 用的）是两个不同的概念。
+        wf_type = (self.config.workflow_object_type if self.config else "Task") or "Task"
+        wf_id_field = (self.config.workflow_object_id_field if self.config else "task_id")
+        if root == wf_type.lower():
+            tid = params.get(wf_id_field)
+            return self.repo.read_one(wf_type, tenant_id, tid) if tid else None
         return target
 
     # ---------- 副作用执行 ----------
@@ -148,7 +163,12 @@ class ActionExecutor:
                 rec = self.repo.read_one(obj_type, tenant_id, match.get("id"))
                 if not rec:
                     raise EntityNotFoundError(f"未找到 {obj_type}: {match}")
-                if not is_valid_transition(rec.get("status"), eff["to"]):
+                # 状态迁移表从 config 取（per-vertical）；未配 config 则用 clearance 默认
+                trans = (self.config.state_transitions if self.config
+                         and self.config.state_transitions else None)
+                terms = (self.config.terminal_states if self.config
+                         and self.config.terminal_states else None)
+                if not is_valid_transition(rec.get("status"), eff["to"], trans, terms):
                     raise ValidationError(
                         f"非法状态迁移: {rec.get('status')} -> {eff['to']}")
                 rec["status"] = eff["to"]

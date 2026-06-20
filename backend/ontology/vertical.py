@@ -26,6 +26,7 @@ class VerticalConfig:
     system_prompt_intro: str = ""               # 系统提示开场白（领域无关表述）
     # 工作流（可选）
     workflow_object_type: Optional[str] = None  # 工作流主对象类型，如 "Task" / "RepairTicket"
+    workflow_object_id_field: str = "task_id"   # 工作流对象在 Action 参数里的定位键，如 "task_id" / "ticket_id"
     state_transitions: Dict[str, List[str]] = field(default_factory=dict)  # 状态迁移表
     terminal_states: List[str] = field(default_factory=list)               # 终态集合
     # vertical 专属工具（可选）：模块路径，main.py 聚合时 import 取其 TOOLS 列表
