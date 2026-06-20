@@ -22,6 +22,9 @@ class ObjectType:
     properties: List[PropertyDef]
     storage_file: str  # 如 "stores.json"
     label_zh: str = ""
+    status: str = "active"
+    visibility: str = "normal"
+    edits_only_via_actions: bool = False
 
 
 @dataclass
