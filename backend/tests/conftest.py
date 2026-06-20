@@ -22,3 +22,26 @@ def tmp_data_dir(tmp_path):
     }]
     (tmp_path / "stores.json").write_text(json.dumps(stores, ensure_ascii=False), encoding="utf-8")
     return str(tmp_path)
+
+
+@pytest.fixture
+def clearance_data_dir(tmp_path):
+    """完整出清场景种子数据：1 门店/员工/商品/临期商品。"""
+    (tmp_path / "stores.json").write_text(json.dumps([{
+        "id": "store_001", "name": "测试门店", "region_id": "region_001",
+        "address": "x", "manager_id": "emp_001",
+        "created_at": "2024-01-01T00:00:00"}], ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "employees.json").write_text(json.dumps([{
+        "id": "emp_001", "name": "张店长", "store_id": "store_001",
+        "role": "manager", "phone": "1"}], ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "products.json").write_text(json.dumps([{
+        "id": "prod_001", "name": "酸奶", "category": "乳", "brand": "蒙牛",
+        "unit": "盒", "cost_price": 4.5, "retail_price": 6.0}], ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "near_expiry_products.json").write_text(json.dumps([{
+        "id": "ne_001", "product_id": "prod_001", "store_id": "store_001",
+        "batch_no": "B1", "production_date": "2026-06-01", "expiry_date": "2026-06-10",
+        "stock_quantity": 50, "days_left": 5, "discount_tier": "T2",
+        "status": "expiring"}], ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "tasks.json").write_text("[]", encoding="utf-8")
+    (tmp_path / "loss_reports.json").write_text("[]", encoding="utf-8")
+    return str(tmp_path)
