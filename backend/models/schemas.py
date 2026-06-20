@@ -40,9 +40,13 @@ class TaskStatus(str, Enum):
 
 
 class TaskType(str, Enum):
+    """clearance vertical 的任务类型。
+
+    注：transfer(调拨)/restock(补货) 是规划中的后续业务流程，当前未建模
+    （无 Action/TTL 流程）。按建模规范原则4（OCP），未实现的不声明，
+    待实际建模时再加回。避免僵尸词汇误导。
+    """
     CLEARANCE = "clearance"
-    TRANSFER = "transfer"
-    RESTOCK = "restock"
 
 
 class LossReportStatus(str, Enum):

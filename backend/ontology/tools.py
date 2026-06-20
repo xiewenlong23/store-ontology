@@ -140,27 +140,28 @@ def update_entity(entity_type: str, entity_id: str,
 
 
 @tool
-def update_task(task_id: str, tenant_id: str = "tenant_default", **kwargs) -> str:
-    """任务更新（受治理实体，仅允许改 notes 等非业务字段；status 走 Action）。
+def update_task(task_id: str, notes: str = None, priority: str = None,
+                tenant_id: str = "tenant_default") -> str:
+    """任务更新（受治理实体，仅允许改 notes/priority，走受治理的 update_task_notes Action）。
 
     Task 标记为 edits-only-via-actions。本工具仅放行白名单字段（notes/priority），
-    其它业务字段（discount_percent/planned_quantity/sold_quantity/assignee_id 等）
-    必须经对应 Action 修改，避免绕过治理。
+    经 update_task_notes Action 执行；其它业务字段
+    （discount_percent/planned_quantity/sold_quantity/assignee_id/status 等）
+    必须经各自对应的 Action 修改。
     """
-    ALLOWED = {"notes", "priority"}
-    forbidden = set(kwargs) - ALLOWED
-    if "status" in kwargs or forbidden:
-        return _wrap({"type": "update_task_result", "success": False,
-                      "error": f"受治理字段只能经 Action 修改，本工具仅允许: {sorted(ALLOWED)}"},
-                     "受治理字段请走对应 Action。")
-    repo = _get_repo(tenant_id)
-    rec = repo.read_one("Task", tenant_id, task_id)
-    if not rec:
-        return _wrap({"type": "update_task_result", "success": False}, "未找到任务。")
-    rec.update(kwargs)
+    # 走受治理的 Action（executor 内部 bypass，工具层不再 bypass）
+    params = {"task_id": task_id}
+    if notes is not None:
+        params["notes"] = notes
+    if priority is not None:
+        params["priority"] = priority
     try:
-        repo.write("Task", tenant_id, rec, bypass_action_check=True)
-        return _wrap({"type": "update_task_result", "success": True}, "已更新任务。")
+        result = _get_executor().execute(
+            "update_task_notes", params,
+            actor={"role": "store_manager"},
+            tenant_id=tenant_id)
+        return _wrap({"type": "update_task_result", "success": True, **result},
+                     "已更新任务。")
     except OntologyError as e:
         return _wrap({"type": "update_task_result", "success": False, "error": str(e)},
                      f"更新失败: {e}")
