@@ -6,7 +6,8 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from ontology.tools import _get_repo, _wrap
+from ontology import tools as _tools_mod
+from ontology.tools import _wrap
 from business.discount import calculate_discount
 
 
@@ -17,7 +18,7 @@ def query_near_expiry(store_id: Optional[str] = None,
     """查询临期商品列表（折扣来自单一事实源 calculate_discount）。"""
     from ontology.tenant import TenantContext
     tc = TenantContext(customer_id=customer_id, org_unit_id=org_unit_id)
-    repo = _get_repo(tc)
+    repo = _tools_mod._get_repo(tc)  # 延迟引用，支持 monkeypatch
     rows = repo.read("NearExpiryProduct", tc)
     if store_id:
         rows = [r for r in rows if r.get("store_id") == store_id]

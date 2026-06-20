@@ -9,30 +9,26 @@ from fastapi.testclient import TestClient
 
 
 def _setup_app(monkeypatch, data_dir):
-    """构造一个指向临时数据的 app：替换 clearance executor 的 data_dir。
+    """构造一个指向临时数据的 app。
 
-    用 importlib 重新 import main，让 TestClient 拿到带临时数据的 app。
+    monkeypatch _get_executor/_get_repo 指向 pack-based clearance executor，
+    避免 vertical config 单 TTL 不完整的问题。
     """
     import importlib
     import os
     monkeypatch.setenv("QWEN_API_KEY", "stub")
-    from ontology import vertical as vertical_mod
-    from ontology.parser import reset_parser_cache
-    from verticals.clearance.config import CLEARANCE_CONFIG
-    # 直接确保 clearance 已注册（bootstrap 可能因模块缓存未重注册）
-    vertical_mod.register_vertical(CLEARANCE_CONFIG)
-    reset_parser_cache()
-    cfg = vertical_mod.get_vertical("clearance")
-    original = cfg.data_dir
-    cfg.data_dir = data_dir
+
+    # 用 pack helper 构建完整 executor 指向临时数据
+    from tests._clearance_helper import build_clearance_executor
+    ex, repo = build_clearance_executor(data_dir)
+    import ontology.tools as T
+    monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
+    monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
 
     import main
     importlib.reload(main)
     client = TestClient(main.app)
     yield client, main
-
-    cfg.data_dir = original
-    reset_parser_cache()
 
 
 @pytest.fixture

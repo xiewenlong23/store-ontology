@@ -148,40 +148,40 @@ def scripted_llm():
 def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
     """构造指向临时数据、用 ScriptedLLM 的 clearance agent。
 
-    替换 parser 单例的 data_dir 指向临时目录；用 monkeypatch 让 main 用 ScriptedLLM。
+    用 pack helper 构建完整 registry（3 domain TTL 合并），指向临时数据。
     """
-    # 1. 重置 parser 缓存，让后续 get_ontology_parser 重新构建指向临时数据
-    from ontology.parser import reset_parser_cache
-    from ontology import vertical as vertical_mod
-    reset_parser_cache()
+    from tests._clearance_helper import build_clearance_executor, CLEARANCE_TEST_CONFIG
+    ex, repo = build_clearance_executor(e2e_data_dir)
+    reg = repo.registry
 
-    # 2. 把 clearance config 的 data_dir 指向临时目录
-    from ontology.bootstrap import bootstrap
-    bootstrap()
-    cfg = vertical_mod.get_vertical("clearance")
-    original_data_dir = cfg.data_dir
-    cfg.data_dir = e2e_data_dir
+    # monkeypatch tools 层的依赖装配
+    import ontology.tools as T
+    monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
+    monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
+    monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
 
-    # 3. 构造 agent（用 deepagents create_deep_agent + ScriptedLLM）
-    from ontology.tools import build_ontology_prompt
-    from ontology.parser import get_ontology_parser
+    # 构造 agent（用 deepagents create_deep_agent + ScriptedLLM）
     from langgraph.checkpoint.memory import MemorySaver
     from deepagents import create_deep_agent
     from deepagents.backends.filesystem import FilesystemBackend
 
-    parser = get_ontology_parser("clearance")
-    prompt = parser.build_system_prompt(cfg.system_prompt_intro)
+    prompt_intro = CLEARANCE_TEST_CONFIG.system_prompt_intro
+    # 从 registry 构建提示词
+    lines = [f"{prompt_intro}\n"]
+    lines.append("可用实体: " + ", ".join(ot.label_zh for ot in reg.object_types.values()))
+    lines.append("\n操作: " + ", ".join(reg.action_types.keys()))
+    prompt = "\n".join(lines)
 
-    # 工具列表（与 main.py 一致：内核 + clearance vertical）
-    from ontology.tools import (query_entity, create_entity, update_entity,
-                                traverse_relation, execute_action, confirm_action,
-                                query_task, update_task)
+    BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+    from ontology.tools import query_entity, create_entity, update_entity, traverse_relation, \
+        execute_action, confirm_action, query_task, update_task
     from packs.retail.processes.clearance.tools import query_near_expiry
     tools = [query_entity, create_entity, update_entity, traverse_relation,
              execute_action, confirm_action, query_task, update_task, query_near_expiry]
 
     skills_backend = FilesystemBackend(
-        root_dir=str(BACKEND_DIR / "skills"), virtual_mode=True)
+        root_dir=str(BACKEND_DIR / "packs" / "retail" / "processes" / "clearance" / "skills"),
+        virtual_mode=True)
 
     graph = create_deep_agent(
         model=scripted_llm,
@@ -189,11 +189,10 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
         system_prompt=prompt,
         checkpointer=MemorySaver(),
         backend=skills_backend,
-        skills=["/store-ontology/"],
+        skills=["/store-ontology/", "/clearance-workflow/"],
     )
 
     yield E2EAgent(graph=graph, scripted_llm=scripted_llm)
 
-    # 清理：恢复 config data_dir
-    cfg.data_dir = original_data_dir
-    reset_parser_cache()
+    # 清理
+    reset_parser_cache() if False else None  # 不再需要 reset（用 monkeypatch）
