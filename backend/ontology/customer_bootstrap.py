@@ -61,9 +61,10 @@ def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
     root = os.path.dirname(base)
     data_dir = cfg.data_dir or os.path.join(root, "data")
 
-    # 检测客户 ontology 目录（ontocopy 后生成）
-    customer_root = os.path.dirname(cfg.data_dir) if cfg.data_dir else None
-    ontology_dir = os.path.join(customer_root, "ontology") if customer_root else None
+    # I-3: 优先用 cfg.ontology_dir（显式声明）；回退：从 data_dir 推导（兼容旧 config）
+    ontology_dir = cfg.ontology_dir
+    if not ontology_dir and cfg.data_dir:
+        ontology_dir = os.path.join(os.path.dirname(cfg.data_dir), "ontology")
 
     if ontology_dir and os.path.isdir(os.path.join(ontology_dir, "domains")):
         # 从客户自定义 ontology 构建（本体语义隔离）
@@ -130,5 +131,10 @@ def get_customer_agent_instance(customer_id: str) -> Optional[CustomerAgentInsta
 
 
 def reset_instances() -> None:
-    """测试用：清空实例缓存。"""
+    """测试用：清空全部实例缓存。"""
     _instances.clear()
+
+
+def invalidate_customer(customer_id: str) -> None:
+    """失效单个客户的缓存实例（本体编辑后调用，I-2 修复）。"""
+    _instances.pop(customer_id, None)

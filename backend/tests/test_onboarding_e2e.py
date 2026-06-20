@@ -53,7 +53,8 @@ def test_full_onboarding_flow(tmp_path):
         customer_data_dir=os.path.join(customer_root, "data"),
         source_file=str(source),
         object_type="Product",
-        registry=reg)
+        registry=reg,
+        customer_id="customer_e2e")
 
     # 步骤④: config 已由 ontocopy 生成（data_dir 指向 data/）
     # 步骤⑤: bootstrap_customer

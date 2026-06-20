@@ -176,7 +176,7 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
     from ontology.tools import (query_entity, create_entity, update_entity,
                                 traverse_relation, execute_action, confirm_action,
                                 query_task, update_task)
-    from verticals.clearance.tools import query_near_expiry
+    from packs.retail.processes.clearance.tools import query_near_expiry
     tools = [query_entity, create_entity, update_entity, traverse_relation,
              execute_action, confirm_action, query_task, update_task, query_near_expiry]
 

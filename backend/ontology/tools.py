@@ -115,12 +115,12 @@ def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
                  f"查询到 {len(rows)} 条任务。")
 
 
-# clearance 专属工具已下沉到 verticals/clearance/tools.py。
-# 此处保留 re-export 仅作向后兼容（main.py / 旧测试过渡期）。
+# clearance 专属工具已迁移到 packs/retail/processes/clearance/tools.py（P2+I-4）。
+# pack 聚合（_aggregate_pack_tools）自动收录，此处不再 re-export。
 try:
-    from verticals.clearance.tools import query_near_expiry  # noqa: F401
+    from packs.retail.processes.clearance.tools import query_near_expiry  # noqa: F401
 except ImportError:
-    query_near_expiry = None  # clearance vertical 未安装时优雅降级
+    query_near_expiry = None  # pack 未安装时优雅降级
 
 
 # ============ 写工具（降级 CRUD）============

@@ -341,7 +341,7 @@ _automation_scheduler = AutomationScheduler()
 async def _start_automation():
     """启动时注册各 vertical 的定时 job 并启动 scheduler。"""
     try:
-        from verticals.clearance.automation import register_clearance_automation
+        from packs.retail.processes.clearance.automation import register_clearance_automation
         register_clearance_automation(_automation_scheduler, interval_seconds=1800)
     except Exception as e:  # noqa: BLE001
         print(f"[startup] 注册 clearance 自动化失败: {e}")
@@ -361,7 +361,7 @@ async def webhook_approval(body: dict):
     真实审批系统集成留 v2。
     """
     from ontology.tools import _get_executor
-    from verticals.clearance.automation import handle_approval
+    from packs.retail.processes.clearance.automation import handle_approval
     ex = _get_executor(vertical="clearance")
     try:
         result = handle_approval(ex, task_id=body["task_id"],
@@ -380,7 +380,7 @@ async def webhook_pos(body: dict):
     真实 POS 系统集成留 v2。
     """
     from ontology.tools import _get_executor
-    from verticals.clearance.automation import handle_pos_scan
+    from packs.retail.processes.clearance.automation import handle_pos_scan
     ex = _get_executor(vertical="clearance")
     try:
         result = handle_pos_scan(ex, target_id=body["target_id"],
