@@ -1,6 +1,6 @@
 """测试三级结构 IndustryPack/CapabilityDomain/ValueChainProcess（P2）。"""
 import pytest
-from ontology.pack import (
+from engine.pack import (
     IndustryPack, CapabilityDomain, ValueChainProcess,
     register_pack, get_pack, all_packs, clear_packs, pack_to_registry,
 )

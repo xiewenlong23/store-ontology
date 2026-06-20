@@ -6,11 +6,11 @@ import os
 import json
 import pytest
 
-from ontology.onboarding import copy_pack_to_customer, seed_customer_data
-from ontology.customer import CustomerConfig, register_customer, clear_customers
-from ontology.customer_bootstrap import bootstrap_customer, reset_instances
-from ontology.parser import OntologyParser, EntityRegistry
-from ontology.action_loader import load_actions
+from engine.onboarding import copy_pack_to_customer, seed_customer_data
+from engine.customer import CustomerConfig, register_customer, clear_customers
+from engine.customer_bootstrap import bootstrap_customer, reset_instances
+from engine.parser import OntologyParser, EntityRegistry
+from engine.action_loader import load_actions
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +39,7 @@ def test_full_onboarding_flow(tmp_path):
 
     # 步骤③: ontoseed 灌数据
     # 先构建一个 registry 供 seed 校验（从客户 copy 后的 ontology）
-    from ontology.customer_bootstrap import _build_registry_from_customer_ontology
+    from engine.customer_bootstrap import _build_registry_from_customer_ontology
     reg = _build_registry_from_customer_ontology(
         os.path.join(customer_root, "ontology"),
         os.path.join(customer_root, "data"))

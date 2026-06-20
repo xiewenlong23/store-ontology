@@ -3,19 +3,19 @@ import importlib
 
 import pytest
 
-from ontology.vertical import clear_registry, all_verticals, register_vertical
-from ontology.vertical import VerticalConfig
-from ontology import bootstrap as bootstrap_mod
+from engine.vertical import clear_registry, all_verticals, register_vertical
+from engine.vertical import VerticalConfig
+from engine import bootstrap as bootstrap_mod
 
 # 注意：本测试文件不使用 clear_registry autouse fixture。
 # main 模块级聚合函数读全局注册表，跨测试清空会导致 flaky。
 # 需要隔离的测试自己 register/clear。bootstrap 测试依赖 clearance 已注册的真实状态。
 
 
-def test_bootstrap_registers_clearance():
+def test_bootstrap_registers_equipment_repair():
     bootstrap_mod.bootstrap()
     names = [c.name for c in all_verticals()]
-    assert "clearance" in names
+    assert "equipment_repair" in names
 
 
 def test_bootstrap_is_idempotent():
@@ -58,13 +58,12 @@ def test_aggregate_skill_paths_filters_non_skill_dirs(tmp_path):
         assert "/tmp/" not in paths
         assert "/__pycache__/" not in paths
     finally:
-        from ontology.vertical import _registry
+        from engine.vertical import _registry
         _registry.pop("t_test", None)
 
 
-def test_build_combined_prompt_includes_verticals():
+def test_build_combined_prompt_includes_packs():
     bootstrap_mod.bootstrap()
     main_mod = importlib.import_module("main")
     prompt = main_mod._build_combined_prompt()
-    assert "可用实体" in prompt
-    assert "临期" in prompt
+    assert "可用实体" in prompt  # pack/vertical prompt has this

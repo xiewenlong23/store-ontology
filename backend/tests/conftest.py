@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-# 以 backend/ 为 sys.path 根，使 from ontology... / from models... 可用
+# 以 backend/ 为 sys.path 根，使 from engine... / from models... 可用
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 

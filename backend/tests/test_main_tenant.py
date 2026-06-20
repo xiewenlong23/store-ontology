@@ -24,7 +24,7 @@ def test_tenant_contextvar_set_from_headers():
 
 def test_tenant_contextvar_defaults():
     """缺 header 时 TenantContext 默认 customer_default + 通配。"""
-    from ontology.tenant import TenantContext
+    from engine.tenant import TenantContext
     tc = TenantContext.from_headers({})
     assert tc.customer_id == "customer_default"
     assert tc.sees_all_org_units() is True

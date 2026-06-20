@@ -17,9 +17,9 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ontology.onboarding import copy_pack_to_customer, seed_customer_data
-from ontology.customer import CustomerConfig, register_customer
-from ontology.customer_bootstrap import (bootstrap_customer,
+from engine.onboarding import copy_pack_to_customer, seed_customer_data
+from engine.customer import CustomerConfig, register_customer
+from engine.customer_bootstrap import (bootstrap_customer,
                                           _build_registry_from_customer_ontology,
                                           reset_instances)
 
@@ -48,7 +48,7 @@ def cmd_seed(args):
     """步骤③：灌入数据。"""
     base = os.path.dirname(os.path.abspath(__file__))
     customer_root = os.path.join(base, "..", "data", "customers", args.customer_id)
-    ontology_dir = os.path.join(customer_root, "ontology")
+    ontology_dir = os.path.join(customer_root, "engine")
     data_dir = os.path.join(customer_root, "data")
 
     if not os.path.isdir(ontology_dir):
@@ -72,11 +72,11 @@ def cmd_start(args):
     customer_root = os.path.join(base, "..", "data", "customers", args.customer_id)
     data_dir = os.path.join(customer_root, "data")
 
-    from ontology.customer import load_customer_config
+    from engine.customer import load_customer_config
     cfg = load_customer_config(customer_root)
     register_customer(cfg)
     # I-2: 失效缓存，确保读取最新本体（客户可能刚编辑过 ontology/）
-    from ontology.customer_bootstrap import invalidate_customer
+    from engine.customer_bootstrap import invalidate_customer
     invalidate_customer(args.customer_id)
 
     inst = bootstrap_customer(args.customer_id)

@@ -6,14 +6,14 @@ P2+I-4 后 clearance 本体拆在 3 个 domain TTL + process actions 里，
 """
 import os
 
-from ontology.parser import OntologyParser
-from ontology.action_loader import load_actions
-from ontology.repository import JSONFileRepository
-from ontology.executor import ActionExecutor
-from ontology.pack import pack_to_registry
-from ontology.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
-from ontology.vertical import VerticalConfig
-from ontology.bootstrap import bootstrap
+from engine.parser import OntologyParser
+from engine.action_loader import load_actions
+from engine.repository import JSONFileRepository
+from engine.executor import ActionExecutor
+from engine.pack import pack_to_registry
+from engine.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
+from engine.vertical import VerticalConfig
+from engine.bootstrap import bootstrap
 
 
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +21,7 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def build_clearance_registry(data_dir: str):
     """从 retail-pack 构建完整 EntityRegistry（含所有 domain TTL + process actions）。"""
-    from ontology.pack import get_pack
+    from engine.pack import get_pack
     bootstrap()
     pack = get_pack("retail")
     if pack is None:

@@ -2,7 +2,7 @@
 import os
 import json
 import pytest
-from ontology.onboarding import copy_pack_to_customer, seed_customer_data
+from engine.onboarding import copy_pack_to_customer, seed_customer_data
 
 
 # ============ T1: ontocopy ============
@@ -56,7 +56,7 @@ def test_seed_data_valid(tmp_path):
     customer_dir = tmp_path / "customers" / "c1"
     (customer_dir / "data").mkdir(parents=True)
     # mock registry：Product 有 id:string, name:string
-    from ontology.parser import ObjectType, PropertyDef, EntityRegistry
+    from engine.parser import ObjectType, PropertyDef, EntityRegistry
     reg = EntityRegistry()
     reg.object_types["Product"] = ObjectType(
         id="Product", label="商品", label_zh="商品", comment="",
@@ -84,7 +84,7 @@ def test_seed_data_missing_required_field(tmp_path):
     """缺必填字段(id)→报错，不写入。"""
     customer_dir = tmp_path / "customers" / "c2"
     (customer_dir / "data").mkdir(parents=True)
-    from ontology.parser import ObjectType, PropertyDef, EntityRegistry
+    from engine.parser import ObjectType, PropertyDef, EntityRegistry
     reg = EntityRegistry()
     reg.object_types["Product"] = ObjectType(
         id="Product", label="商品", label_zh="商品", comment="",

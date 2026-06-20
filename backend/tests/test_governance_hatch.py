@@ -7,8 +7,8 @@ update_task_notes Action；bypass_action_check 只剩 executor 内部用。
 import inspect
 import pytest
 
-from ontology.tools import update_task, execute_action
-from ontology import tools as T
+from engine.tools import update_task, execute_action
+from engine import tools as T
 
 
 def _setup(monkeypatch, data_dir):
@@ -30,14 +30,14 @@ def test_bypass_action_check_not_in_tools_layer():
 
 def test_bypass_only_in_executor():
     """bypass_action_check 只在 executor.py 出现（执行器内部副作用写，是必要的）。"""
-    from ontology import executor as exec_mod
+    from engine import executor as exec_mod
     assert "bypass_action_check" in inspect.getsource(exec_mod)
 
 
 def test_update_task_notes_action_exists():
     """新增 update_task_notes Action：受治理的 notes/priority 更新。"""
-    from ontology.action_loader import load_actions
-    from ontology.bootstrap import bootstrap
+    from engine.action_loader import load_actions
+    from engine.bootstrap import bootstrap
     from tests._clearance_helper import build_clearance_registry
     bootstrap()
     reg = build_clearance_registry('.')

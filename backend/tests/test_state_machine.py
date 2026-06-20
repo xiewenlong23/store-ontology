@@ -1,5 +1,5 @@
 import pytest
-from ontology.state_machine import is_valid_transition, TASK_TRANSITIONS
+from engine.state_machine import is_valid_transition, TASK_TRANSITIONS
 
 
 def test_created_to_pending():

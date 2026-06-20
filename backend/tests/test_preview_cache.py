@@ -1,5 +1,5 @@
 import time
-from ontology.preview_cache import PreviewCache
+from engine.preview_cache import PreviewCache
 
 
 def test_store_and_retrieve():

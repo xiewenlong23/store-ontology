@@ -7,8 +7,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from ontology.parser import OntologyParser, EntityRegistry
-from ontology.action_loader import load_actions
+from engine.parser import OntologyParser, EntityRegistry
+from engine.action_loader import load_actions
 
 
 @dataclass

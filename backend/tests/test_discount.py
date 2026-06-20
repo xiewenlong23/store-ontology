@@ -1,5 +1,5 @@
-from ontology.discount_stub import set_discount_source
-from business.discount import calculate_discount
+from engine.discount_stub import set_discount_source
+from packs.retail.domains.marketing.discount import calculate_discount
 import pytest
 
 

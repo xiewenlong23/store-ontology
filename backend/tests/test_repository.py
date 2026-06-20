@@ -1,7 +1,7 @@
 import json
-from ontology.repository import JSONFileRepository
-from ontology.parser import ObjectType, PropertyDef, EntityRegistry
-from ontology.errors import ActionRequiredError
+from engine.repository import JSONFileRepository
+from engine.parser import ObjectType, PropertyDef, EntityRegistry
+from engine.errors import ActionRequiredError
 
 
 def _registry_with(managed: bool):
@@ -34,7 +34,7 @@ def test_read_one_missing_returns_none(tmp_data_dir):
 def test_write_stamps_tenant(tmp_data_dir):
     reg = _registry_with(managed=False)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
-    from ontology.tenant import TenantContext
+    from engine.tenant import TenantContext
     tc = TenantContext(customer_id="customer_default", org_unit_id="*")
     repo.write("Store", tc,
                {"id": "store_002", "name": "新店"}, create=True)
@@ -64,7 +64,7 @@ def test_write_bypass_for_executor(tmp_data_dir):
 def test_tenant_isolation(tmp_data_dir):
     reg = _registry_with(managed=False)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
-    from ontology.tenant import TenantContext
+    from engine.tenant import TenantContext
     tc_a = TenantContext(customer_id="customer_a", org_unit_id="*")
     tc_b = TenantContext(customer_id="customer_b", org_unit_id="*")
     repo.write("Store", tc_b, {"id": "store_002"}, create=True)

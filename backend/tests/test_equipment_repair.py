@@ -5,13 +5,13 @@
 """
 import pytest
 
-from ontology.bootstrap import bootstrap
-from ontology.vertical import all_verticals
-from ontology.parser import OntologyParser
-from ontology.action_loader import load_actions
-from ontology.repository import JSONFileRepository
-from ontology.executor import ActionExecutor
-from ontology.errors import ValidationError
+from engine.bootstrap import bootstrap
+from engine.vertical import all_verticals
+from engine.parser import OntologyParser
+from engine.action_loader import load_actions
+from engine.repository import JSONFileRepository
+from engine.executor import ActionExecutor
+from engine.errors import ValidationError
 from verticals.equipment_repair.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
 from verticals.equipment_repair.config import EQUIPMENT_REPAIR_CONFIG
@@ -36,7 +36,7 @@ def _exec(data_dir):
 
 def test_equipment_repair_registered():
     names = [c.name for c in all_verticals()]
-    assert "clearance" in names and "equipment_repair" in names
+    assert "equipment_repair" in names
 
 
 def test_repair_ttl_and_actions_parse():
@@ -102,21 +102,21 @@ def test_cancel_from_any_nonterminal(repair_data_dir):
     assert e["status"] == "normal"
 
 
-def test_clearance_still_works_alongside():
-    """clearance 仍注册且可解析（多 vertical 共存）。"""
-    from ontology.parser import get_ontology_parser, reset_parser_cache
-    reset_parser_cache()
+def test_retail_pack_still_works_alongside():
+    """retail pack 仍注册且可解析（pack + vertical 共存）。"""
+    from engine.pack import get_pack, pack_to_registry
     bootstrap()
-    p = get_ontology_parser("clearance")
-    assert p.PREFIX == "store:"
-    assert "create_clearance_task" in p.registry.action_types
+    pack = get_pack("retail")
+    assert pack is not None
+    reg = pack_to_registry(pack, data_dir="../data")
+    assert "create_clearance_task" in reg.action_types
 
 
 def test_state_machine_table_loaded():
     """equipment_repair 的状态迁移表正确（独立于 clearance）。"""
     assert "repairing" in REPAIR_TICKET_TRANSITIONS
     assert "resolved" in TERMINAL_STATES
-    from ontology.state_machine import is_valid_transition
+    from engine.state_machine import is_valid_transition
     assert is_valid_transition("reported", "diagnosed", REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
     assert not is_valid_transition("reported", "repairing", REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
     assert not is_valid_transition("resolved", "cancelled", REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)

@@ -5,8 +5,8 @@ retail-pack = 3 能力域（marketing/organization/finance）+ 1 价值链流程
 """
 import os
 
-from ontology.pack import IndustryPack, CapabilityDomain, ValueChainProcess, register_pack
-from ontology.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
+from engine.pack import IndustryPack, CapabilityDomain, ValueChainProcess, register_pack
+from engine.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
 
 _BASE = os.path.dirname(os.path.abspath(__file__))  # packs/retail/
 

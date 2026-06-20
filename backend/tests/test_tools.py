@@ -1,15 +1,15 @@
-from ontology.tools import query_entity, confirm_action, execute_action
-from ontology import tools as T
+from engine.tools import query_entity, confirm_action, execute_action
+from engine import tools as T
 
 
 def _setup(monkeypatch, data_dir):
     """把 tools 的 parser/repository/executor 指向临时数据目录。"""
-    from ontology.parser import OntologyParser
-    from ontology.action_loader import load_actions
-    from ontology.repository import JSONFileRepository
-    from ontology.executor import ActionExecutor
-    parser = OntologyParser(ttl_path="ontology/store.ttl", data_dir=data_dir)
-    parser.registry.action_types = load_actions("ontology/actions")
+    from engine.parser import OntologyParser
+    from engine.action_loader import load_actions
+    from engine.repository import JSONFileRepository
+    from engine.executor import ActionExecutor
+    parser = OntologyParser(ttl_path="engine/store.ttl", data_dir=data_dir)
+    parser.registry.action_types = load_actions("engine/actions")
     repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
     ex = ActionExecutor(repository=repo, actions=parser.registry.action_types,
                         registry=parser.registry)
@@ -47,7 +47,7 @@ def test_update_task_blocks_governed_fields(clearance_data_dir, monkeypatch):
     显式参数签名比运行时白名单更强——受治理字段根本不在参数列表里。
     """
     _setup(monkeypatch, clearance_data_dir)
-    from ontology.tools import update_task
+    from engine.tools import update_task
     params = set(update_task.args)  # langchain StructuredTool.args
     forbidden = {"discount_percent", "status", "sold_quantity", "planned_quantity", "assignee_id"}
     assert not (params & forbidden), \

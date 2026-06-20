@@ -11,12 +11,12 @@ from typing import Optional, Any
 
 from langchain_core.tools import tool
 
-from ontology.parser import get_ontology_parser
-from ontology.repository import JSONFileRepository
-from ontology.executor import ActionExecutor
-from ontology.preview_cache import PreviewCache
-from ontology.errors import OntologyError
-from ontology.tenant import TenantContext
+from engine.parser import get_ontology_parser
+from engine.repository import JSONFileRepository
+from engine.executor import ActionExecutor
+from engine.preview_cache import PreviewCache
+from engine.errors import OntologyError
+from engine.tenant import TenantContext
 
 
 # ============ 依赖装配（按 vertical+tenant 构造；测试用 monkeypatch 替换）============
@@ -115,12 +115,9 @@ def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
                  f"查询到 {len(rows)} 条任务。")
 
 
-# clearance 专属工具已迁移到 packs/retail/processes/clearance/tools.py（P2+I-4）。
-# pack 聚合（_aggregate_pack_tools）自动收录，此处不再 re-export。
-try:
-    from packs.retail.processes.clearance.tools import query_near_expiry  # noqa: F401
-except ImportError:
-    query_near_expiry = None  # pack 未安装时优雅降级
+# clearance 专属工具在 packs/retail/processes/clearance/tools.py，
+# 由 main.py 的 _aggregate_pack_tools 聚合加载。引擎不再直接 import workspace 代码。
+query_near_expiry = None  # 占位（向后兼容引用）
 
 
 # ============ 写工具（降级 CRUD）============

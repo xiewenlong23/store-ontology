@@ -4,8 +4,8 @@ import re
 import uuid
 from typing import Dict
 
-from ontology.errors import ValidationError, EntityNotFoundError
-from ontology.state_machine import is_valid_transition
+from engine.errors import ValidationError, EntityNotFoundError
+from engine.state_machine import is_valid_transition
 
 
 def _resolve(value, params):

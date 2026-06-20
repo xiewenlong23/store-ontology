@@ -1,8 +1,8 @@
 """测试 bootstrap 扫 packs + 兼容 verticals（P2）。"""
 import pytest
-from ontology.bootstrap import bootstrap
-from ontology.pack import all_packs, clear_packs
-from ontology.vertical import all_verticals
+from engine.bootstrap import bootstrap
+from engine.pack import all_packs, clear_packs
+from engine.vertical import all_verticals
 
 
 def test_bootstrap_still_discovers_verticals():
@@ -29,7 +29,7 @@ def test_bootstrap_discovers_retail_pack():
     # 确保模块已加载（首次 import 会 register），再显式补注册防 clear 残留
     import packs.retail.pack  # noqa: F401（触发 import + register）
     from packs.retail.pack import RETAIL_PACK
-    from ontology.pack import register_pack
+    from engine.pack import register_pack
     register_pack(RETAIL_PACK)  # 幂等补注册（防被其它测试 clear 掉）
 
     bootstrap()

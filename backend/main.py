@@ -29,15 +29,15 @@ from deepagents.backends.filesystem import FilesystemBackend
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
 # ===== 内核通用工具（与 vertical 无关）=====
-from ontology.tools import (
+from engine.tools import (
     query_entity, create_entity, update_entity, traverse_relation,
     execute_action, confirm_action, query_task, update_task,
     build_ontology_prompt,
 )
 
 # ===== vertical 注册表 bootstrap（自动发现 backend/verticals/*/config.py）=====
-from ontology.bootstrap import bootstrap as _bootstrap_verticals
-from ontology.vertical import all_verticals as _all_verticals
+from engine.bootstrap import bootstrap as _bootstrap_verticals
+from engine.vertical import all_verticals as _all_verticals
 
 _bootstrap_verticals()
 
@@ -60,7 +60,7 @@ def _aggregate_vertical_tools():
 def _aggregate_pack_tools():
     """从各 pack 的 process.tools_module 聚合专属工具（P2 行业包）。"""
     import importlib
-    from ontology.pack import all_packs
+    from engine.pack import all_packs
     collected = []
     for pack in all_packs():
         for proc in pack.processes:
@@ -83,7 +83,7 @@ def _aggregate_skill_paths():
         if cfg.skills_dir:
             sources.append(cfg.skills_dir)
     # pack process skills
-    from ontology.pack import all_packs
+    from engine.pack import all_packs
     for pack in all_packs():
         for proc in pack.processes:
             if proc.skills_dir:
@@ -152,7 +152,7 @@ for _t in _all_tools:
 # ============ Deep Agent Graph ============
 
 import contextvars
-from ontology.tenant import TenantContext
+from engine.tenant import TenantContext
 
 # 客户租户上下文：由 HTTP middleware（X-Customer-ID + X-Org-Unit-ID header）注入
 tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
@@ -245,7 +245,7 @@ async def health():
 
 # ============ 本体管理 API（P4 §4.5，只读浏览）============
 
-from ontology.customer_bootstrap import bootstrap_customer
+from engine.customer_bootstrap import bootstrap_customer
 
 
 @app.get("/api/admin/customers/{cid}/ontology/objects")
@@ -332,7 +332,7 @@ async def dashboard_todos(cid: str):
 
 # ============ 后端自动化：scheduler 生命周期 + webhook 路由 ============
 
-from ontology.scheduler import AutomationScheduler
+from engine.scheduler import AutomationScheduler
 
 _automation_scheduler = AutomationScheduler()
 
@@ -360,7 +360,7 @@ async def webhook_approval(body: dict):
     body: {task_id, approver_id, approved: bool}
     真实审批系统集成留 v2。
     """
-    from ontology.tools import _get_executor
+    from engine.tools import _get_executor
     from packs.retail.processes.clearance.automation import handle_approval
     ex = _get_executor(vertical="clearance")
     try:
@@ -379,7 +379,7 @@ async def webhook_pos(body: dict):
     body: {target_id, task_id, quantity}
     真实 POS 系统集成留 v2。
     """
-    from ontology.tools import _get_executor
+    from engine.tools import _get_executor
     from packs.retail.processes.clearance.automation import handle_pos_scan
     ex = _get_executor(vertical="clearance")
     try:
