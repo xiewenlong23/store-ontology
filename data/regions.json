@@ -2,11 +2,15 @@
   {
     "id": "region_001",
     "name": "华东区",
-    "code": "HD"
+    "code": "HD",
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   },
   {
     "id": "region_002",
     "name": "华北区",
-    "code": "HB"
+    "code": "HB",
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   }
 ]

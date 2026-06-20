@@ -9,7 +9,9 @@
     "stock_quantity": 50,
     "days_left": 5,
     "discount_tier": "T2",
-    "status": "expiring"
+    "status": "expiring",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_001"
   },
   {
     "id": "nep_002",
@@ -22,7 +24,8 @@
     "days_left": 10,
     "discount_tier": "T3",
     "status": "clearance",
-    "tenant_id": "tenant_default"
+    "customer_id": "customer_default",
+    "org_unit_id": "store_001"
   },
   {
     "id": "nep_003",
@@ -34,7 +37,9 @@
     "stock_quantity": 14,
     "days_left": 2,
     "discount_tier": "T1",
-    "status": "clearance"
+    "status": "clearance",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_001"
   },
   {
     "id": "nep_004",
@@ -46,7 +51,9 @@
     "stock_quantity": 20,
     "days_left": 3,
     "discount_tier": "T1",
-    "status": "expiring"
+    "status": "expiring",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_002"
   },
   {
     "id": "nep_005",
@@ -58,7 +65,9 @@
     "stock_quantity": 40,
     "days_left": 6,
     "discount_tier": "T2",
-    "status": "expiring"
+    "status": "expiring",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_002"
   },
   {
     "id": "nep_006",
@@ -70,7 +79,9 @@
     "stock_quantity": 8,
     "days_left": -1,
     "discount_tier": "T1",
-    "status": "expired"
+    "status": "expired",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_001"
   },
   {
     "id": "nep_007",
@@ -82,6 +93,8 @@
     "stock_quantity": 0,
     "days_left": 1,
     "discount_tier": "T1",
-    "status": "sold_out"
+    "status": "sold_out",
+    "customer_id": "customer_default",
+    "org_unit_id": "store_001"
   }
 ]

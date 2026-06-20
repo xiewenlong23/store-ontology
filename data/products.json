@@ -6,7 +6,9 @@
     "brand": "蒙牛",
     "unit": "盒",
     "cost_price": 4.5,
-    "retail_price": 6.0
+    "retail_price": 6.0,
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   },
   {
     "id": "prod_002",
@@ -15,7 +17,9 @@
     "brand": "伊利",
     "unit": "盒",
     "cost_price": 3.5,
-    "retail_price": 5.0
+    "retail_price": 5.0,
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   },
   {
     "id": "prod_003",
@@ -24,7 +28,9 @@
     "brand": "盼盼",
     "unit": "袋",
     "cost_price": 3.0,
-    "retail_price": 4.5
+    "retail_price": 4.5,
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   },
   {
     "id": "prod_004",
@@ -33,6 +39,8 @@
     "brand": "农夫山泉",
     "unit": "瓶",
     "cost_price": 1.0,
-    "retail_price": 2.0
+    "retail_price": 2.0,
+    "customer_id": "customer_default",
+    "org_unit_id": "brand_default"
   }
 ]
