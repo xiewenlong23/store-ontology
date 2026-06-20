@@ -10,7 +10,6 @@ from langchain_core.tools import tool
 
 from ontology.parser import get_ontology_parser
 from ontology.repository import JSONFileRepository
-from ontology.action_loader import load_actions
 from ontology.executor import ActionExecutor
 from ontology.preview_cache import PreviewCache
 from ontology.errors import OntologyError
@@ -153,11 +152,18 @@ def update_entity(entity_type: str, entity_id: str,
 
 @tool
 def update_task(task_id: str, tenant_id: str = "tenant_default", **kwargs) -> str:
-    """任务更新（status 字段受治理，只能经 Action 迁移；此处仅允许改非状态字段如 notes）。"""
-    if "status" in kwargs:
+    """任务更新（受治理实体，仅允许改 notes 等非业务字段；status 走 Action）。
+
+    Task 标记为 edits-only-via-actions。本工具仅放行白名单字段（notes/priority），
+    其它业务字段（discount_percent/planned_quantity/sold_quantity/assignee_id 等）
+    必须经对应 Action 修改，避免绕过治理。
+    """
+    ALLOWED = {"notes", "priority"}
+    forbidden = set(kwargs) - ALLOWED
+    if "status" in kwargs or forbidden:
         return _wrap({"type": "update_task_result", "success": False,
-                      "error": "status 只能经 Action 迁移，不可直接更新"},
-                     "状态迁移请走对应 Action。")
+                      "error": f"受治理字段只能经 Action 修改，本工具仅允许: {sorted(ALLOWED)}"},
+                     "受治理字段请走对应 Action。")
     repo = _get_repo(tenant_id)
     rec = repo.read_one("Task", tenant_id, task_id)
     if not rec:
