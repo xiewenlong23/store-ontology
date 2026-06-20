@@ -25,12 +25,14 @@ class TenantContext:
         """
         rec_customer = record.get("customer_id")
         if rec_customer is None:
-            # 旧格式兼容：tenant_id 存在视为 customer_default
+            # 旧格式兼容：tenant_id 存在视为 customer_default；
+            # 完全无租户字段（如测试种子）也视为 customer_default（默认归属）
             if record.get("tenant_id") is not None:
                 rec_customer = "customer_default"
                 rec_org = "*"
             else:
-                return False
+                rec_customer = "customer_default"
+                rec_org = "*"
         else:
             rec_org = record.get("org_unit_id", "*")
 
