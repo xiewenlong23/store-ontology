@@ -243,6 +243,93 @@ async def health():
     return {"status": "healthy"}
 
 
+# ============ 本体管理 API（P4 §4.5，只读浏览）============
+
+from ontology.customer_bootstrap import bootstrap_customer
+
+
+@app.get("/api/admin/customers/{cid}/ontology/objects")
+async def admin_ontology_objects(cid: str):
+    """该客户所有 Object Type 定义（只读浏览）。"""
+    inst = bootstrap_customer(cid)
+    objects = []
+    for ot in inst.registry.object_types.values():
+        objects.append({
+            "id": ot.id, "label": ot.label, "label_zh": ot.label_zh,
+            "comment": ot.comment, "storage_file": ot.storage_file,
+            "status": ot.status, "edits_only_via_actions": ot.edits_only_via_actions,
+            "properties": [{"name": p.name, "type": p.type} for p in ot.properties],
+        })
+    return {"objects": objects}
+
+
+@app.get("/api/admin/customers/{cid}/ontology/actions")
+async def admin_ontology_actions(cid: str):
+    """该客户所有 Action Type 定义。"""
+    inst = bootstrap_customer(cid)
+    actions = []
+    for at in inst.registry.action_types.values():
+        actions.append({
+            "api_name": at.api_name, "display_name": at.display_name,
+            "description": at.description, "target_object_type": at.target_object_type,
+            "edits_object_types": at.edits_object_types,
+            "parameters": at.parameters, "locator_field": at.locator_field,
+        })
+    return {"actions": actions}
+
+
+@app.get("/api/admin/customers/{cid}/ontology/links")
+async def admin_ontology_links(cid: str):
+    """该客户所有 Link Type 定义。"""
+    inst = bootstrap_customer(cid)
+    links = []
+    for lt in inst.registry.link_types.values():
+        links.append({
+            "id": lt.id, "label": lt.label, "label_zh": lt.label_zh,
+            "domain": lt.domain, "range": lt.range, "via": lt.via,
+        })
+    return {"links": links}
+
+
+# ============ 运营看板 API（P4 §4.4）============
+
+@app.get("/api/dashboard/{cid}/metrics")
+async def dashboard_metrics(cid: str):
+    """跨域 KPI 指标卡。"""
+    inst = bootstrap_customer(cid)
+    tc = inst.tenant_context
+
+    # Task 按 status 分组计数
+    tasks = inst.repository.read("Task", tc)
+    task_counts = {}
+    for t in tasks:
+        s = t.get("status", "unknown")
+        task_counts[s] = task_counts.get(s, 0) + 1
+
+    # NearExpiryProduct 按 status 分组计数
+    neps = inst.repository.read("NearExpiryProduct", tc)
+    nep_counts = {}
+    for n in neps:
+        s = n.get("status", "unknown")
+        nep_counts[s] = nep_counts.get(s, 0) + 1
+
+    return {
+        "tasks": {"total": len(tasks), "by_status": task_counts},
+        "near_expiry": {"total": len(neps), "by_status": nep_counts},
+    }
+
+
+@app.get("/api/dashboard/{cid}/todos")
+async def dashboard_todos(cid: str):
+    """待办列表：非终态的 Task（需人介入）。"""
+    inst = bootstrap_customer(cid)
+    tc = inst.tenant_context
+    tasks = inst.repository.read("Task", tc)
+    active_statuses = {"created", "pending_approval", "approved", "accepted", "in_progress"}
+    todos = [t for t in tasks if t.get("status") in active_statuses]
+    return {"todos": todos}
+
+
 # ============ 后端自动化：scheduler 生命周期 + webhook 路由 ============
 
 from ontology.scheduler import AutomationScheduler
