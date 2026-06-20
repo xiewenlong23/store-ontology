@@ -1,0 +1,34 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 营销域（Marketing）—— 商品与临期商品 + 定价
+# ============================================================
+
+store:Product a rdfs:Class ;
+    rdfs:label "商品"@zh , "Product"@en ;
+    rdfs:comment "销售商品"@zh ;
+    store:properties "id:string,name:string,category:string,brand:string,unit:string,cost_price:float,retail_price:float" ;
+    store:storage "products.json" ;
+    store:status "active" .
+
+store:NearExpiryProduct a rdfs:Class ;
+    rdfs:label "临期商品"@zh , "Near Expiry Product"@en ;
+    rdfs:comment "即将过期的商品批次实例，出清标的物"@zh ;
+    store:properties "id:string,product_id:string,store_id:string,batch_no:string,production_date:date,expiry_date:date,stock_quantity:int,days_left:int,discount_tier:DiscountTier,status:NearExpiryProductStatus" ;
+    store:storage "near_expiry_products.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" .
+
+# Link Types
+
+store:is_instance_of a rdfs:Property ;
+    rdfs:label "是...的实例"@zh , "is instance of"@en ;
+    rdfs:comment "NearExpiryProduct 通过 product_id（domain 侧）指向 Product"@zh ;
+    rdfs:domain store:NearExpiryProduct ; rdfs:range store:Product ; store:via "product_id" .
+
+store:has_near_expiry a rdfs:Property ;
+    rdfs:label "拥有临期商品"@zh , "has near expiry product"@en ;
+    rdfs:comment "Store 的临期商品集合。via store_id 在 NearExpiryProduct（range 侧）上"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:NearExpiryProduct ; store:via "store_id" .

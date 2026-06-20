@@ -1,0 +1,34 @@
+api_name: print_labels
+display_name: 打折签打印
+description: 打印折扣签并陈列，accepted -> in_progress
+status: active
+target_object_type: Task
+edits_object_types:
+- Task
+parameters:
+- name: task_id
+  type: string
+  required: true
+- name: label_count
+  type: int
+  required: true
+  constraint: '>0'
+submission_criteria:
+  roles:
+  - store_manager
+  - clerk
+  conditions:
+  - field: target.status
+    operator: is
+    value: accepted
+side_effects:
+- type: state_transition
+  object_type: Task
+  match:
+    id: $task_id
+  from: accepted
+  to: in_progress
+- type: external_call
+  service: printer
+  action: print_discount_labels
+locator_field: task_id
