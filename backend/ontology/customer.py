@@ -55,6 +55,7 @@ class CustomerConfig:
     source_pack: str = ""
     storage_type: str = "json_files"  # MVP: json_files; v2: postgres
     data_dir: str = ""
+    ontology_dir: str = ""  # I-3: 显式声明（不再从 data_dir 推导）
     enabled_domains: List[str] = field(default_factory=list)
     enabled_processes: List[str] = field(default_factory=list)
     parameters: dict = field(default_factory=dict)
@@ -100,6 +101,7 @@ def load_customer_config(customer_dir: str) -> CustomerConfig:
         source_pack=data.get("source_pack", ""),
         storage_type=data.get("storage", {}).get("type", "json_files"),
         data_dir=data.get("storage", {}).get("data_dir", ""),
+        ontology_dir=data.get("ontology_dir", ""),  # I-3: 显式读
         enabled_domains=data.get("enabled_domains", []),
         enabled_processes=data.get("enabled_processes", []),
         parameters=data.get("parameters", {}),

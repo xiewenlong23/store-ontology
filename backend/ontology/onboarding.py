@@ -53,6 +53,7 @@ def copy_pack_to_customer(pack_root: str, customer_root: str,
         "name": customer_name,
         "source_pack": pack_name,
         "storage": {"type": "json_files", "data_dir": "data"},
+        "ontology_dir": "ontology",  # I-3: 显式声明（相对 customer_root）
         "enabled_domains": enabled_domains,
         "enabled_processes": enabled_processes,
         "parameters": {},
@@ -75,15 +76,17 @@ def _list_subdirs(path: str) -> List[str]:
 
 
 def seed_customer_data(customer_data_dir: str, source_file: str,
-                       object_type: str, registry) -> str:
+                       object_type: str, registry,
+                       customer_id: str = "customer_default") -> str:
     """数据清洗/校验/初始化（步骤③）。
 
     读取 source_file（JSON 数组），按 Object Type 的 properties 校验：
     - id 字段必填
-    - 字段名在 properties 里（未知字段警告但不拒）
+    - 强制盖 customer_id（防止无标记数据泄漏到默认客户，I-1 修复）
     校验通过后写入 customer_data_dir/<storage_file>。
 
     registry: EntityRegistry（含 object_types）
+    customer_id: 灌入数据归属的客户 ID（强制盖上，不依赖源数据手填）
     返回写入的文件路径。
     """
     obj = registry.object_types.get(object_type)
@@ -95,11 +98,12 @@ def seed_customer_data(customer_data_dir: str, source_file: str,
     if not isinstance(rows, list):
         raise ValueError("源数据必须是 JSON 数组")
 
-    # 校验：每行必须有 id
+    # 校验：每行必须有 id + 强制盖 customer_id（I-1：防止无标记数据泄漏）
     prop_names = {p.name for p in obj.properties}
     for i, row in enumerate(rows):
         if "id" not in row or not row["id"]:
             raise ValueError(f"第 {i+1} 行缺少必填字段: id")
+        row["customer_id"] = customer_id  # 强制盖，不依赖源数据手填
 
     # 写入
     out_path = os.path.join(customer_data_dir, obj.storage_file)

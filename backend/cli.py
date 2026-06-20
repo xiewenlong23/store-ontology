@@ -60,7 +60,8 @@ def cmd_seed(args):
         customer_data_dir=data_dir,
         source_file=args.source_file,
         object_type=args.object_type,
-        registry=reg)
+        registry=reg,
+        customer_id=args.customer_id)
     print(f"✓ 已灌入 {args.object_type} 数据到 {out}")
     print(f"  下一步：编辑 config.yaml 配存储（步骤④），然后 cli.py start（步骤⑤）")
 
@@ -74,7 +75,9 @@ def cmd_start(args):
     from ontology.customer import load_customer_config
     cfg = load_customer_config(customer_root)
     register_customer(cfg)
-    reset_instances()
+    # I-2: 失效缓存，确保读取最新本体（客户可能刚编辑过 ontology/）
+    from ontology.customer_bootstrap import invalidate_customer
+    invalidate_customer(args.customer_id)
 
     inst = bootstrap_customer(args.customer_id)
     print(f"✓ 客户 '{args.customer_id}' agent 实例已启动")

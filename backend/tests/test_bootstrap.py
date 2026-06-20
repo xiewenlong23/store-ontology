@@ -26,11 +26,12 @@ def test_bootstrap_is_idempotent():
     assert n1 == n2  # 重复调用不重复注册
 
 
-def test_aggregate_vertical_tools_loads_query_near_expiry():
+def test_aggregate_pack_tools_loads_query_near_expiry():
+    """query_near_expiry 现在来自 pack（P2+I-4），不是 vertical。"""
     bootstrap_mod.bootstrap()
-    assert any(c.name == "clearance" for c in all_verticals()), "clearance 未注册"
     main_mod = importlib.import_module("main")
-    tools = main_mod._aggregate_vertical_tools()
+    # pack 聚合
+    tools = main_mod._aggregate_pack_tools()
     names = [getattr(t, "name", "") for t in tools]
     assert "query_near_expiry" in names
 

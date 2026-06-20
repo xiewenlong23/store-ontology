@@ -29,7 +29,7 @@ def test_expiry_check_job_scraps_expired_task(automation_data_dir):
     loss_quantity = planned - sold = 10 - 3 = 7。
     """
     bootstrap()  # 注册 vertical
-    from verticals.clearance.automation import expiry_check_job
+    from packs.retail.processes.clearance.automation import expiry_check_job
     ex, repo = _exec(automation_data_dir)
 
     expiry_check_job(ex, tenant_id="tenant_default")
@@ -47,7 +47,7 @@ def test_expiry_check_job_scraps_expired_task(automation_data_dir):
 def test_expiry_check_skips_non_expired(automation_data_dir):
     """未过期的 in_progress Task 不应被报损。"""
     bootstrap()
-    from verticals.clearance.automation import expiry_check_job
+    from packs.retail.processes.clearance.automation import expiry_check_job
     ex, repo = _exec(automation_data_dir)
     # task_sold 关联 nep_sold（days_left=5，未过期）
     expiry_check_job(ex, tenant_id="tenant_default")
@@ -58,7 +58,7 @@ def test_expiry_check_skips_non_expired(automation_data_dir):
 def test_inventory_check_completes_soldout_task(automation_data_dir):
     """T3: 售罄完成 job —— in_progress Task 且 sold>=planned → complete_task。"""
     bootstrap()
-    from verticals.clearance.automation import inventory_check_job
+    from packs.retail.processes.clearance.automation import inventory_check_job
     ex, repo = _exec(automation_data_dir)
     inventory_check_job(ex, tenant_id="tenant_default")
     task = repo.read_one("Task", "tenant_default", "task_sold")
@@ -70,7 +70,7 @@ def test_inventory_check_completes_soldout_task(automation_data_dir):
 def test_inventory_check_skips_unsold(automation_data_dir):
     """未售罄的 in_progress Task 不应被完成。"""
     bootstrap()
-    from verticals.clearance.automation import inventory_check_job
+    from packs.retail.processes.clearance.automation import inventory_check_job
     ex, repo = _exec(automation_data_dir)
     inventory_check_job(ex, tenant_id="tenant_default")
     # task_exp: sold=3 < planned=10，未售罄
@@ -95,7 +95,7 @@ def test_handle_approval_approves(automation_data_dir):
                   "completed_at": None})
     p.write_text(json.dumps(tasks, ensure_ascii=False), encoding="utf-8")
 
-    from verticals.clearance.automation import handle_approval
+    from packs.retail.processes.clearance.automation import handle_approval
     ex, repo = _exec(automation_data_dir)
     result = handle_approval(ex, task_id="task_app", approver_id="rcm_1", approved=True)
     assert result["ok"] is True
@@ -109,7 +109,7 @@ def test_handle_pos_scan_deducts(automation_data_dir):
     需 in_progress 态 Task（deduct_stock 的 submission_criteria 要求 task.status=in_progress）。
     """
     bootstrap()
-    from verticals.clearance.automation import handle_pos_scan
+    from packs.retail.processes.clearance.automation import handle_pos_scan
     ex, repo = _exec(automation_data_dir)
     result = handle_pos_scan(ex, target_id="nep_exp", task_id="task_exp", quantity=2)
     assert result["ok"] is True
@@ -123,7 +123,7 @@ def test_register_clearance_automation_adds_jobs():
     """register 函数把两个 job 加进 scheduler（不真跑，只验注册）。"""
     bootstrap()
     from ontology.scheduler import AutomationScheduler
-    from verticals.clearance.automation import register_clearance_automation
+    from packs.retail.processes.clearance.automation import register_clearance_automation
     sched = AutomationScheduler()
     register_clearance_automation(sched, interval_seconds=60)
     # pending 列表应含两个 job（start 前注册）
