@@ -113,14 +113,16 @@ tools = [
 # ============ Deep Agent Graph ============
 
 import contextvars
+from ontology.tenant import TenantContext
 
-# tenant 上下文：由 HTTP middleware（X-Tenant-ID header）注入，默认 tenant_default
-tenant_ctx: contextvars.ContextVar = contextvars.ContextVar("tenant_id", default="tenant_default")
+# 客户租户上下文：由 HTTP middleware（X-Customer-ID + X-Org-Unit-ID header）注入
+tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
+    "tenant_ctx", default=TenantContext.default())
 
 # 动态生成本体系统提示
 ontology_prompt = build_ontology_prompt()
 store_context = """
-当前租户上下文由请求 header X-Tenant-ID 注入（默认 tenant_default）。
+当前客户上下文由请求 header X-Customer-ID + X-Org-Unit-ID 注入（默认 customer_default + 全部门店）。
 
 **操作流程（Preview → Confirm）：**
 1. 用户要求执行业务操作时，先 execute_action 获取预览（返回 preview_id）
@@ -174,9 +176,12 @@ app.add_middleware(
 
 @app.middleware("http")
 async def tenant_middleware(request, call_next):
-    """从 X-Tenant-ID header 解析 tenant，注入 contextvar（默认 tenant_default）。"""
-    tid = request.headers.get("X-Tenant-ID", "tenant_default")
-    token = tenant_ctx.set(tid)
+    """从 X-Customer-ID + X-Org-Unit-ID header 解析，注入 TenantContext contextvar。"""
+    tc = TenantContext.from_headers({
+        "X-Customer-ID": request.headers.get("X-Customer-ID"),
+        "X-Org-Unit-ID": request.headers.get("X-Org-Unit-ID"),
+    })
+    token = tenant_ctx.set(tc)
     try:
         return await call_next(request)
     finally:
