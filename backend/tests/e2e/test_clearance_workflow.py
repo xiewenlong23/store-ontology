@@ -19,8 +19,8 @@ async def test_clearance_create_flow_preview_then_confirm(e2e_agent, scripted_ll
         # LLM#1: 调 execute_action 预览
         ([{"name": "execute_action", "args": {
             "action_type": "create_clearance_task",
-            "target_id": "nep_001", "store_id": "store_001",
-            "assignee_id": "emp_001", "discount_percent": 30, "planned_quantity": 50,
+            "params": {"target_id": "nep_001", "store_id": "store_001",
+                       "assignee_id": "emp_001", "discount_percent": 30, "planned_quantity": 50},
             "actor_role": "store_manager"}}], ""),
         # LLM#2: 询问确认（无工具，结束第1轮）
         ([], "已生成预览，是否确认执行出清？"),
@@ -72,8 +72,8 @@ async def test_expired_product_clearance_blocked(e2e_agent, scripted_llm):
         # 第1轮：execute_action 预览（会对 nep_006 校验）
         ([{"name": "execute_action", "args": {
             "action_type": "create_clearance_task",
-            "target_id": "nep_006", "store_id": "store_001",
-            "assignee_id": "emp_001", "discount_percent": 50, "planned_quantity": 8,
+            "params": {"target_id": "nep_006", "store_id": "store_001",
+                       "assignee_id": "emp_001", "discount_percent": 50, "planned_quantity": 8},
             "actor_role": "store_manager"}}], ""),
         # 工具预览成功后，confirm 时被 submission_criteria 拦截
         ([{"name": "confirm_action", "args": {"preview_id": "__P__"}}], ""),
