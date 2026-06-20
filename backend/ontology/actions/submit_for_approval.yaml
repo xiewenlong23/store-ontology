@@ -1,0 +1,21 @@
+api_name: submit_for_approval
+display_name: 提交审批
+description: 出清任务提交审批，created -> pending_approval
+status: active
+target_object_type: Task
+edits_object_types: [Task]
+parameters:
+  - { name: task_id, type: string, required: true }
+submission_criteria:
+  roles: [store_manager, region_cat_mgr]
+  conditions:
+    - { field: target.status, operator: is, value: created, fail_msg: "仅 created 态可提交审批" }
+side_effects:
+  - type: state_transition
+    object_type: Task
+    match: { id: $task_id }
+    from: created
+    to: pending_approval
+  - type: notification
+    template: approval_requested
+    recipients: []

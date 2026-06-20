@@ -68,16 +68,22 @@ tools = [
 
 # ============ Deep Agent Graph ============
 
+import contextvars
+
+# tenant 上下文：由 HTTP middleware（X-Tenant-ID header）注入，默认 tenant_default
+tenant_ctx: contextvars.ContextVar = contextvars.ContextVar("tenant_id", default="tenant_default")
+
 # 动态生成本体系统提示
 ontology_prompt = build_ontology_prompt()
 store_context = """
-当前用户选择的门店ID是: store_001。
+当前租户上下文由请求 header X-Tenant-ID 注入（默认 tenant_default）。
 
-**操作流程（Preview → Confirm 模式）：**
-1. 用户要求出清/调拨/补货时，先调用 execute_action 获取预览
-2. 展示预览结果，询问用户确认
-3. 用户回复"确认"/"好的"/"可以"后，调用 confirm_action 完成执行
-4. 用中文回复。
+**操作流程（Preview → Confirm）：**
+1. 用户要求出清时，先 execute_action 获取预览（返回 preview_id）
+2. 展示预览，询问确认
+3. 用户确认后，confirm_action(preview_id) 执行
+4. 出清是一条工作流（create_clearance_task -> submit_for_approval -> ... -> complete_task），状态机只允许相邻迁移
+5. 用中文回复
 """
 
 system_prompt = ontology_prompt + store_context
@@ -116,6 +122,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def tenant_middleware(request, call_next):
+    """从 X-Tenant-ID header 解析 tenant，注入 contextvar（默认 tenant_default）。"""
+    tid = request.headers.get("X-Tenant-ID", "tenant_default")
+    token = tenant_ctx.set(tid)
+    try:
+        return await call_next(request)
+    finally:
+        tenant_ctx.reset(token)
+
 
 add_langgraph_fastapi_endpoint(
     app=app,

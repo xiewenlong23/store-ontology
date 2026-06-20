@@ -2,6 +2,17 @@
 
 import { useCoAgent } from '@copilotkit/react-core'
 
+/**
+ * MVP：租户/门店选择。
+ * selected_store 写入 co-agent state，经 CopilotKit 转发到后端（body state）。
+ * 当前后端 X-Tenant-ID header 走静态默认（见 api/copilotkit/route.ts），
+ * 动态按门店注入留 v2（需自定义 fetch wrapper）。
+ */
+const STORES = [
+  { id: 'store_001', name: '北京朝阳店' },
+  { id: 'store_002', name: '上海浦东店' },
+]
+
 export default function HomePage() {
   const { state: agentState, setState: setAgentState } = useCoAgent<{
     selected_store: string
@@ -11,6 +22,7 @@ export default function HomePage() {
   })
 
   const selectedStore = agentState.selected_store || 'store_001'
+  const selectedName = STORES.find(s => s.id === selectedStore)?.name || selectedStore
 
   return (
     <main className="main">
@@ -21,7 +33,7 @@ export default function HomePage() {
       <div className="content">
         <section className="section">
           <h2>📦 临期商品概览</h2>
-          <p>当前门店: {selectedStore}</p>
+          <p>当前门店: {selectedName}（{selectedStore}）</p>
           <p>使用AI对话来管理临期商品和创建出清任务</p>
         </section>
         <section className="section">
@@ -34,14 +46,18 @@ export default function HomePage() {
           </ul>
         </section>
         <section className="section">
-          <h2>🎯 快捷操作</h2>
+          <h2>🎯 切换门店</h2>
           <div className="button-group">
-            <button className="btn" onClick={() => setAgentState({ selected_store: 'store_001' })}>
-              门店1（北京朝阳店）
-            </button>
-            <button className="btn" onClick={() => setAgentState({ selected_store: 'store_002' })}>
-              门店2（上海浦东店）
-            </button>
+            {STORES.map(s => (
+              <button
+                key={s.id}
+                className="btn"
+                disabled={selectedStore === s.id}
+                onClick={() => setAgentState({ selected_store: s.id })}
+              >
+                {s.name}
+              </button>
+            ))}
           </div>
           <p style={{ marginTop: 8, fontSize: 14, color: '#666' }}>
             💡 共享状态 + 人工确认 — 切换门店 AI 自动感知，创建出清需确认

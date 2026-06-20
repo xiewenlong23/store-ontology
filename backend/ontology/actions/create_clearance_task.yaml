@@ -1,0 +1,40 @@
+api_name: create_clearance_task
+display_name: 创建出清任务
+description: 为临期商品建出清单，进入 created 态
+status: active
+target_object_type: NearExpiryProduct
+edits_object_types: [NearExpiryProduct, Task]
+parameters:
+  - { name: target_id,        type: string, required: true }
+  - { name: store_id,         type: string, required: true }
+  - { name: assignee_id,      type: string, required: true }
+  - { name: discount_percent, type: int,    required: true, constraint: "0..100" }
+  - { name: planned_quantity, type: int,    required: true, constraint: ">0" }
+  - { name: priority,         type: string, required: false, default: medium }
+  - { name: notes,            type: string, required: false }
+submission_criteria:
+  roles: [store_manager, region_cat_mgr]
+  conditions:
+    - { field: target.status, operator: is_not, value: expired,  fail_msg: "已过期商品不能出清" }
+    - { field: target.status, operator: is_not, value: scrapped, fail_msg: "已报损商品不能出清" }
+side_effects:
+  - type: create_object
+    object_type: Task
+    fields:
+      task_type: clearance
+      target_id: $target_id
+      store_id: $store_id
+      assignee_id: $assignee_id
+      status: created
+      discount_percent: $discount_percent
+      planned_quantity: $planned_quantity
+      sold_quantity: 0
+      priority: $priority
+      notes: $notes
+  - type: update_object
+    object_type: NearExpiryProduct
+    match: { id: $target_id }
+    fields: { status: clearance }
+  - type: notification
+    template: clearance_task_created
+    recipients: [$assignee_id]

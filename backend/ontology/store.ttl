@@ -3,114 +3,112 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # ============================================================
-# Object Types (对象类型)
+# Object Types（7 个）—— 元数据谓词：status / visibility / edits_only_via_actions
 # ============================================================
 
 store:Region a rdfs:Class ;
     rdfs:label "区域"@zh , "Region"@en ;
-    rdfs:comment "地理区域，用于组织门店"@zh ;
+    rdfs:comment "地理区域，组织门店"@zh ;
     store:properties "id:string,name:string,code:string" ;
-    store:storage "regions.json" .
+    store:storage "regions.json" ;
+    store:status "active" .
 
 store:Store a rdfs:Class ;
     rdfs:label "门店"@zh , "Store"@en ;
     rdfs:comment "零售门店"@zh ;
     store:properties "id:string,name:string,region_id:string,address:string,manager_id:string,created_at:datetime" ;
-    store:storage "stores.json" .
+    store:storage "stores.json" ;
+    store:status "active" .
 
 store:Employee a rdfs:Class ;
     rdfs:label "员工"@zh , "Employee"@en ;
     rdfs:comment "门店员工"@zh ;
     store:properties "id:string,name:string,store_id:string,role:EmployeeRole,phone:string" ;
-    store:storage "employees.json" .
+    store:storage "employees.json" ;
+    store:status "active" .
 
 store:Product a rdfs:Class ;
     rdfs:label "商品"@zh , "Product"@en ;
     rdfs:comment "销售商品"@zh ;
     store:properties "id:string,name:string,category:string,brand:string,unit:string,cost_price:float,retail_price:float" ;
-    store:storage "products.json" .
+    store:storage "products.json" ;
+    store:status "active" .
 
 store:NearExpiryProduct a rdfs:Class ;
     rdfs:label "临期商品"@zh , "Near Expiry Product"@en ;
-    rdfs:comment "即将过期的商品实例"@zh ;
-    store:properties "id:string,product_id:string,store_id:string,batch_no:string,production_date:date,expiry_date:date,stock_quantity:int,days_left:int,discount_tier:DiscountTier,status:ProductStatus" ;
-    store:storage "near_expiry_products.json" .
+    rdfs:comment "即将过期的商品批次实例，出清标的物"@zh ;
+    store:properties "id:string,product_id:string,store_id:string,batch_no:string,production_date:date,expiry_date:date,stock_quantity:int,days_left:int,discount_tier:DiscountTier,status:NearExpiryProductStatus" ;
+    store:storage "near_expiry_products.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" .
 
-# Task — 通用任务 Object Type
-# Action Type 的执行记录实例
 store:Task a rdfs:Class ;
-    rdfs:label "任务"@zh , "Task"@en ;
-    rdfs:comment "Action Type 执行记录，type 字段标识操作类型"@zh ;
-    store:properties "id:string,type:ActionType,target_id:string,store_id:string,assignee_id:string,status:TaskStatus,params_json:dict,result_json:dict,priority:Priority,notes:string,created_at:datetime,started_at:datetime,completed_at:datetime" ;
-    store:storage "tasks.json" .
+    rdfs:label "出清任务"@zh , "Task"@en ;
+    rdfs:comment "受治理工作流的载体。一次出清从建单到完成/报损的完整记录"@zh ;
+    store:properties "id:string,task_type:TaskType,target_id:string,store_id:string,assignee_id:string,status:TaskStatus,discount_percent:int,planned_quantity:int,sold_quantity:int,params_json:dict,result_json:dict,priority:Priority,notes:string,created_at:datetime,started_at:datetime,completed_at:datetime" ;
+    store:storage "tasks.json" ;
+    store:status "active" ;
+    store:visibility "prominent" ;
+    store:edits_only_via_actions "true" .
+
+store:LossReport a rdfs:Class ;
+    rdfs:label "报损单"@zh , "Loss Report"@en ;
+    rdfs:comment "到期未售罄的报损记录，由 create_loss_report 创建"@zh ;
+    store:properties "id:string,task_id:string,target_id:string,loss_quantity:int,loss_value:float,loss_reason:string,status:LossReportStatus,created_at:datetime" ;
+    store:storage "loss_reports.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" .
 
 # ============================================================
-# Link Types (关系类型)
+# Link Types（10 个）—— via 归属见建模规范 §4.3
 # ============================================================
 
 store:located_in a rdfs:Property ;
     rdfs:label "位于"@zh , "located in"@en ;
-    rdfs:domain store:Store ;
-    rdfs:range store:Region ;
-    store:via "region_id" .
+    rdfs:comment "Store 通过 region_id（domain 侧）归属到 Region"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Region ; store:via "region_id" .
 
 store:has_employee a rdfs:Property ;
     rdfs:label "拥有员工"@zh , "has employee"@en ;
-    rdfs:domain store:Store ;
-    rdfs:range store:Employee ;
-    store:via "store_id" .
+    rdfs:comment "Store 的员工集合。via store_id 在 Employee（range 侧）上，指回 Store"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "store_id" .
 
 store:has_near_expiry a rdfs:Property ;
     rdfs:label "拥有临期商品"@zh , "has near expiry product"@en ;
-    rdfs:domain store:Store ;
-    rdfs:range store:NearExpiryProduct ;
-    store:via "store_id" .
+    rdfs:comment "Store 的临期商品集合。via store_id 在 NearExpiryProduct（range 侧）上"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:NearExpiryProduct ; store:via "store_id" .
 
 store:is_instance_of a rdfs:Property ;
     rdfs:label "是...的实例"@zh , "is instance of"@en ;
-    rdfs:domain store:NearExpiryProduct ;
-    rdfs:range store:Product ;
-    store:via "product_id" .
+    rdfs:comment "NearExpiryProduct 通过 product_id（domain 侧）指向 Product"@zh ;
+    rdfs:domain store:NearExpiryProduct ; rdfs:range store:Product ; store:via "product_id" .
 
 store:manages a rdfs:Property ;
     rdfs:label "管理"@zh , "manages"@en ;
-    rdfs:domain store:Employee ;
-    rdfs:range store:Store ;
-    store:via "manager_id" .
+    rdfs:comment "门店通过 manager_id（domain 侧）指向其店长 Employee。修正旧版反向 bug"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "manager_id" .
 
 store:has_task a rdfs:Property ;
     rdfs:label "有任务"@zh , "has task"@en ;
-    rdfs:domain store:Store ;
-    rdfs:range store:Task ;
-    store:via "store_id" .
+    rdfs:comment "Store 的任务集合。via store_id 在 Task（range 侧）上"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Task ; store:via "store_id" .
 
 store:created_for a rdfs:Property ;
     rdfs:label "针对"@zh , "created for"@en ;
-    rdfs:domain store:Task ;
-    rdfs:range store:NearExpiryProduct ;
-    store:via "target_id" .
+    rdfs:comment "Task 通过 target_id（domain 侧）指向被操作的 NearExpiryProduct"@zh ;
+    rdfs:domain store:Task ; rdfs:range store:NearExpiryProduct ; store:via "target_id" .
 
-# ============================================================
-# Action Types (动作类型)
-# clearance: 对临期商品进行出清处理
-# transfer: 门店间调拨商品
-# restock: 补充商品库存
-# ============================================================
+store:assigned_to a rdfs:Property ;
+    rdfs:label "指派给"@zh , "assigned to"@en ;
+    rdfs:comment "Task 通过 assignee_id（domain 侧）指向执行人 Employee"@zh ;
+    rdfs:domain store:Task ; rdfs:range store:Employee ; store:via "assignee_id" .
 
-store:clearance a rdfs:Class ;
-    rdfs:label "出清"@zh , "Clearance"@en ;
-    rdfs:comment "对临期商品进行出清处理"@zh ;
-    store:target store:NearExpiryProduct ;
-    store:params "discount:int,quantity:int,notes:string" .
+store:has_loss_report a rdfs:Property ;
+    rdfs:label "产生报损单"@zh , "has loss report"@en ;
+    rdfs:comment "Task 的报损单。via task_id 在 LossReport（range 侧）上"@zh ;
+    rdfs:domain store:Task ; rdfs:range store:LossReport ; store:via "task_id" .
 
-store:transfer a rdfs:Class ;
-    rdfs:label "调拨"@zh , "Transfer"@en ;
-    rdfs:comment "门店间调拨商品"@zh ;
-    store:target store:Product ;
-    store:params "from_store:string,to_store:string,quantity:int,notes:string" .
-
-store:restock a rdfs:Class ;
-    rdfs:label "补货"@zh , "Restock"@en ;
-    rdfs:comment "补充商品库存"@zh ;
-    store:target store:Product ;
-    store:params "quantity:int,supplier_id:string,notes:string" .
+store:written_off a rdfs:Property ;
+    rdfs:label "核销"@zh , "written off"@en ;
+    rdfs:comment "LossReport 通过 target_id（domain 侧）指向被核销的 NearExpiryProduct"@zh ;
+    rdfs:domain store:LossReport ; rdfs:range store:NearExpiryProduct ; store:via "target_id" .

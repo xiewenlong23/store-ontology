@@ -1,0 +1,23 @@
+api_name: approve_clearance
+display_name: 审批通过
+description: 审批回调通过任务，pending_approval -> approved（后端自动化调用）
+status: active
+target_object_type: Task
+edits_object_types: [Task]
+parameters:
+  - { name: task_id,     type: string, required: true }
+  - { name: approver_id, type: string, required: true }
+  - { name: comment,     type: string, required: false }
+submission_criteria:
+  roles: [region_cat_mgr]
+  conditions:
+    - { field: target.status, operator: is, value: pending_approval, fail_msg: "仅待审批任务可审批" }
+side_effects:
+  - type: state_transition
+    object_type: Task
+    match: { id: $task_id }
+    from: pending_approval
+    to: approved
+  - type: notification
+    template: clearance_approved
+    recipients: []
