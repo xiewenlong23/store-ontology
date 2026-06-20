@@ -69,9 +69,13 @@ class ActionExecutor:
 
     def _load_target(self, action, params, tenant_id):
         target_type = action.target_object_type
-        # 找定位参数：优先 target_id，其次 task_id
-        ident = params.get("target_id") or params.get("task_id")
-        if not ident or target_type not in self.registry.object_types:
+        if target_type not in self.registry.object_types:
+            return None
+        # 定位参数：target_object_type 为 Task 时用 task_id，否则用 target_id。
+        # 原因：complete_task/create_loss_report 的 target_object_type=Task，
+        # 但它们同时收 target_id（NearExpiryProduct）和 task_id——此处要的是 Task 记录。
+        ident = params.get("task_id") if target_type == "Task" else params.get("target_id")
+        if not ident:
             return None
         return self.repo.read_one(target_type, tenant_id, ident)
 
