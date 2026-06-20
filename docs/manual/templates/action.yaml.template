@@ -1,0 +1,30 @@
+# Action Type 契约模板（存储于 verticals/<name>/ontology/actions/<api_name>.yaml）
+# 依据建模规范 §5，必备要素：target_object_type / edits_object_types / parameters / side_effects
+
+api_name: {{action_name}}              # snake_case 动词短语，建议加 vertical 前缀
+display_name: {{中文显示名}}
+description: {{一句话说明，含状态迁移}}
+status: active
+target_object_type: {{TargetClass}}    # 主操作对象
+edits_object_types: [{{TargetClass}}, {{OtherTouchedClass}}]   # provenance：声明会改哪些 Object
+locator_field: {{locator_param}}       # 定位 target 的参数名（如 ticket_id）；target 是工作流对象时必填
+
+parameters:
+  - { name: {{param}}, type: {{string|int|float|enum}}, required: {{true|false}}, constraint: "{{0..100|>0|>=0}}", description: "{{单位/口径}}" }
+  - { name: {{param2}}, type: string, required: false, default: {{default_value}} }
+
+submission_criteria:                   # 细粒度门控，独立于粗粒度 RBAC（建模规范 §5.4）
+  roles: [{{role1}}, {{role2}}]
+  conditions:
+    # field 形如 "target.status" 或 "{{workflow_object_lower}}.status"
+    - { field: target.status, operator: {{is|is_not}}, value: {{status_value}}, fail_msg: "{{拒绝原因}}" }
+
+side_effects:                          # 声明式，executor 按声明执行（禁止硬编码在执行器）
+  - type: {{create_object|update_object|state_transition|notification|external_call}}
+    object_type: {{Class}}
+    match: { id: ${{param}} }           # update/state_transition 用；$name 引用参数
+    fields: { {{field}}: ${{param}}, status: {{value}} }   # 整字段覆盖
+    transforms:                          # 增减（结构化，禁止 eval）
+      - { op: {{increment|decrement|set}}, field: {{field}}, by: ${{param}} }
+    from: {{from_status}}                # 仅 state_transition
+    to: {{to_status}}                    # 仅 state_transition

@@ -28,12 +28,57 @@ from deepagents import create_deep_agent
 from deepagents.backends.filesystem import FilesystemBackend
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
-# ===== 导入本体驱动通用工具 =====
+# ===== 内核通用工具（与 vertical 无关）=====
 from ontology.tools import (
     query_entity, create_entity, update_entity, traverse_relation,
     execute_action, confirm_action, query_task, update_task,
-    query_near_expiry, build_ontology_prompt,
+    build_ontology_prompt,
 )
+
+# ===== vertical 注册表 bootstrap（自动发现 backend/verticals/*/config.py）=====
+from ontology.bootstrap import bootstrap as _bootstrap_verticals
+from ontology.vertical import all_verticals as _all_verticals
+
+_bootstrap_verticals()
+
+
+def _aggregate_vertical_tools():
+    """从每个 vertical 的 tools_module 聚合专属工具（零改 kernel 接入新 vertical）。"""
+    import importlib
+    collected = []
+    for cfg in _all_verticals():
+        if not cfg.tools_module:
+            continue
+        try:
+            mod = importlib.import_module(cfg.tools_module)
+            collected.extend(getattr(mod, "TOOLS", []))
+        except Exception as e:  # noqa: BLE001
+            print(f"[main] 加载 vertical '{cfg.name}' 工具失败: {e}")
+    return collected
+
+
+def _aggregate_skill_paths():
+    """聚合各 vertical 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
+    paths = []
+    for cfg in _all_verticals():
+        if cfg.skills_dir and os.path.isdir(cfg.skills_dir):
+            for name in os.listdir(cfg.skills_dir):
+                if name in ("tmp", "__pycache__"):
+                    continue
+                skill_path = os.path.join(cfg.skills_dir, name)
+                if os.path.isdir(skill_path) and os.path.exists(
+                        os.path.join(skill_path, "SKILL.md")):
+                    paths.append(f"/{name}/")
+    return paths
+
+
+def _build_combined_prompt() -> str:
+    """合并所有 vertical 的本体提示（多 vertical 共存）。"""
+    parts = [build_ontology_prompt(cfg.name) for cfg in _all_verticals()]
+    if not parts:  # 无注册 vertical 时兜底默认
+        parts = [build_ontology_prompt()]
+    return "\n\n---\n\n".join(parts)
+
 
 # ============ LLM 配置 ============
 
@@ -52,7 +97,7 @@ llm = ChatOpenAI(
 )
 
 
-# ============ LLM 配置 ============
+# ============ 工具清单（内核固定 + vertical 聚合）===========
 tools = [
     query_entity,
     create_entity,
@@ -62,8 +107,7 @@ tools = [
     confirm_action,
     query_task,
     update_task,
-    query_near_expiry,
-]
+] + _aggregate_vertical_tools()
 
 
 # ============ Deep Agent Graph ============
@@ -79,40 +123,44 @@ store_context = """
 当前租户上下文由请求 header X-Tenant-ID 注入（默认 tenant_default）。
 
 **操作流程（Preview → Confirm）：**
-1. 用户要求出清时，先 execute_action 获取预览（返回 preview_id）
+1. 用户要求执行业务操作时，先 execute_action 获取预览（返回 preview_id）
 2. 展示预览，询问确认
 3. 用户确认后，confirm_action(preview_id) 执行
-4. 出清是一条工作流（create_clearance_task -> submit_for_approval -> ... -> complete_task），状态机只允许相邻迁移
+4. 受治理的写操作是一条工作流（各 Action 的合法状态迁移见对应 Skill），状态机只允许相邻迁移
 5. 用中文回复
 """
 
 system_prompt = ontology_prompt + store_context
 
-# Skill 源路径（FilesystemBackend 从磁盘加载）
-skills_backend = FilesystemBackend(root_dir=os.path.join(os.path.dirname(__file__), "skills"), virtual_mode=True)
+# Skill 源路径（FilesystemBackend 从磁盘加载）；root 扫描所有 vertical 的 skills 目录
+_all_skills_roots = {cfg.skills_dir for cfg in _all_verticals() if cfg.skills_dir}
+skills_backend = FilesystemBackend(
+    root_dir=os.path.join(os.path.dirname(__file__), "skills"), virtual_mode=True)
 
 # 创建 Deep Agent Graph
 # - SummarizationMiddleware 默认开启，自动压缩长对话上下文（解决 BadRequestError）
 # - DeltaChannel 内置，checkpoint 增长从 O(N²) 降到 O(N)
-# - SkillsMiddleware 从 backend/skills/ 加载 SKILL.md（Progressive Disclosure）
+# - SkillsMiddleware 从所有 vertical 的 skills/ 加载 SKILL.md（Progressive Disclosure）
 # - checkpointer=MemorySaver 保持多轮会话状态
+_skill_paths = _aggregate_skill_paths() or ["/store-ontology/"]
 deep_agent_graph = create_deep_agent(
     model=llm,
     tools=tools,
     system_prompt=system_prompt,
     checkpointer=MemorySaver(),
     backend=skills_backend,
-    skills=["/store-ontology/"],
+    skills=_skill_paths,
     # 排除 Deep Agents 内置的通用工具（文件系统、shell、子agent），只保留业务工具
 )
 
 
 # ============ FastAPI 应用 ============
 
+_vertical_names = ", ".join(cfg.name for cfg in _all_verticals()) or "无"
 app = FastAPI(
-    title="门店临期商品管理 - 本体驱动 Agent",
-    description="基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手",
-    version="0.3.0",
+    title="OntologyAgent - 本体驱动 Agent",
+    description=f"基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手（已加载 vertical: {_vertical_names}）",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -139,7 +187,7 @@ add_langgraph_fastapi_endpoint(
     app=app,
     agent=LangGraphAgent(
         name="default",
-        description="门店临期商品管理助手（本体驱动 + Deep Agents）",
+        description="本体驱动业务助手（多 vertical + Deep Agents）",
         graph=deep_agent_graph,
     ),
     path="/api/copilotkit",

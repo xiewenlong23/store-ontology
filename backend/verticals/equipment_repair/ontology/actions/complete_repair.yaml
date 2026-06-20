@@ -1,0 +1,30 @@
+api_name: complete_repair
+display_name: 完成维修
+description: 维修完成结单，repairing -> resolved；设备置 normal
+status: active
+target_object_type: RepairTicket
+edits_object_types: [RepairTicket, Equipment]
+locator_field: ticket_id
+parameters:
+  - { name: ticket_id,   type: string, required: true }
+  - { name: equipment_id, type: string, required: true }
+  - { name: parts_cost,  type: float,  required: false, constraint: ">=0", default: 0, description: "元" }
+  - { name: labor_cost,  type: float,  required: false, constraint: ">=0", default: 0, description: "元" }
+submission_criteria:
+  roles: [technician, store_manager]
+  conditions:
+    - { field: target.status, operator: is, value: repairing, fail_msg: "仅 repairing 态可完成" }
+side_effects:
+  - type: state_transition
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    from: repairing
+    to: resolved
+  - type: update_object
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    fields: { parts_cost: $parts_cost, labor_cost: $labor_cost }
+  - type: update_object
+    object_type: Equipment
+    match: { id: $equipment_id }
+    fields: { status: normal }

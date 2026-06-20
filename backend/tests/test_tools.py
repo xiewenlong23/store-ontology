@@ -13,8 +13,11 @@ def _setup(monkeypatch, data_dir):
     repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
     ex = ActionExecutor(repository=repo, actions=parser.registry.action_types,
                         registry=parser.registry)
-    monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default": repo)
-    monkeypatch.setattr(T, "_get_executor", lambda: ex)
+    # 同时 patch _parser，使 query_entity 等内部 _parser() 调用也指向临时本体
+    # （否则会读到全局默认 vertical 的 parser，受其它测试的 bootstrap 污染）
+    monkeypatch.setattr(T, "_parser", lambda vertical=None: parser)
+    monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
+    monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
 
 
 def test_query_entity_reads_store(clearance_data_dir, monkeypatch):

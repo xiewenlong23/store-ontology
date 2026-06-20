@@ -1,0 +1,37 @@
+@prefix {{prefix}}: <{{namespace_iri}}> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# Object Types —— 每个 {{prefix}}:{{ClassName}} a rdfs:Class
+# 元数据谓词：status / visibility / edits_only_via_actions
+# 受治理（只能经 Action 改）的实体加 store:edits_only_via_actions "true"
+# ============================================================
+
+{{prefix}}:{{ClassName}} a rdfs:Class ;
+    rdfs:label "{{中文名}}"@zh , "{{EnglishName}}"@en ;
+    rdfs:comment "{{一句话业务含义}}"@zh ;
+    {{prefix}}:properties "id:string,{{field}}:{{type}},{{field2}}:{{enum_type}}" ;
+    {{prefix}}:storage "{{snake_case_plural}}.json" ;
+    {{prefix}}:status "active" ;
+    {{prefix}}:edits_only_via_actions "true" .   # 仅受治理实体加此行
+
+# ============================================================
+# Link Types —— 每个 {{prefix}}:{{link_name}} a rdfs:Property
+# via 归属原则（建模规范 §4.3）：via 字段必须属于 domain 或 range
+# via 在 range 侧时，comment 必须说明（避免方向歧义）
+# ============================================================
+
+{{prefix}}:{{link_name}} a rdfs:Property ;
+    rdfs:label "{{中文名}}"@zh , "{{EnglishName}}"@en ;
+    rdfs:comment "{{domain}} 通过 {{via}}（{{domain|range}}侧）关联 {{range}}"@zh ;
+    rdfs:domain {{prefix}}:{{DomainClass}} ;
+    rdfs:range {{prefix}}:{{RangeClass}} ;
+    {{prefix}}:via "{{via_field}}" .
+
+# ============================================================
+# 属性类型白名单（建模规范 §6.1）：
+#   string / int / float / bool / date(YYYY-MM-DD) / datetime(ISO8601)
+#   enum(引用枚举类型名) / dict(自由结构 JSON)
+# 单位口径（§6.2）：百分比=减扣百分比int、金额=元、数量/区间带单位
+# ============================================================

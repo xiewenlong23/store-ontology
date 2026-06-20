@@ -1,0 +1,9 @@
+[
+  {
+    "id": "{{prefix}}_001",
+    "field1": "value",
+    "field2_int": 0,
+    "field3_date": "2026-06-20",
+    "status": "{{enum_value}}"
+  }
+]

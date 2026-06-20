@@ -51,21 +51,31 @@ class EntityRegistry:
 
 
 class OntologyParser:
-    """解析 TTL 格式的本体定义文件（Object / Link Type）。"""
+    """解析 TTL 格式的本体定义文件（Object / Link Type）。
 
-    PREFIX = "store:"
+    prefix 从 TTL 文件的 @prefix 行动态读取（不再硬编码 "store:"），
+    从而支持多个 vertical 各用自己的命名空间。
+    """
 
-    def __init__(self, ttl_path: str, data_dir: str):
+    def __init__(self, ttl_path: str, data_dir: str, config=None):
         self.ttl_path = Path(ttl_path)
         self.data_dir = Path(data_dir)
+        self.config = config  # Optional[VerticalConfig]
+        self.PREFIX = self._read_prefix()
         self.registry = EntityRegistry()
         self._parse()
+
+    def _read_prefix(self) -> str:
+        """从 TTL 的 @prefix <name>: <...> . 行提取 'name:'，默认 'store:'。"""
+        content = self.ttl_path.read_text(encoding="utf-8")
+        m = re.search(r'@prefix\s+(\w+):\s*<[^>]+>\s*\.', content)
+        return (m.group(1) + ":") if m else "store:"
 
     def _parse(self):
         content = self.ttl_path.read_text(encoding="utf-8")
         P = self.PREFIX
 
-        # Object Types: store:X a rdfs:Class ; ... <line ending with " .">
+        # Object Types: <prefix>:X a rdfs:Class ; ... <line ending with " .">
         for m in re.finditer(
             rf'{P}(\w+)\s+a\s+rdfs:Class\s*;\s*(.*?)\s*\.\s*$',
             content, re.DOTALL | re.MULTILINE
@@ -125,9 +135,14 @@ class OntologyParser:
                 result.append(PropertyDef(name=prop, type="string"))
         return result
 
-    def build_system_prompt(self) -> str:
-        """从本体定义生成精简系统提示。"""
-        lines = ["你是门店临期商品管理助手。\n"]
+    def build_system_prompt(self, intro: str = "") -> str:
+        """从本体定义生成精简系统提示。
+
+        intro：开场白（来自 VerticalConfig.system_prompt_intro），领域无关的通用表述，
+        如 "你是门店运营助手。" 不传则用中性默认。
+        """
+        intro = intro or "你是业务运营助手。"
+        lines = [f"{intro}\n"]
         lines.append("可用实体（用 query_entity 查询）: "
                      + ", ".join(ot.label_zh for ot in self.registry.object_types.values()))
         lines.append("\n关系（用 traverse_relation）: "
@@ -135,24 +150,69 @@ class OntologyParser:
                                  for lt in self.registry.link_types.values()))
         lines.append("\n操作（用 execute_action/confirm_action）: "
                      + ", ".join(self.registry.action_types.keys()))
-        lines.append("\n用 query_task 查询任务。用中文回复。")
+        lines.append("\n用中文回复。")
         return "\n".join(lines)
 
 
-# ============ 单例 ============
-_parser_instance = None
+# ============ 单例缓存（按 vertical name 缓存）============
+_parser_cache: Dict[str, "OntologyParser"] = {}
 
 
-def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> OntologyParser:
-    """获取 OntologyParser 单例。"""
-    global _parser_instance
-    if _parser_instance is None:
+def get_ontology_parser(vertical: str = None, ttl_path: str = None,
+                        data_dir: str = None) -> "OntologyParser":
+    """获取 OntologyParser。
+
+    三种调用方式（优先级递减）：
+    1. get_ontology_parser("clearance")     —— 从 vertical 注册表取 config（推荐）
+    2. get_ontology_parser(ttl_path=..., data_dir=...)  —— 显式路径（测试用）
+    3. get_ontology_parser()                —— 默认 vertical（注册表第一个，或兜底 store.ttl）
+    """
+    global _parser_cache
+
+    # 方式 1：vertical name
+    if vertical is not None:
+        from ontology.vertical import get_vertical
+        cfg = get_vertical(vertical)
+        if cfg is None:
+            raise KeyError(f"未注册的 vertical: {vertical}")
+        if vertical in _parser_cache:
+            return _parser_cache[vertical]
+        p = OntologyParser(cfg.ttl_path, cfg.data_dir, config=cfg)
+        from ontology.action_loader import load_actions
+        p.registry.action_types = load_actions(cfg.actions_dir)
+        _parser_cache[vertical] = p
+        return p
+
+    # 方式 2：显式路径（不缓存，测试每次新建）
+    if ttl_path is not None or data_dir is not None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # backend/
         root = os.path.dirname(base)                                          # 项目根
         ttl_path = ttl_path or os.path.join(base, "ontology", "store.ttl")
         data_dir = data_dir or os.path.join(root, "data")
-        _parser_instance = OntologyParser(ttl_path, data_dir)
+        actions_dir = os.path.join(os.path.dirname(ttl_path), "actions")
+        p = OntologyParser(ttl_path, data_dir)
         from ontology.action_loader import load_actions
-        _parser_instance.registry.action_types = load_actions(
-            os.path.join(base, "ontology", "actions"))
-    return _parser_instance
+        if os.path.isdir(actions_dir):
+            p.registry.action_types = load_actions(actions_dir)
+        return p
+
+    # 方式 3：默认 vertical
+    from ontology.vertical import all_verticals
+    verts = all_verticals()
+    if verts:
+        return get_ontology_parser(verts[0].name)
+    # 兜底：未注册任何 vertical 时回退到旧式 store.ttl（兼容环境）
+    return _fallback_parser()
+
+
+def _fallback_parser() -> "OntologyParser":
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(base)
+    return OntologyParser(
+        os.path.join(base, "ontology", "store.ttl"),
+        os.path.join(root, "data"))
+
+
+def reset_parser_cache() -> None:
+    """测试用：清空 parser 缓存（vertical 配置变更后重载）。"""
+    _parser_cache.clear()

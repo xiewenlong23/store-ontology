@@ -15,29 +15,32 @@ from ontology.preview_cache import PreviewCache
 from ontology.errors import OntologyError
 
 
-# ============ 依赖装配（按 tenant 构造；测试用 monkeypatch 替换）============
+# ============ 依赖装配（按 vertical+tenant 构造；测试用 monkeypatch 替换）============
 
 _preview_cache = PreviewCache(ttl_seconds=300)
 
 
-def _parser():
-    return get_ontology_parser()
+def _parser(vertical: str = None):
+    """获取某 vertical 的 parser。不传则取默认 vertical。"""
+    return get_ontology_parser(vertical)
 
 
-def _get_repo(tenant: str = "tenant_default") -> JSONFileRepository:
-    p = _parser()
+def _get_repo(tenant: str = "tenant_default", vertical: str = None) -> JSONFileRepository:
+    p = _parser(vertical)
     return JSONFileRepository(data_dir=str(p.data_dir), registry=p.registry)
 
 
-def _get_executor() -> ActionExecutor:
-    p = _parser()
-    repo = _get_repo()
+def _get_executor(vertical: str = None) -> ActionExecutor:
+    p = _parser(vertical)
+    repo = _get_repo(vertical=vertical)
     return ActionExecutor(repository=repo, actions=p.registry.action_types,
-                          registry=p.registry)
+                          registry=p.registry, config=p.config)
 
 
-def build_ontology_prompt() -> str:
-    return _parser().build_system_prompt()
+def build_ontology_prompt(vertical: str = None) -> str:
+    p = _parser(vertical)
+    intro = p.config.system_prompt_intro if p.config else ""
+    return p.build_system_prompt(intro)
 
 
 def _wrap(data: dict, summary: str) -> str:
@@ -95,26 +98,12 @@ def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
                  f"查询到 {len(rows)} 条任务。")
 
 
-@tool
-def query_near_expiry(store_id: Optional[str] = None,
-                      tenant_id: str = "tenant_default") -> str:
-    """查询临期商品列表（折扣来自单一事实源 calculate_discount）。"""
-    from business.discount import calculate_discount
-    repo = _get_repo(tenant_id)
-    rows = repo.read("NearExpiryProduct", tenant_id)
-    if store_id:
-        rows = [r for r in rows if r.get("store_id") == store_id]
-    products = {p["id"]: p for p in repo.read("Product", tenant_id)}
-    items = []
-    for ne in rows[:20]:
-        prod = products.get(ne.get("product_id"), {})
-        tier = ne.get("discount_tier", "T3")
-        items.append({
-            **ne, "product_name": prod.get("name", ""),
-            "discount_percent": calculate_discount(tier),  # 单一事实源
-        })
-    return _wrap({"type": "near_expiry_list", "total": len(rows), "items": items},
-                 f"查询到 {len(rows)} 条临期商品。")
+# clearance 专属工具已下沉到 verticals/clearance/tools.py。
+# 此处保留 re-export 仅作向后兼容（main.py / 旧测试过渡期）；Batch 3 后 main.py 改为注册表聚合。
+try:
+    from verticals.clearance.tools import query_near_expiry  # noqa: F401
+except ImportError:
+    query_near_expiry = None  # clearance vertical 未安装时优雅降级
 
 
 # ============ 写工具（降级 CRUD）============

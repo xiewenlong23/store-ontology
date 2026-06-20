@@ -1,0 +1,62 @@
+@prefix repair: <http://example.org/equipment-repair#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# Object Types（4 个）—— 设备维修工单 vertical
+# ============================================================
+
+repair:Equipment a rdfs:Class ;
+    rdfs:label "设备"@zh , "Equipment"@en ;
+    rdfs:comment "门店可维修的设备资产"@zh ;
+    repair:properties "id:string,name:string,store_id:string,category:string,vendor_id:string,purchased_date:date,status:EquipmentStatus" ;
+    repair:storage "equipments.json" ;
+    repair:status "active" ;
+    repair:edits_only_via_actions "true" .
+
+repair:RepairTicket a rdfs:Class ;
+    rdfs:label "维修工单"@zh , "Repair Ticket"@en ;
+    rdfs:comment "设备报修到修复的工作流载体"@zh ;
+    repair:properties "id:string,equipment_id:string,store_id:string,reporter_id:string,technician_id:string,status:RepairTicketStatus,fault_description:string,diagnosis:string,parts_cost:float,labor_cost:float,created_at:datetime,started_at:datetime,resolved_at:datetime" ;
+    repair:storage "repair_tickets.json" ;
+    repair:status "active" ;
+    repair:visibility "prominent" ;
+    repair:edits_only_via_actions "true" .
+
+repair:Technician a rdfs:Class ;
+    rdfs:label "技师"@zh , "Technician"@en ;
+    rdfs:comment "设备维修技师"@zh ;
+    repair:properties "id:string,name:string,store_id:string,specialty:string,phone:string" ;
+    repair:storage "technicians.json" ;
+    repair:status "active" .
+
+repair:Vendor a rdfs:Class ;
+    rdfs:label "供应商"@zh , "Vendor"@en ;
+    rdfs:comment "设备供应商/厂商"@zh ;
+    repair:properties "id:string,name:string,contact_phone:string" ;
+    repair:storage "vendors.json" ;
+    repair:status "active" .
+
+# ============================================================
+# Link Types（4 个）
+# ============================================================
+
+repair:uses_equipment a rdfs:Property ;
+    rdfs:label "涉及设备"@zh , "uses equipment"@en ;
+    rdfs:comment "RepairTicket 通过 equipment_id（domain 侧）指向被维修的 Equipment"@zh ;
+    rdfs:domain repair:RepairTicket ; rdfs:range repair:Equipment ; repair:via "equipment_id" .
+
+repair:assigned_to a rdfs:Property ;
+    rdfs:label "指派给"@zh , "assigned to"@en ;
+    rdfs:comment "RepairTicket 通过 technician_id（domain 侧）指向负责技师"@zh ;
+    rdfs:domain repair:RepairTicket ; rdfs:range repair:Technician ; repair:via "technician_id" .
+
+repair:supplied_by a rdfs:Property ;
+    rdfs:label "由...供应"@zh , "supplied by"@en ;
+    rdfs:comment "Equipment 通过 vendor_id（domain 侧）指向其供应商"@zh ;
+    rdfs:domain repair:Equipment ; rdfs:range repair:Vendor ; repair:via "vendor_id" .
+
+repair:has_ticket a rdfs:Property ;
+    rdfs:label "有维修工单"@zh , "has repair ticket"@en ;
+    rdfs:comment "Equipment 的维修工单。via equipment_id 在 RepairTicket（range 侧）上"@zh ;
+    rdfs:domain repair:Equipment ; rdfs:range repair:RepairTicket ; repair:via "equipment_id" .

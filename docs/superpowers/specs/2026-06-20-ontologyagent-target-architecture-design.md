@@ -76,7 +76,13 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 - 仅用于**管理/开发场景**（受 admin 角色限制）
 - **不用于受治理实体的写**
 
-MVP 落地方式：在 Object Type 元数据上加 `edits_only_via_actions: bool` 标记；Repository 写操作检查该标记，命中则拒绝通用 CRUD、只允许 Action 执行器写入。
+MVP 落地方式：
+
+1. **标记来源**：Object Type 在 TTL 元数据中声明 `edits_only_via_actions: true`（如 NearExpiryProduct、Task）。Parser 解析后存入 `ObjectType` dataclass。
+2. **检查粒度**：整实体级别锁定（MVP 不做字段级）。命中标记的实体，任何字段的写操作都走 Action。
+3. **Repository 层检查**：`Repository.write(entity_type, entity_id, data)` 内部查 `ObjectType.edits_only_via_actions`，为 `True` 时拒绝写操作并抛出 `ActionRequiredError`。
+4. **Action 执行器绕过**：Repository 接口提供 `Repository.write(entity_type, entity_id, data, bypass_action_check=True)` 参数，**仅** `confirm_action` 等 Action 执行器内部传入此参数。通用 CRUD 工具（`create_entity`/`update_entity`）不传此参数，自然被拦截。
+5. **MVP 重构范围**：`confirm_action` 内部的 `_save_json` 调用需改走 Repository（因此 Repository 抽象是 `edits_only_via_actions` 的前置依赖，两者应同步实现）。
 
 ### 1.4 生产场景验证：临期出清跨天流程
 
@@ -115,6 +121,48 @@ MVP 落地方式：在 Object Type 元数据上加 `edits_only_via_actions: bool
 **Skill 只负责"LLM 段"的编排**（生成任务的对话、报损的对话），不负责跨天的整体流程。
 
 **决策**：MVP 用 Task 状态机 + 后端自动化承载长流程，不引入独立 Workflow/BPM 引擎（那是 v2 可选增强）。
+
+**MVP 后端自动化设计**：
+
+| 组件 | MVP 方案 | 说明 |
+|------|---------|------|
+| **定时器** | `APScheduler`（`BackgroundScheduler`） | 轻量级，嵌入 FastAPI 进程，支持 interval/cron 触发。如"每 30 分钟检查到期未售完商品" |
+| **状态机** | Action 执行器内的状态转换表（dict mapping） | 不单独建模块。在 `confirm_action` 执行前检查当前状态是否允许目标转换，不允许则拒绝 |
+| **事件源** | MVP 不接入外部事件 | POS 扣库存、审批回调等外部事件接入留 v2；MVP 通过定时轮询模拟（如轮询 Task 列表检查超时） |
+| **LLM 唤醒** | 定时器回调中调 `agent.ainvoke()` | 后端自动化需要 LLM 段时（如报损推理），通过 headless 调用触发，不走前端 UI |
+
+**Task 状态转换表（MVP）**：
+
+```python
+TASK_TRANSITIONS = {
+    "created": ["pending_approval", "scrapped"],
+    "pending_approval": ["approved", "rejected", "scrapped"],
+    "approved": ["accepted", "scrapped"],
+    "accepted": ["in_progress", "scrapped"],
+    "in_progress": ["completed", "scrapped"],
+}
+# confirm_action 在执行前查此表，from_status 不在 target_status 对应的 key 中则拒绝
+```
+
+### 1.6 Preview→Confirm 治理闭环
+
+当前代码中 `execute_action`（preview）和 `confirm_action`（执行）是两个独立 Tool，仅靠 Skill 指导 LLM "先 preview 再 confirm"。但 **没有任何技术强制机制**——LLM 或恶意调用者可直接调 `confirm_action` 绕过 preview，与"出清必须审批"的治理目标矛盾。
+
+**问题本质**：preview 是一个有状态的操作（生成预览数据），confirm 依赖 preview 的结果。当前两者之间没有状态关联。
+
+**MVP 方案：preview 记录 + confirm 校验**
+
+1. **preview 记录**：`execute_action` 执行后，将 preview 结果存入内存缓存（key = `{action_type}:{target_id}:{timestamp_hash}`），并返回 `preview_id` 给 LLM。
+2. **confirm 校验**：`confirm_action` 必须接收 `preview_id` 参数，内部检查缓存中是否存在对应记录且未过期（TTL = 5 分钟）。校验通过后执行变更并删除 preview 记录；校验失败则拒绝执行。
+3. **存储**：MVP 用进程内 `dict` + TTL 过期清理。v2 可升级为 Redis / 数据库持久化。
+
+```
+execute_action(...) → 生成 preview → 存入缓存 → 返回 preview_id + 预览数据
+confirm_action(preview_id=...) → 查缓存 → 存在且未过期 → 执行变更 → 删除缓存
+                            → 不存在或已过期 → 拒绝（"请先执行 execute_action 获取预览"）
+```
+
+**与 Skill 的关系**：Skill 仍指导 LLM "先 preview 再 confirm"（行为层），preview_id 校验提供技术兜底（治理层）。两层互不冲突——Skill 减少 LLM 触发拒绝的概率，preview_id 校验保证即使 Skill 未生效也不会绕过。
 
 ---
 
@@ -197,6 +245,19 @@ Repository 接口（内核）
 
 **决策**：多租户通过 `tenant_id` 抽象承载，存储先用 JSON 文件、未来扩展数据库。关键是不让上层（工具、Agent）直接碰文件，而是经 `Repository` 接口——这样未来换 DB 只换实现，上层接口不变。
 
+**tenant_id 传递链路（MVP）**：
+
+```
+前端 CopilotKit co-agent state (selected_store)
+    → route.ts 提取为 HTTP header (X-Tenant-ID)
+    → 后端 middleware 读取 → 注入请求上下文 (RequestContext)
+    → Agent system prompt (Layer 3: 当前 tenant 上下文)
+    → Repository 所有读写强制带 tenant_id 过滤
+```
+
+- **缺失/伪造处理**：后端 middleware 校验 `X-Tenant-ID` header 是否存在且在合法租户列表中；缺失返回 HTTP 401，伪造/非法返回 HTTP 403。不降级到默认租户。
+- **现有数据迁移**：MVP 不迁移现有 `data/*.json` 到 `data/tenant/{tenant_id}/` 目录结构。Repository 层通过 `tenant_id` 过滤逻辑实现隔离——MVP 阶段所有现有数据默认属于 `tenant_default`，tenant_id 过滤在 Repository 查询时加 `WHERE tenant_id == current_tenant`（JSON 实现为 list comprehension 过滤）。
+
 **现有代码 reconcile**：`tools.py` 直接 `_load_json`/`_save_json`，是 MVP 要重构的点。重构后工具调用 `repository.read(entity_type, tenant_id, ...)` / `repository.write(...)`。
 
 ### 3.4 Action Type 契约强化（吸收 Palantir）
@@ -204,7 +265,7 @@ Repository 接口（内核）
 现有 3 个 action（clearance/transfer/restock）的 TTL 定义只有参数，缺契约要素。MVP 补全：
 
 ```yaml
-# Action Type: clearance（示意结构，存储格式待定：TTL 扩展 or YAML）
+# Action Type: clearance（YAML 格式，存储于 ontology/actions/clearance.yaml）
 api_name: clearance
 display_name: 出清
 description: 对临期商品进行出清处理，创建 Task 记录
@@ -226,6 +287,8 @@ side_effects:                       # 副作用声明
 **submission_criteria 是权限的细粒度补充**（独立于粗粒度 RBAC）：粗粒度 RBAC 答"谁能用 execute_action 工具"，submission_criteria 答"给定这个 user 和这组参数，这个 action 实例能不能提交"。这让权限声明式、写在 Action 定义里，而非引擎里硬编码 6 层。
 
 MVP 实现：submission_criteria 只做 `roles` 白名单 + 简单参数条件；复杂的 Palantir 式操作符全集（is/matches/includes/...）和嵌套逻辑留 v2。
+
+**存储格式决策**：Action Type 定义使用 **YAML** 格式（存储于 `ontology/actions/*.yaml`），不扩展 TTL。理由：Action Type 的契约要素（parameters/submission_criteria/side_effects）是嵌套结构，TTL 的扁平三元组表达力不足、扩展语法较重；YAML 对嵌套结构更友好，且与现有 TTL Parser 并行——Object/Link Type 继续用 TTL（声明式 schema），Action Type 用 YAML（行为契约），Parser 按扩展名分别加载。
 
 ---
 
@@ -258,6 +321,8 @@ MVP 阶段，临期出清生产场景需要的新 Action Type（见 1.4）：cre
 
 **现有 SKILL.md 的坑要修**：`store-ontology/SKILL.md` 引用了 TTL 里不存在的实体和工具名（DiscountRule、get_near_expiry_products、belongs_to），要重写对齐实际本体与工具（见附录 A）。
 
+**Skill 目录结构问题**：现有目录 `backend/skills/store-ontology/store-ontology/SKILL.md` 存在两层 `store-ontology` 嵌套（疑为创建时失误），deepagents 的 `FilesystemBackend` 按 `skills_root/{skill_name}/SKILL.md` 路径查找。MVP 需修复为 `backend/skills/store-ontology/SKILL.md`（一层），同时确保 `clearance-workflow` 目录也平级于 `store-ontology` 下。
+
 ### 4.4 计算逻辑：普通 Python 模块
 
 计算逻辑不作为本体元素，是普通命名 Python 模块，被多个 Tool/Action 复用。例：
@@ -281,9 +346,37 @@ def execute_action(action_type="clearance", ...):
 
 ### 4.5 修复折扣三处矛盾（必须修的 bug）
 
-现状：`tools.py` 硬编码 `{T1:60,T2:40,T3:20}`、`discount_rules.json` 是 `{T1:0.5,T2:0.7,T3:0.9}`、`clearance-workflow/SKILL.md` 是 `{T1:70%,T2:50%,T3:30% off}`——三处互相矛盾。
+现状：`tools.py` 硬编码 `{T1:60,T2:40,T3:20}`（减扣百分比）、`discount_rules.json` 是 `{T1:0.5,T2:0.7,T3:0.9}`（乘数，0.5=付50%）、`clearance-workflow/SKILL.md` 是 `{T1:70%,T2:50%,T3:30% off}`（减扣百分比）——三处不仅数值矛盾，**语义维度也不一致**（乘数 vs 减扣百分比）。
 
-**决策**：单一事实源 = `discount_rules.json`（本体数据）+ 单一计算函数 `calculate_discount()`（读它）。SKILL.md 引用它、不重复定义数值；`tools.py` 删硬编码、改调函数。
+**语义统一约定**：全系统统一使用**减扣百分比（0-100 整数）**，即"减 X%"。此约定与现有 `tools.py` 和 SKILL.md 的 `% off` 表述对齐。
+
+**单一事实源** = `discount_rules.json`（本体数据，迁移后格式）+ 单一计算函数 `calculate_discount()`（读它）：
+
+```python
+# business/discount.py —— 单一事实源
+from backend.ontology.tools import get_registry
+
+def calculate_discount(discount_tier: str) -> int:
+    """返回减扣百分比（0-100 整数）。如 T1 → 50 表示五折（减 50%）。"""
+    rules = load_discount_rules()  # 读本体数据 discount_rules.json
+    return rules[discount_tier]["discount_percent"]  # 统一为减扣百分比
+```
+
+`discount_rules.json` 迁移后格式（语义统一）：
+
+```json
+[
+  {"id": "rule_T1", "tier": "T1", "days_min": 0, "days_max": 3, "discount_percent": 50, "description": "即将过期，5折（减50%）"},
+  {"id": "rule_T2", "tier": "T2", "days_min": 4, "days_max": 7, "discount_percent": 30, "description": "中期临期，7折（减30%）"},
+  {"id": "rule_T3", "tier": "T3", "days_min": 8, "days_max": 14, "discount_percent": 10, "description": "初期临期，9折（减10%）"}
+]
+```
+
+**迁移要点**：
+- `discount_rules.json`：字段 `discount_rate`（乘数）→ `discount_percent`（减扣百分比），值 `0.5→50, 0.7→30, 0.9→10`
+- `tools.py`：删除硬编码 `tier_discount = {"T1": 60, "T2": 40, "T3": 20}`，改为调 `calculate_discount(tier)`
+- `SKILL.md`：删除重复的折扣数值定义，改为引用 `discount_rules.json`（"折扣由 discount_tier 决定，具体数值见本体数据"）
+- `query_task` 的 `float→int` 转换 hack 不再需要（所有折扣统一为 int）
 
 ---
 
@@ -302,7 +395,7 @@ Layer 3: 当前 tenant 上下文（替代现有硬编码 store_001）
 Layer 4: 可用工具清单（deepagents 自动注入）
 ```
 
-**现有代码 reconcile**：`main.py` 硬编码 `store_context = "当前用户选择的门店ID是: store_001"` 要改为从请求/tenant 上下文动态注入。
+**现有代码 reconcile**：`main.py` 硬编码 `store_context = "当前用户选择的门店ID是: store_001"` 要改为从请求上下文动态注入。具体实现：后端 middleware 从 `X-Tenant-ID` header 解析 tenant_id，存入 `RequestContext`（每个请求一个，类似 FastAPI 的 `Depends`），Agent 构建时从 `RequestContext` 读取 tenant_id 生成 Layer 3 内容。headless 调用（后端自动化定时器）时，由定时器任务指定 tenant_id。
 
 ### 未来：subagent / 多 Agent（v2，架构预留）
 
@@ -363,7 +456,7 @@ MVP 只做结构化 JSON 日志（Harness §5.4 的 AppLog 格式）+ 现有 `/h
 **新增（MVP，配合多租户）**：
 - tenant/门店选择器从现有两个硬编码按钮升级为从 tenant 列表加载
 - 选中后写入 co-agent state，经请求传给后端注入 tenant 上下文
-- 修 `app/api/copilotkit/route.ts` 当前直接转发请求、不带 tenant header 的问题
+- 修 `app/api/copilotkit/route.ts` 当前直接转发请求、不带 tenant header 的问题：route.ts 需从 CopilotKit co-agent state 中提取 `selected_store`，写入 `X-Tenant-ID` header 后转发给后端。当前 route.ts 使用 `ExperimentalEmptyAdapter` + `LangGraphHttpAgent` 直接转发，无 hook 修改 header 的能力——需改为使用 CopilotKit 的中间件或自定义 fetch wrapper 在转发时注入 header。
 
 **v2**：A2UI 标准渲染（node_modules 已有但未启用）、ECharts 图表、权限管理 UI、审计查询 UI。
 
@@ -404,7 +497,8 @@ MVP 只做结构化 JSON 日志（Harness §5.4 的 AppLog 格式）+ 现有 `/h
 
 | Bug | 现状 | 修法 |
 |---|---|---|
-| **三处折扣矛盾** | tools.py `{60,40,20}` / discount_rules.json `{0.5,0.7,0.9}` / SKILL.md `{70,50,30}` 互相矛盾 | 单一事实源：discount_rules.json + `calculate_discount()` 函数（见 4.5） |
+| **三处折扣矛盾** | tools.py `{T1:60,T2:40,T3:20}`（减扣百分比）/ discount_rules.json `{T1:0.5,T2:0.7,T3:0.9}`（乘数，语义不同）/ clearance-workflow/SKILL.md `{T1:70%,T2:50%,T3:30% off}`（减扣百分比）——三处不仅数值矛盾，语义维度也不一致 | 单一事实源 + 语义统一：discount_rules.json 统一为减扣百分比 + `calculate_discount()` 函数（见 4.5） |
+| **clearance-workflow/SKILL.md 折扣值矛盾** | 该文件声明的折扣值（T1=70%, T2=50%, T3=30%）与 tools.py 硬编码（T1=60, T2=40, T3=20）不一致，也与 discount_rules.json 语义不匹配 | 同上，统一后 SKILL.md 不再重复定义数值 |
 | **LinkTypes 常量不一致** | `models/schemas.py` 的 `LinkTypes` 常量（`HAS_NEAR_EXPIRY_PRODUCT`/`BELONGS_TO`/`SUBJECT_TO`）与 TTL 实际定义（`has_near_expiry`，无 `belongs_to`/`subject_to`）不符 | 对齐 TTL，或删除未使用的 LinkTypes 类 |
 | **tasks.json 遗留 schema** | 种子 `tasks.json` 用旧 schema（`action_type`/`near_expiry_product_id`/`input_params`），与新 `Task` model（`type`/`target_id`/`params_json`）不符；`query_task` 在读取时 `setdefault` 打补丁 | 迁移种子数据到新 schema；移除打补丁代码 |
 | **SKILL.md 引用不存在实体** | `store-ontology/SKILL.md` 引用 `DiscountRule`、`get_near_expiry_products`、`belongs_to` 等本体/工具里不存在的东西 | 重写 SKILL.md 对齐实际本体与工具 |
@@ -412,6 +506,8 @@ MVP 只做结构化 JSON 日志（Harness §5.4 的 AppLog 格式）+ 现有 `/h
 | **JSON 写无锁** | `_save_json` 无并发控制，并发写会损坏文件 | Repository 层加文件锁（MVP）或事务（PG，v2） |
 | **硬编码 store_001** | `main.py` 把门店 ID 硬编码进 system prompt | 改为从 tenant 上下文动态注入（见 §5） |
 | **route.ts 不带 tenant** | 前端 API 代理直接转发请求，不带 tenant header | 加 tenant 上下文传递（见 §7） |
+| **clearance_tasks.json 残留文件** | `data/clearance_tasks.json` 是 `tasks.json` 旧 schema 条目的子集副本，代码中无任何引用 | 删除该文件 |
+| **manages link 方向语义反转** | `store.ttl` 定义 `manages: Employee → Store, via="manager_id"`，但 `manager_id` 是 Store 的字段（不是 Employee 的）。`traverse_relation("Employee", "emp_001", "manages")` 能工作纯属巧合（store_001.manager_id == "emp_001"） | 修正 TTL：`manages: Store → Employee, via="manager_id"`（店长是 Store 的属性，不是 Employee 的） |
 
 ---
 
@@ -427,3 +523,30 @@ MVP 只做结构化 JSON 日志（Harness §5.4 的 AppLog 格式）+ 现有 `/h
 6. **Alias 层**（custom alias 配置 + model alias 模型引用）——运行时解析的间接层。对本设计的多 provider LLM 抽象有参考价值，列为 v2。
 7. **Function-backed action**——复杂变更委托给 Function。本设计无 Function 元素，对应场景由"普通计算模块 + Action 副作用声明"覆盖。
 8. **"edits only via actions"**——Object Type 可锁定为只能通过 Action 修改。本设计直接采纳为治理强制机制（见 1.3）。
+
+---
+
+## 附录 C：错误处理策略（MVP）
+
+### C.1 Tool 调用失败
+
+| 场景 | MVP 策略 |
+|------|---------|
+| LLM 调用了不存在的 Action Type | `execute_action` 开头检查 `action_type` 是否存在于 `registry.action_types`，不存在则返回明确错误信息（"Action Type 'xxx' 不存在，可用：clearance/transfer/restock"），LLM 根据错误信息自行修正 |
+| 参数校验失败 | Action 定义中的 `parameters` 约束检查失败时，返回具体字段+约束的错误信息（"参数 discount 必须 ≤ 100，当前值 150"） |
+| 数据不存在 | 查询/操作目标实体不存在时返回 `EntityNotFoundError`，LLM 可选择创建或告知用户 |
+
+### C.2 数据一致性
+
+| 场景 | MVP 策略 |
+|------|---------|
+| JSON 文件并发写入损坏 | Repository 层使用 `fcntl.flock` 文件锁（MVP，仅 Unix）；v2 换 PG 后由数据库事务保证 |
+| `confirm_action` 执行到一半失败 | 使用**原子写入**：先写临时文件 → `os.rename` 覆盖原文件（rename 在同一文件系统上是原子操作）。写入前将原文件备份为 `.bak`，失败时可手动恢复 |
+| preview 与 confirm 状态不一致 | §1.6 的 preview_id 缓存 TTL 机制保证——过期 preview 自动失效，LLM 必须重新 preview |
+
+### C.3 数据文件损坏恢复
+
+| 场景 | MVP 策略 |
+|------|---------|
+| JSON 文件解析失败 | `_load_json` 捕获 `json.JSONDecodeError`，返回空数据 + 写结构化警告日志（含文件路径、错误位置）。不自动恢复，由运维手动从 `.bak` 恢复 |
+| 数据文件缺失 | Repository 检查文件是否存在，不存在则初始化为空 `[]` + 写日志。首次启动时自动创建缺失的数据目录和空文件 |
