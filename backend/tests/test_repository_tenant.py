@@ -1,9 +1,9 @@
 """测试 Repository 双字段过滤（P1：customer_id 硬隔离 + org_unit_id 范围）。"""
 import json
 import os
-from ontology.repository import JSONFileRepository
-from ontology.tenant import TenantContext
-from ontology.parser import ObjectType, PropertyDef, EntityRegistry
+from engine.repository import JSONFileRepository
+from engine.tenant import TenantContext
+from engine.parser import ObjectType, PropertyDef, EntityRegistry
 
 
 def _registry():

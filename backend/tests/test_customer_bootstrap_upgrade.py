@@ -5,8 +5,8 @@ import pytest
 import tempfile
 import shutil
 
-from ontology.customer_bootstrap import bootstrap_customer, reset_instances
-from ontology.customer import CustomerConfig, register_customer, clear_customers
+from engine.customer_bootstrap import bootstrap_customer, reset_instances
+from engine.customer import CustomerConfig, register_customer, clear_customers
 
 
 @pytest.fixture(autouse=True)

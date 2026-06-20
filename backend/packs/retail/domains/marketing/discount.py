@@ -1,6 +1,6 @@
 """折扣计算 —— 全系统唯一事实源（见建模规范 §6.2、§8 反模式 1/8/9）。
 其它处（tools/SKILL）只调用本函数，禁止重复定义折扣数值。"""
-from ontology.discount_stub import get_discount_source
+from engine.discount_stub import get_discount_source
 
 
 def calculate_discount(discount_tier: str) -> int:

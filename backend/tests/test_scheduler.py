@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from ontology.scheduler import AutomationScheduler
+from engine.scheduler import AutomationScheduler
 
 
 def test_lifecycle_start_shutdown():

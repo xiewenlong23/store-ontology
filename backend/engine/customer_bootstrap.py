@@ -7,8 +7,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from ontology.customer import get_customer, load_customer_config, CustomerConfig
-from ontology.tenant import TenantContext
+from engine.customer import get_customer, load_customer_config, CustomerConfig
+from engine.tenant import TenantContext
 
 
 @dataclass
@@ -67,21 +67,26 @@ def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
     if not ontology_dir and cfg.data_dir:
         ontology_dir = os.path.join(os.path.dirname(cfg.data_dir), "ontology")
 
+    # ontology_dir 可能是相对路径（如 "ontology"），需解析为绝对路径（相对 customer_root）
+    if ontology_dir and not os.path.isabs(ontology_dir):
+        customer_root = os.path.dirname(data_dir)
+        ontology_dir = os.path.join(customer_root, ontology_dir)
+
     if ontology_dir and os.path.isdir(os.path.join(ontology_dir, "domains")):
         # 从客户自定义 ontology 构建（本体语义隔离）
         registry = _build_registry_from_customer_ontology(ontology_dir, data_dir)
     else:
         # 回退：全局 store.ttl（兼容 customer_default）
-        from ontology.parser import OntologyParser
-        from ontology.action_loader import load_actions
-        ttl_path = os.path.join(base, "ontology", "store.ttl")
+        from engine.parser import OntologyParser
+        from engine.action_loader import load_actions
+        ttl_path = os.path.join(base, "engine", "store.ttl")
         parser = OntologyParser(ttl_path=ttl_path, data_dir=data_dir)
-        actions_dir = os.path.join(base, "ontology", "actions")
+        actions_dir = os.path.join(base, "engine", "actions")
         if os.path.isdir(actions_dir):
             parser.registry.action_types = load_actions(actions_dir)
         registry = parser.registry
 
-    from ontology.repository import JSONFileRepository
+    from engine.repository import JSONFileRepository
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
     inst = CustomerAgentInstance(
@@ -97,8 +102,8 @@ def _build_registry_from_customer_ontology(ontology_dir: str, data_dir: str):
     扫描 ontology/domains/*/domain.ttl 解析 Object/Link，
     扫描 ontology/domains/*/actions/*.yaml + ontology/processes/*/actions/*.yaml 加载 Action。
     """
-    from ontology.parser import OntologyParser, EntityRegistry
-    from ontology.action_loader import load_actions
+    from engine.parser import OntologyParser, EntityRegistry
+    from engine.action_loader import load_actions
 
     registry = EntityRegistry()
 

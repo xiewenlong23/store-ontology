@@ -1,6 +1,6 @@
 """测试 bootstrap_customer 按客户构建隔离实例（P1）。"""
 import pytest
-from ontology.customer_bootstrap import bootstrap_customer, get_customer_agent_instance, reset_instances
+from engine.customer_bootstrap import bootstrap_customer, get_customer_agent_instance, reset_instances
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +31,7 @@ def test_two_customers_isolated():
     import tempfile
     d1 = tempfile.mkdtemp()
     d2 = tempfile.mkdtemp()
-    from ontology.customer import CustomerConfig, register_customer, clear_customers
+    from engine.customer import CustomerConfig, register_customer, clear_customers
     clear_customers()
     register_customer(CustomerConfig(customer_id="ca", name="A", storage_type="json_files", data_dir=d1))
     register_customer(CustomerConfig(customer_id="cb", name="B", storage_type="json_files", data_dir=d2))

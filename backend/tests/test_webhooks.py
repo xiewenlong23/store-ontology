@@ -21,7 +21,7 @@ def _setup_app(monkeypatch, data_dir):
     # 用 pack helper 构建完整 executor 指向临时数据
     from tests._clearance_helper import build_clearance_executor
     ex, repo = build_clearance_executor(data_dir)
-    import ontology.tools as T
+    import engine.tools as T
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
     monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
 
@@ -50,7 +50,7 @@ def test_approval_webhook_approves_task(webhook_client):
     需 pending_approval Task；automation_data_dir 没有，先经 executor 建一个。
     """
     client, main = webhook_client
-    from ontology.tools import _get_executor
+    from engine.tools import _get_executor
     ex = _get_executor(vertical="clearance")
     # 建一个 task 并推到 pending_approval
     r = ex.execute("create_clearance_task", {
@@ -77,7 +77,7 @@ def test_pos_webhook_deducts_stock(webhook_client):
     automation_data_dir 的 task_exp 是 in_progress。
     """
     client, main = webhook_client
-    from ontology.tools import _get_executor
+    from engine.tools import _get_executor
     ex = _get_executor(vertical="clearance")
 
     resp = client.post("/api/webhooks/pos", json={

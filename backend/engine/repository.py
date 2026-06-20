@@ -9,8 +9,8 @@ import fcntl
 import tempfile
 from typing import Optional, Union
 
-from ontology.errors import ActionRequiredError
-from ontology.tenant import TenantContext
+from engine.errors import ActionRequiredError
+from engine.tenant import TenantContext
 
 
 def _normalize_tenant(tenant) -> TenantContext:

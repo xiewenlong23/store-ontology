@@ -1,7 +1,7 @@
 """测试 CustomerConfig + OrgUnit 树（P1 客户配置）。"""
 import os
 import pytest
-from ontology.customer import CustomerConfig, OrgUnit, load_customer_config
+from engine.customer import CustomerConfig, OrgUnit, load_customer_config
 
 
 def test_customer_config_basic():
@@ -54,7 +54,7 @@ def test_load_customer_config_default():
 
 def test_customer_registry():
     """客户注册表：注册/获取/列表。"""
-    from ontology.customer import register_customer, get_customer, all_customers, clear_customers
+    from engine.customer import register_customer, get_customer, all_customers, clear_customers
     clear_customers()
     cfg = CustomerConfig(customer_id="cx", name="x", source_pack="retail",
                          storage_type="json_files", data_dir="/tmp")

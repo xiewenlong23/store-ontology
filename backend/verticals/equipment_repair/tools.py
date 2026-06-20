@@ -7,7 +7,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from ontology.tools import _get_repo, _wrap
+from engine.tools import _get_repo, _wrap
 
 
 @tool

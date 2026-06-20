@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from models.schemas import (
+from engine.schemas import (
     Task, NearExpiryProduct, LossReport,
     TaskStatus, NearExpiryProductStatus, TaskType, LossReportStatus,
 )

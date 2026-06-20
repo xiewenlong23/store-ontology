@@ -1,14 +1,14 @@
 import pytest
-from ontology.repository import JSONFileRepository
-from ontology.parser import OntologyParser
-from ontology.action_loader import load_actions
-from ontology.executor import ActionExecutor
-from ontology.errors import ValidationError
+from engine.repository import JSONFileRepository
+from engine.parser import OntologyParser
+from engine.action_loader import load_actions
+from engine.executor import ActionExecutor
+from engine.errors import ValidationError
 
 
 def _exec(data_dir):
-    parser = OntologyParser(ttl_path="ontology/store.ttl", data_dir=data_dir)
-    parser.registry.action_types = load_actions("ontology/actions")
+    parser = OntologyParser(ttl_path="engine/store.ttl", data_dir=data_dir)
+    parser.registry.action_types = load_actions("engine/actions")
     repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
     return ActionExecutor(repository=repo, actions=parser.registry.action_types,
                           registry=parser.registry), repo

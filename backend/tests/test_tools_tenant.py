@@ -1,13 +1,13 @@
 """测试工具层按 customer/org_unit 过滤（P1）。"""
-from ontology.tools import query_entity
-from ontology import tools as T
+from engine.tools import query_entity
+from engine import tools as T
 
 
 def _setup(monkeypatch, data_dir):
     from tests._clearance_helper import build_clearance_executor, build_clearance_registry
     ex, repo = build_clearance_executor(data_dir)
     reg = repo.registry
-    from ontology.parser import OntologyParser
+    from engine.parser import OntologyParser
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)

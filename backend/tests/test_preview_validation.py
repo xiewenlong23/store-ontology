@@ -6,18 +6,18 @@
 
 修复：预览阶段就按 Action 契约校验参数，错误立即返回，不进缓存。
 """
-from ontology.tools import execute_action
-from ontology import tools as T
+from engine.tools import execute_action
+from engine import tools as T
 
 
 def _setup(monkeypatch, data_dir):
     """指向临时数据的 executor/repo 装配（同 test_tools）。"""
-    from ontology.parser import OntologyParser
-    from ontology.action_loader import load_actions
-    from ontology.repository import JSONFileRepository
-    from ontology.executor import ActionExecutor
-    parser = OntologyParser(ttl_path="ontology/store.ttl", data_dir=data_dir)
-    parser.registry.action_types = load_actions("ontology/actions")
+    from engine.parser import OntologyParser
+    from engine.action_loader import load_actions
+    from engine.repository import JSONFileRepository
+    from engine.executor import ActionExecutor
+    parser = OntologyParser(ttl_path="engine/store.ttl", data_dir=data_dir)
+    parser.registry.action_types = load_actions("engine/actions")
     repo = JSONFileRepository(data_dir=data_dir, registry=parser.registry)
     ex = ActionExecutor(repository=repo, actions=parser.registry.action_types,
                         registry=parser.registry)

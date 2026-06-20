@@ -1,6 +1,6 @@
 """测试 TenantContext 值对象（P1 双层租户地基）。"""
 import pytest
-from ontology.tenant import TenantContext
+from engine.tenant import TenantContext
 
 
 def test_tenant_context_basic():

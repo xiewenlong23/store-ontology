@@ -171,14 +171,14 @@ def get_ontology_parser(vertical: str = None, ttl_path: str = None,
 
     # 方式 1：vertical name
     if vertical is not None:
-        from ontology.vertical import get_vertical
+        from engine.vertical import get_vertical
         cfg = get_vertical(vertical)
         if cfg is None:
             raise KeyError(f"未注册的 vertical: {vertical}")
         if vertical in _parser_cache:
             return _parser_cache[vertical]
         p = OntologyParser(cfg.ttl_path, cfg.data_dir, config=cfg)
-        from ontology.action_loader import load_actions
+        from engine.action_loader import load_actions
         p.registry.action_types = load_actions(cfg.actions_dir)
         _parser_cache[vertical] = p
         return p
@@ -187,17 +187,17 @@ def get_ontology_parser(vertical: str = None, ttl_path: str = None,
     if ttl_path is not None or data_dir is not None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # backend/
         root = os.path.dirname(base)                                          # 项目根
-        ttl_path = ttl_path or os.path.join(base, "ontology", "store.ttl")
+        ttl_path = ttl_path or os.path.join(base, "engine", "store.ttl")
         data_dir = data_dir or os.path.join(root, "data")
         actions_dir = os.path.join(os.path.dirname(ttl_path), "actions")
         p = OntologyParser(ttl_path, data_dir)
-        from ontology.action_loader import load_actions
+        from engine.action_loader import load_actions
         if os.path.isdir(actions_dir):
             p.registry.action_types = load_actions(actions_dir)
         return p
 
     # 方式 3：默认 vertical
-    from ontology.vertical import all_verticals
+    from engine.vertical import all_verticals
     verts = all_verticals()
     if verts:
         return get_ontology_parser(verts[0].name)
@@ -209,7 +209,7 @@ def _fallback_parser() -> "OntologyParser":
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root = os.path.dirname(base)
     return OntologyParser(
-        os.path.join(base, "ontology", "store.ttl"),
+        os.path.join(base, "engine", "store.ttl"),
         os.path.join(root, "data"))
 
 

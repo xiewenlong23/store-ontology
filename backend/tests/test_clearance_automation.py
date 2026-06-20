@@ -4,7 +4,7 @@ job 是后端自动化的核心：无 LLM 在环，直接调 ActionExecutor.exec
 """
 import pytest
 
-from ontology.bootstrap import bootstrap
+from engine.bootstrap import bootstrap
 from tests._clearance_helper import build_clearance_executor
 
 
@@ -113,7 +113,7 @@ def test_handle_pos_scan_deducts(automation_data_dir):
 def test_register_clearance_automation_adds_jobs():
     """register 函数把两个 job 加进 scheduler（不真跑，只验注册）。"""
     bootstrap()
-    from ontology.scheduler import AutomationScheduler
+    from engine.scheduler import AutomationScheduler
     from packs.retail.processes.clearance.automation import register_clearance_automation
     sched = AutomationScheduler()
     register_clearance_automation(sched, interval_seconds=60)
