@@ -1,8 +1,8 @@
-# OntologyAgent SaaS 平台总体架构设计
+# OntologyAgent APaaS 平台总体架构设计
 
 > **状态**：已与用户逐节确认，待 review
 > **日期**：2026-06-20
-> **性质**：从"单 vertical demo + 多 vertical 内核"升级为"多客户 SaaS + 行业包 + 客户自定义"的**总体架构骨架**。只定架构与 phase 拆分，不含详细实体清单（各 phase 独立 spec 细化）。
+> **性质**：从"单 vertical demo + 多 vertical 内核"升级为"多客户 APaaS + 行业包 + 客户自定义"的**总体架构骨架**。只定架构与 phase 拆分，不含详细实体清单（各 phase 独立 spec 细化）。
 > **前置文档**：
 > - `docs/superpowers/specs/2026-06-20-ontologyagent-target-architecture-design.md`（单 vertical 目标架构，内核多 vertical 改造已完成）
 > - `docs/业务本体建模规范.md`（建模规范）
@@ -12,13 +12,15 @@
 
 ## 0. 定位与目标
 
-**OntologyAgent 是一个本体驱动的多客户 SaaS Agent 平台。** 平台提供通用内核 + 可插拔行业包；每个客户（企业）copy 行业包作为起点，按自身业务调整本体语义，灌入数据，启动专属 Agent 实例，即可用对话 + 自动化 + 看板进行业务运营。
+**OntologyAgent 是一个本体驱动的多客户 APaaS（Application Platform as a Service）Agent 平台。** 平台提供通用内核 + 可插拔行业包；每个客户（企业）copy 行业包作为起点，按自身业务调整本体语义，灌入数据，启动专属 Agent 实例，即可用对话 + 自动化 + 看板进行业务运营。
+
+**为什么是 APaaS 而非 SaaS**：SaaS 是"平台提供一套标准应用，客户配置参数使用"；APaaS 是"平台提供建模与运行能力，客户**构建自己的应用**（自定义本体/流程/规则）"。本平台的核心特征——客户 copy 行业包后**任意调整本体语义**（加/删/改 Object/Action/Skill）、灌自己的数据、跑专属 Agent——正是 APaaS。行业包是**起点模板**而非标准应用，客户是本体的 owner。
 
 **一句话**：内核（建模引擎）+ 行业包（领域模板）+ 客户配置（copy→改→灌→接DB→启）= 每个客户一个专属 AI 业务运营平台。
 
 ### 核心诉求
 
-1. **多客户 SaaS**：一个平台服务多个企业客户，客户间全栈隔离。
+1. **多客户 APaaS**：一个平台服务多个企业客户，客户间全栈隔离。
 2. **业务模型因客户而异**：同一行业（零售）的客户，其本体（实体/关系/规则）不同——平台不强制一套标准模型，而是提供行业包作起点，客户 copy 后按实际调整。
 3. **零售领域分层**：业务按价值链组织（营销/供应链/组织/财务能力域），工作流跨域编排。
 4. **Agent 驱动运营**：不止查询助手，还要主动自动化 + 运营看板。
@@ -170,7 +172,7 @@ clearance 的 Action 按归属域拆分：create_clearance_task 的定价→mark
 ```
 
 - **本体语义隔离**：每客户专属 OntologyRegistry 实例。客户 A 的 `Product{id,name,shelf_life,organic_cert}` 与客户 B 的 `Product{id,name,cost,supplier_id}` 属性不同——因为 registry 实例不同。
-- **实例数据隔离**：`customer_id` 硬隔离（SaaS 底线）+ `org_unit_id` 权限范围。
+- **实例数据隔离**：`customer_id` 硬隔离（APaaS 底线）+ `org_unit_id` 权限范围。
 - **Agent 实例隔离**：按 customer 构建（独立 tools/prompt/skills/registry/repository）。
 
 ### 3.3 客户 Onboarding 工作流（五步）
@@ -394,7 +396,7 @@ bootstrap(customer_id) 一次构建：
 | **现状** | 单进程，JSON，MemorySaver | demo/POC |
 | **P5a** | + PostgreSQL（per-customer schema）+ 多 worker | <50 客户 |
 | **P5b** | + Redis + Celery + LLM 网关 | <500 客户 |
-| **P5c** | + K8s 弹性 + 大客户独占 + 多 region | 大规模 SaaS |
+| **P5c** | + K8s 弹性 + 大客户独占 + 多 region | 大规模 APaaS |
 
 **关键原则**：Repository 抽象使存储可换，Agent 按 customer 构建使水平扩展自然——**内核架构不阻塞部署升级**。
 
@@ -413,7 +415,7 @@ bootstrap(customer_id) 一次构建：
 | **P5a 数据库存储** | JSON → PostgreSQL per-customer schema；PostgresRepository | P1 | 换 DB 不改上层 |
 | **P5b 分布式部署** | Redis + Celery + LLM 网关 + 多 worker | P5a | 多客户高并发 |
 
-**建议从 P1 开始**——多客户租户地基是 SaaS 底线。
+**建议从 P1 开始**——多客户租户地基是 APaaS 底线。
 
 ---
 
@@ -440,7 +442,7 @@ bootstrap(customer_id) 一次构建：
 | 领域组织方式 | 双轴（能力域提供原子 + 价值链流程跨域编排） | 跨域流程是常态 |
 | 运营形态 | 对话+自动化+看板 | 主动运营，非被动查询 |
 | 租户层级 | Platform>Customer>OrgUnit | 权限可下放到门店 |
-| 客户隔离 | 全栈（本体语义+数据+Agent 实例） | SaaS 多客户底线 |
+| 客户隔离 | 全栈（本体语义+数据+Agent 实例） | APaaS 多客户底线 |
 | 本体管理 | Web 只读浏览（MVP），在线编辑（v2） | 编辑需校验/迁移/版本 |
 | 部署 | 渐进式（单进程→PG→Redis+Celery→K8s） | 内核不阻塞部署升级 |
 
