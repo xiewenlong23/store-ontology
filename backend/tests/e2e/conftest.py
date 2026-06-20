@@ -20,7 +20,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 # ============ E2E 调用结果 ============
 
-E2EResult = namedtuple("E2EResult", ["text", "tool_calls"])
+E2EResult = namedtuple("E2EResult", ["text", "tool_calls", "tool_outputs"])
 
 
 class E2EAgent:
@@ -44,16 +44,22 @@ class E2EAgent:
         # 只看本轮新增的消息（index >= before_count）
         new_messages = messages[before_count:]
         tool_calls = []
+        tool_outputs = []  # 工具返回的内容（ToolMessage.content）
         last_text = ""
         for msg in new_messages:
             tcs = getattr(msg, "tool_calls", None) or []
             for tc in tcs:
                 tool_calls.append(tc.get("name", "") if isinstance(tc, dict)
                                   else getattr(tc, "name", ""))
+            # ToolMessage 的 content 是工具返回值
+            msg_type = type(msg).__name__
+            if msg_type == "ToolMessage":
+                tool_outputs.append(getattr(msg, "content", ""))
             content = getattr(msg, "content", "")
             if isinstance(content, str) and content.strip():
                 last_text = content
-        return E2EResult(text=last_text, tool_calls=tool_calls)
+        return E2EResult(text=last_text, tool_calls=tool_calls,
+                         tool_outputs=tool_outputs)
 
     def _history_len(self, thread_id: str) -> int:
         return self._hist_lens.get(thread_id, 0)
