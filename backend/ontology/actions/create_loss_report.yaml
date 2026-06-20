@@ -1,0 +1,38 @@
+api_name: create_loss_report
+display_name: 报损
+description: 到期未售罄建报损单，in_progress -> scrapped；商品 scrapped
+status: active
+target_object_type: Task
+edits_object_types: [Task, NearExpiryProduct, LossReport]
+parameters:
+  - { name: task_id,       type: string, required: true }
+  - { name: target_id,     type: string, required: true }
+  - { name: loss_quantity, type: int,    required: true, constraint: ">0" }
+  - { name: loss_value,    type: float,  required: true, constraint: ">=0" }
+  - { name: loss_reason,   type: string, required: true }
+submission_criteria:
+  roles: [store_manager, region_cat_mgr]
+  conditions:
+    - { field: target.status, operator: is, value: in_progress }
+side_effects:
+  - type: state_transition
+    object_type: Task
+    match: { id: $task_id }
+    from: in_progress
+    to: scrapped
+  - type: update_object
+    object_type: NearExpiryProduct
+    match: { id: $target_id }
+    fields: { status: scrapped }
+  - type: create_object
+    object_type: LossReport
+    fields:
+      task_id: $task_id
+      target_id: $target_id
+      loss_quantity: $loss_quantity
+      loss_value: $loss_value
+      loss_reason: $loss_reason
+      status: pending
+  - type: notification
+    template: loss_report_created
+    recipients: []

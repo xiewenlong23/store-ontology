@@ -1,0 +1,26 @@
+api_name: deduct_stock
+display_name: 扣减库存
+description: POS 扫码扣库存并累计已售，不改任务状态（后端自动化调用）
+status: active
+target_object_type: NearExpiryProduct
+edits_object_types: [NearExpiryProduct, Task]
+parameters:
+  - { name: target_id, type: string, required: true }
+  - { name: task_id,   type: string, required: true }
+  - { name: quantity,  type: int,    required: true, constraint: ">0" }
+submission_criteria:
+  roles: [system_pos]
+  conditions:
+    - { field: target.status, operator: is, value: clearance }
+    - { field: task.status,   operator: is, value: in_progress }
+side_effects:
+  - type: update_object
+    object_type: NearExpiryProduct
+    match: { id: $target_id }
+    transforms:
+      - { op: decrement, field: stock_quantity, by: $quantity }
+  - type: update_object
+    object_type: Task
+    match: { id: $task_id }
+    transforms:
+      - { op: increment, field: sold_quantity, by: $quantity }
