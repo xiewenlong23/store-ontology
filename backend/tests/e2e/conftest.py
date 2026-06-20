@@ -30,15 +30,22 @@ class E2EAgent:
         self.graph = graph
         self.scripted_llm = scripted_llm
         self.tenant_id = tenant_id
+        self._hist_lens = {}  # thread_id -> 消息历史长度（跨轮追踪用）
 
     async def ask(self, message: str, thread_id: str = "default") -> E2EResult:
         config = {"configurable": {"thread_id": thread_id}}
+        # 记录调用前的消息数，以便只提取本轮新增的 tool_calls
+        before_count = self._history_len(thread_id)
         result = await self.graph.ainvoke(
             {"messages": [{"role": "user", "content": message}]}, config)
-        # 收集本轮所有 message 的 tool_calls + 最后一条文本
+        messages = result.get("messages", [])
+        # 缓存最新历史长度，供下一轮判断
+        self._set_history_len(thread_id, len(messages))
+        # 只看本轮新增的消息（index >= before_count）
+        new_messages = messages[before_count:]
         tool_calls = []
         last_text = ""
-        for msg in result.get("messages", []):
+        for msg in new_messages:
             tcs = getattr(msg, "tool_calls", None) or []
             for tc in tcs:
                 tool_calls.append(tc.get("name", "") if isinstance(tc, dict)
@@ -47,6 +54,12 @@ class E2EAgent:
             if isinstance(content, str) and content.strip():
                 last_text = content
         return E2EResult(text=last_text, tool_calls=tool_calls)
+
+    def _history_len(self, thread_id: str) -> int:
+        return self._hist_lens.get(thread_id, 0)
+
+    def _set_history_len(self, thread_id: str, n: int) -> None:
+        self._hist_lens[thread_id] = n
 
 
 # ============ 脚本化 LLM ============
