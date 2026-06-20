@@ -132,7 +132,7 @@ class ScriptedLLM(BaseChatModel):
 @pytest.fixture
 def e2e_data_dir(tmp_path):
     """复制 clearance 种子到临时目录，供 E2E agent 读写。"""
-    src = BACKEND_DIR.parent / "data"
+    src = BACKEND_DIR / "packs" / "retail" / "data"
     if src.is_dir():
         shutil.copytree(src, tmp_path, dirs_exist_ok=True)
     return str(tmp_path)

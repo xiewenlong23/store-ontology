@@ -43,23 +43,24 @@ def bootstrap_customer(customer_id: str) -> CustomerAgentInstance:
         return _instances[customer_id]
 
     # 取客户配置：注册表 → 加载文件 → 默认
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/
+    root = os.path.dirname(base)                                         # 项目根
+
     cfg = get_customer(customer_id)
     if cfg is None:
         if customer_id == "customer_default":
             try:
                 cfg = load_customer_config(_DEFAULT_CUSTOMER_DIR)
             except Exception:
-                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                root = os.path.dirname(base)
                 cfg = CustomerConfig(customer_id="customer_default", name="默认",
                                      storage_type="json_files",
-                                     data_dir=os.path.join(root, "data"))
+                                     data_dir=os.path.join(base, "packs", "retail", "data"))
         else:
             raise KeyError(f"未注册的客户: {customer_id}")
 
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    root = os.path.dirname(base)
-    data_dir = cfg.data_dir or os.path.join(root, "data")
+    # data_dir 可能是相对路径（如 backend/packs/retail/data），需解析为绝对路径
+    raw_data_dir = cfg.data_dir or os.path.join(base, "packs", "retail", "data")
+    data_dir = raw_data_dir if os.path.isabs(raw_data_dir) else os.path.join(root, raw_data_dir)
 
     # I-3: 优先用 cfg.ontology_dir（显式声明）；回退：从 data_dir 推导（兼容旧 config）
     ontology_dir = cfg.ontology_dir

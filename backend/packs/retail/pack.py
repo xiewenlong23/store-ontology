@@ -40,6 +40,7 @@ CLEARANCE = ValueChainProcess(
 RETAIL_PACK = IndustryPack(
     name="retail", display_name="零售行业包",
     domains=[MARKETING, ORGANIZATION, FINANCE],
-    processes=[CLEARANCE])
+    processes=[CLEARANCE],
+    data_dir=os.path.join(_BASE, "packs", "retail", "data"))
 
 register_pack(RETAIL_PACK)

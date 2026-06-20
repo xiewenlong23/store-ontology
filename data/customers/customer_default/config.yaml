@@ -3,7 +3,7 @@ name: 默认客户
 source_pack: retail
 storage:
   type: json_files
-  data_dir: data
+  data_dir: backend/packs/retail/data
 enabled_domains: [marketing, supply_chain, organization]
 enabled_processes: [clearance]
 org_tree:
