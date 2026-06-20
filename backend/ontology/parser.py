@@ -152,4 +152,7 @@ def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> OntologyP
         ttl_path = ttl_path or os.path.join(base, "ontology", "store.ttl")
         data_dir = data_dir or os.path.join(root, "data")
         _parser_instance = OntologyParser(ttl_path, data_dir)
+        from ontology.action_loader import load_actions
+        _parser_instance.registry.action_types = load_actions(
+            os.path.join(base, "ontology", "actions"))
     return _parser_instance
