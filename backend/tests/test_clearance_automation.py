@@ -4,22 +4,13 @@ job 是后端自动化的核心：无 LLM 在环，直接调 ActionExecutor.exec
 """
 import pytest
 
-from ontology.parser import OntologyParser
-from ontology.action_loader import load_actions
-from ontology.repository import JSONFileRepository
-from ontology.executor import ActionExecutor
-from verticals.clearance.config import CLEARANCE_CONFIG
 from ontology.bootstrap import bootstrap
+from tests._clearance_helper import build_clearance_executor
 
 
 def _exec(data_dir):
     """构造指向 data_dir 的 clearance executor。"""
-    p = OntologyParser(ttl_path=CLEARANCE_CONFIG.ttl_path, data_dir=data_dir,
-                       config=CLEARANCE_CONFIG)
-    p.registry.action_types = load_actions(CLEARANCE_CONFIG.actions_dir)
-    repo = JSONFileRepository(data_dir=data_dir, registry=p.registry)
-    return ActionExecutor(repository=repo, actions=p.registry.action_types,
-                          registry=p.registry, config=CLEARANCE_CONFIG), repo
+    return build_clearance_executor(data_dir)
 
 
 def test_expiry_check_job_scraps_expired_task(automation_data_dir):

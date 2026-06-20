@@ -12,20 +12,10 @@ from ontology import tools as T
 
 
 def _setup(monkeypatch, data_dir):
-    from ontology.parser import OntologyParser
-    from ontology.action_loader import load_actions
-    from ontology.repository import JSONFileRepository
-    from ontology.executor import ActionExecutor
-    from ontology.bootstrap import bootstrap
-    from verticals.clearance.config import CLEARANCE_CONFIG
-    bootstrap()
-    p = OntologyParser(ttl_path=CLEARANCE_CONFIG.ttl_path, data_dir=data_dir,
-                       config=CLEARANCE_CONFIG)
-    p.registry.action_types = load_actions(CLEARANCE_CONFIG.actions_dir)
-    repo = JSONFileRepository(data_dir=data_dir, registry=p.registry)
-    ex = ActionExecutor(repository=repo, actions=p.registry.action_types,
-                        registry=p.registry, config=CLEARANCE_CONFIG)
-    monkeypatch.setattr(T, "_parser", lambda vertical=None: p)
+    from tests._clearance_helper import build_clearance_executor
+    ex, repo = build_clearance_executor(data_dir)
+    reg = repo.registry
+    monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
     return ex, repo
@@ -48,9 +38,10 @@ def test_update_task_notes_action_exists():
     """新增 update_task_notes Action：受治理的 notes/priority 更新。"""
     from ontology.action_loader import load_actions
     from ontology.bootstrap import bootstrap
-    from verticals.clearance.config import CLEARANCE_CONFIG
+    from tests._clearance_helper import build_clearance_registry
     bootstrap()
-    actions = load_actions(CLEARANCE_CONFIG.actions_dir)
+    reg = build_clearance_registry('.')
+    actions = reg.action_types
     assert "update_task_notes" in actions, "应有 update_task_notes Action"
 
 

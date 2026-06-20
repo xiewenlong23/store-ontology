@@ -173,10 +173,10 @@ store_context = """
 
 system_prompt = ontology_prompt + store_context
 
-# Skill 源路径（FilesystemBackend 从磁盘加载）；root 扫描所有 vertical 的 skills 目录
-_all_skills_roots = {cfg.skills_dir for cfg in _all_verticals() if cfg.skills_dir}
-skills_backend = FilesystemBackend(
-    root_dir=os.path.join(os.path.dirname(__file__), "skills"), virtual_mode=True)
+# Skill 源路径（FilesystemBackend 从磁盘加载）；root 指向 pack process skills
+_clearance_skills_root = os.path.join(os.path.dirname(__file__),
+    "packs", "retail", "processes", "clearance", "skills")
+skills_backend = FilesystemBackend(root_dir=_clearance_skills_root, virtual_mode=True)
 
 # 创建 Deep Agent Graph
 # - SummarizationMiddleware 默认开启，自动压缩长对话上下文（解决 BadRequestError）
