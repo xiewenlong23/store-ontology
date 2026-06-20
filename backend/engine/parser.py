@@ -196,21 +196,21 @@ def get_ontology_parser(vertical: str = None, ttl_path: str = None,
             p.registry.action_types = load_actions(actions_dir)
         return p
 
-    # 方式 3：默认 vertical
-    from engine.vertical import all_verticals
-    verts = all_verticals()
-    if verts:
-        return get_ontology_parser(verts[0].name)
-    # 兜底：未注册任何 vertical 时回退到旧式 store.ttl（兼容环境）
-    return _fallback_parser()
-
-
-def _fallback_parser() -> "OntologyParser":
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    root = os.path.dirname(base)
-    return OntologyParser(
-        os.path.join(base, "engine", "store.ttl"),
-        os.path.join(root, "data"))
+    # 方式 3：默认 pack
+    from engine.pack import all_packs, pack_to_registry
+    from engine.bootstrap import bootstrap
+    bootstrap()
+    packs = all_packs()
+    if packs:
+        pack = packs[0]
+        registry = pack_to_registry(pack, data_dir=pack.data_dir or ".")
+        p = type('P', (), {'registry': registry, 'data_dir': __import__('pathlib').Path(pack.data_dir or "."),
+                           'config': None})()
+        return p
+    # 无 pack 时返回空 registry
+    registry = EntityRegistry()
+    return type('P', (), {'registry': registry, 'data_dir': __import__('pathlib').Path("."),
+                          'config': None})()
 
 
 def reset_parser_cache() -> None:

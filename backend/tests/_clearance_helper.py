@@ -21,9 +21,15 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def build_clearance_registry(data_dir: str):
     """从 retail-pack 构建完整 EntityRegistry（含所有 domain TTL + process actions）。"""
-    from engine.pack import get_pack
+    from engine.pack import get_pack, register_pack
     bootstrap()
     pack = get_pack("retail")
+    if pack is None:
+        # bootstrap 可能因模块缓存未重新注册——直接 import + 注册
+        import packs.retail.pack  # noqa: F401
+        from packs.retail.pack import RETAIL_PACK
+        register_pack(RETAIL_PACK)
+        pack = get_pack("retail")
     if pack is None:
         raise RuntimeError("retail pack 未注册")
     return pack_to_registry(pack, data_dir=data_dir)

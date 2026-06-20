@@ -35,30 +35,14 @@ from engine.tools import (
     build_ontology_prompt,
 )
 
-# ===== vertical 注册表 bootstrap（自动发现 backend/verticals/*/config.py）=====
-from engine.bootstrap import bootstrap as _bootstrap_verticals
-from engine.vertical import all_verticals as _all_verticals
+# ===== bootstrap（自动发现 packs/*/pack.py）=====
+from engine.bootstrap import bootstrap as _bootstrap
 
-_bootstrap_verticals()
-
-
-def _aggregate_vertical_tools():
-    """从每个 vertical 的 tools_module 聚合专属工具（零改 kernel 接入新 vertical）。"""
-    import importlib
-    collected = []
-    for cfg in _all_verticals():
-        if not cfg.tools_module:
-            continue
-        try:
-            mod = importlib.import_module(cfg.tools_module)
-            collected.extend(getattr(mod, "TOOLS", []))
-        except Exception as e:  # noqa: BLE001
-            print(f"[main] 加载 vertical '{cfg.name}' 工具失败: {e}")
-    return collected
+_bootstrap()
 
 
 def _aggregate_pack_tools():
-    """从各 pack 的 process.tools_module 聚合专属工具（P2 行业包）。"""
+    """从各 pack 的 process.tools_module 聚合专属工具。"""
     import importlib
     from engine.pack import all_packs
     collected = []
@@ -75,38 +59,45 @@ def _aggregate_pack_tools():
 
 
 def _aggregate_skill_paths():
-    """聚合各 vertical + pack process 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
+    """聚合各 pack process 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
     paths = []
-    sources = []
-    # vertical skills
-    for cfg in _all_verticals():
-        if cfg.skills_dir:
-            sources.append(cfg.skills_dir)
-    # pack process skills
     from engine.pack import all_packs
     for pack in all_packs():
         for proc in pack.processes:
-            if proc.skills_dir:
-                sources.append(proc.skills_dir)
-    for skills_dir in sources:
-        if not os.path.isdir(skills_dir):
-            continue
-        for name in os.listdir(skills_dir):
-            if name in ("tmp", "__pycache__"):
+            if not proc.skills_dir or not os.path.isdir(proc.skills_dir):
                 continue
-            skill_path = os.path.join(skills_dir, name)
-            if os.path.isdir(skill_path) and os.path.exists(
-                    os.path.join(skill_path, "SKILL.md")):
-                paths.append(f"/{name}/")
+            for name in os.listdir(proc.skills_dir):
+                if name in ("tmp", "__pycache__"):
+                    continue
+                skill_path = os.path.join(proc.skills_dir, name)
+                if os.path.isdir(skill_path) and os.path.exists(
+                        os.path.join(skill_path, "SKILL.md")):
+                    paths.append(f"/{name}/")
     return paths
 
 
 def _build_combined_prompt() -> str:
-    """合并所有 vertical 的本体提示（多 vertical 共存）。"""
-    parts = [build_ontology_prompt(cfg.name) for cfg in _all_verticals()]
-    if not parts:  # 无注册 vertical 时兜底默认
-        parts = [build_ontology_prompt()]
-    return "\n\n---\n\n".join(parts)
+    """合并所有 pack 的本体提示。"""
+    from engine.pack import all_packs, pack_to_registry
+    from engine.parser import OntologyParser
+    parts = []
+    for pack in all_packs():
+        for proc in pack.processes:
+            intro = proc.system_prompt_intro or pack.display_name
+            registry = pack_to_registry(pack, data_dir=pack.data_dir or ".")
+            # 用 parser 的 build_system_prompt 格式化
+            p = type('P', (), {'registry': registry})()
+            lines = [f"{intro}\n"]
+            lines.append("可用实体（用 query_entity 查询）: "
+                         + ", ".join(ot.label_zh for ot in registry.object_types.values()))
+            lines.append("\n关系（用 traverse_relation）: "
+                         + ", ".join(f"{lt.label_zh}({lt.domain}->{lt.range})"
+                                     for lt in registry.link_types.values()))
+            lines.append("\n操作（用 execute_action/confirm_action）: "
+                         + ", ".join(registry.action_types.keys()))
+            lines.append("\n用中文回复。")
+            parts.append("\n".join(lines))
+    return "\n\n---\n\n".join(parts) if parts else ""
 
 
 # ============ LLM 配置 ============
@@ -136,7 +127,7 @@ _all_tools = [
     confirm_action,
     query_task,
     update_task,
-] + _aggregate_vertical_tools() + _aggregate_pack_tools()
+] + _aggregate_pack_tools()
 
 # 去重：同名工具只保留第一个（vertical 与 pack 共存期避免冲突）
 _seen = set()
@@ -158,8 +149,8 @@ from engine.tenant import TenantContext
 tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
     "tenant_ctx", default=TenantContext.default())
 
-# 动态生成本体系统提示
-ontology_prompt = build_ontology_prompt()
+# 动态生成本体系统提示（从 pack registry 构建，不依赖单 TTL parser）
+ontology_prompt = _build_combined_prompt()
 store_context = """
 当前客户上下文由请求 header X-Customer-ID + X-Org-Unit-ID 注入（默认 customer_default + 全部门店）。
 
@@ -197,10 +188,10 @@ deep_agent_graph = create_deep_agent(
 
 # ============ FastAPI 应用 ============
 
-_vertical_names = ", ".join(cfg.name for cfg in _all_verticals()) or "无"
+_pack_names = ", ".join(p.name for p in __import__('engine.pack', fromlist=['all_packs']).all_packs()) or "无"
 app = FastAPI(
-    title="OntologyAgent - 本体驱动 Agent",
-    description=f"基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手（已加载 vertical: {_vertical_names}）",
+    title="OntologyAgent APaaS - 本体驱动 Agent",
+    description=f"基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手（已加载 pack: {_pack_names}）",
     version="0.4.0",
 )
 

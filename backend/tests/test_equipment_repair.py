@@ -1,20 +1,31 @@
-"""equipment_repair vertical 回归测试（worked example 锁定）。
+"""equipment_repair pack 回归测试。
 
-证明：多 vertical 并存 + 零改内核 + 无折扣概念也能跑。
-每个工作流测试用 repair_data_dir fixture（隔离副本），不污染真实 data/equipment_repair/。
+证明：多 pack 并存 + 无折扣概念也能跑。
 """
+import os
 import pytest
 
 from engine.bootstrap import bootstrap
-from engine.vertical import all_verticals
+from engine.pack import all_packs, pack_to_registry
 from engine.parser import OntologyParser
 from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
 from engine.errors import ValidationError
-from verticals.equipment_repair.state_machine import (
+from engine.vertical import VerticalConfig
+from packs.equipment_repair.processes.repair.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
-from verticals.equipment_repair.config import EQUIPMENT_REPAIR_CONFIG
+
+_REPAIR_CFG = VerticalConfig(
+    name="equipment_repair",
+    ttl_path="", actions_dir="", data_dir="",
+    workflow_object_type="RepairTicket",
+    workflow_object_id_field="ticket_id",
+    state_transitions=REPAIR_TICKET_TRANSITIONS,
+    terminal_states=list(TERMINAL_STATES),
+)
+
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @pytest.fixture(autouse=True)
@@ -24,31 +35,29 @@ def _boot():
 
 
 def _exec(data_dir):
-    """构造指向 data_dir 的 parser+repo+executor（用真实 config 的工作流字段）。"""
-    cfg = EQUIPMENT_REPAIR_CONFIG
-    p = OntologyParser(ttl_path=cfg.ttl_path, data_dir=data_dir, config=cfg)
-    p.registry.action_types = load_actions(cfg.actions_dir)
-    repo = JSONFileRepository(data_dir=data_dir, registry=p.registry)
-    ex = ActionExecutor(repository=repo, actions=p.registry.action_types,
-                        registry=p.registry, config=cfg)
+    """构造指向 data_dir 的 executor（从 pack 合并 registry）。"""
+    from engine.pack import get_pack
+    pack = get_pack("equipment_repair")
+    registry = pack_to_registry(pack, data_dir=data_dir)
+    repo = JSONFileRepository(data_dir=data_dir, registry=registry)
+    ex = ActionExecutor(repository=repo, actions=registry.action_types,
+                        registry=registry, config=_REPAIR_CFG)
     return ex, repo
 
 
 def test_equipment_repair_registered():
-    names = [c.name for c in all_verticals()]
+    names = [p.name for p in all_packs()]
     assert "equipment_repair" in names
 
 
 def test_repair_ttl_and_actions_parse():
-    p = OntologyParser(ttl_path=EQUIPMENT_REPAIR_CONFIG.ttl_path,
-                       data_dir=str(__import__("pathlib").Path(EQUIPMENT_REPAIR_CONFIG.data_dir)),
-                       config=EQUIPMENT_REPAIR_CONFIG)
-    p.registry.action_types = load_actions(EQUIPMENT_REPAIR_CONFIG.actions_dir)
-    assert p.PREFIX == "repair:"
-    assert {"Equipment", "RepairTicket", "Technician", "Vendor"} == set(p.registry.object_types)
-    assert len(p.registry.link_types) == 4
+    from engine.pack import get_pack
+    pack = get_pack("equipment_repair")
+    registry = pack_to_registry(pack, data_dir=os.path.join(_BASE, "packs", "equipment_repair", "data"))
+    assert {"Equipment", "RepairTicket", "Technician", "Vendor"} == set(registry.object_types)
+    assert len(registry.link_types) == 4
     assert {"create_repair_ticket", "diagnose_ticket", "assign_technician",
-            "start_repair", "complete_repair", "cancel_ticket"} == set(p.registry.action_types)
+            "start_repair", "complete_repair", "cancel_ticket"} == set(registry.action_types)
 
 
 def test_full_repair_workflow(repair_data_dir):

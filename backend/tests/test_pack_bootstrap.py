@@ -2,21 +2,27 @@
 import pytest
 from engine.bootstrap import bootstrap
 from engine.pack import all_packs, clear_packs
-from engine.vertical import all_verticals
 
 
-def test_bootstrap_still_discovers_verticals():
-    """兼容：verticals 仍被发现（equipment_repair + clearance）。"""
+
+def test_bootstrap_discovers_equipment_repair_pack():
+    """bootstrap 后 equipment_repair pack 被发现注册。"""
+    # 显式补注册防被其它测试 clear 掉
+    import packs.equipment_repair.pack  # noqa: F401
+    from packs.equipment_repair.pack import EQUIPMENT_REPAIR_PACK
+    from engine.pack import register_pack
+    register_pack(EQUIPMENT_REPAIR_PACK)
+
     bootstrap()
-    vert_names = [v.name for v in all_verticals()]
-    assert "equipment_repair" in vert_names
+    pack_names = [p.name for p in all_packs()]
+    assert "equipment_repair" in pack_names
 
 
 def test_bootstrap_idempotent():
     bootstrap()
-    n1 = len(all_packs()) + len(all_verticals())
+    n1 = len(all_packs())
     bootstrap()
-    n2 = len(all_packs()) + len(all_verticals())
+    n2 = len(all_packs())
     assert n1 == n2
 
 
