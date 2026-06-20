@@ -1,0 +1,19 @@
+api_name: start_repair
+display_name: 开始维修
+description: 技师开始维修，assigned -> repairing
+status: active
+target_object_type: RepairTicket
+edits_object_types: [RepairTicket]
+locator_field: ticket_id
+parameters:
+  - { name: ticket_id, type: string, required: true }
+submission_criteria:
+  roles: [technician, store_manager]
+  conditions:
+    - { field: target.status, operator: is, value: assigned, fail_msg: "仅 assigned 态可开始维修" }
+side_effects:
+  - type: state_transition
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    from: assigned
+    to: repairing

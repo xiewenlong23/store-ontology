@@ -1,0 +1,25 @@
+api_name: cancel_ticket
+display_name: 取消工单
+description: 取消维修工单（任意非终态 -> cancelled）
+status: active
+target_object_type: RepairTicket
+edits_object_types: [RepairTicket, Equipment]
+locator_field: ticket_id
+parameters:
+  - { name: ticket_id,   type: string, required: true }
+  - { name: equipment_id, type: string, required: true }
+submission_criteria:
+  roles: [store_manager]
+  conditions:
+    - { field: target.status, operator: is_not, value: resolved,  fail_msg: "已完成的工单不能取消" }
+    - { field: target.status, operator: is_not, value: cancelled, fail_msg: "已取消的工单不能重复取消" }
+side_effects:
+  - type: state_transition
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    from: reported
+    to: cancelled
+  - type: update_object
+    object_type: Equipment
+    match: { id: $equipment_id }
+    fields: { status: normal }

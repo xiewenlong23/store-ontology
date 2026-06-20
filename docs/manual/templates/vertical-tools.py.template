@@ -1,0 +1,32 @@
+"""{{vertical_name}} vertical 专属工具。
+
+vertical 工具复用内核装配函数（_get_repo），但下沉到 vertical 包，
+不污染内核（见 01-内核多vertical改造.md Batch 2）。
+
+填写：把 {{...}} 替换为本 vertical 的实际查询逻辑。
+若本 vertical 无专属读工具（纯靠内核 query_entity），此文件可省略，
+config.py 的 tools_module 设 None。
+"""
+from typing import Optional
+
+from langchain_core.tools import tool
+
+from ontology.tools import _get_repo, _wrap
+
+
+@tool
+def {{query_tool_name}}(store_id: Optional[str] = None,
+                        tenant_id: str = "tenant_default") -> str:
+    """{{中文说明：查询什么}}。"""
+    repo = _get_repo(tenant_id, vertical="{{vertical_name}}")
+    rows = repo.read("{{ObjectClass}}", tenant_id)
+    if store_id:
+        rows = [r for r in rows if r.get("store_id") == store_id]
+    # 如需 join 其它表/算派生字段，在此处理（单一事实源原则：数值算函数，不在多处定义）
+    items = rows[:20]
+    return _wrap({"type": "{{response_type}}", "total": len(rows), "items": items},
+                 f"查询到 {len(rows)} 条{{中文实体名}}。")
+
+
+# main.py 聚合时 import 取这个列表
+TOOLS = [{{query_tool_name}}]

@@ -1,0 +1,21 @@
+---
+name: {{workflow_skill_name}}
+description: {{业务领域}}{{工作流名}}编排
+type: workflow_orchestration
+allowed_tools: {{query_tool_name}}, query_entity, query_task, execute_action, confirm_action
+---
+
+# {{工作流名}}流程
+
+{{工作流名}}是一条{{跨天/多步}}工作流，由 {{WorkflowObject}} 状态机驱动。
+每一步是一个 Action：先 `execute_action` 预览，再 `confirm_action(preview_id)` 执行。
+
+## 步骤
+1. **查询**：`{{query_tool_name}}` 找{{目标实体}}。
+2. **{{建单}}**：`execute_action(action_type="{{create_action}}", {{locator}}: ..., {{params}})`。
+3. **{{下一步}}**：`execute_action(action_type="{{next_action}}", {{locator}}: ...)`。
+...（按状态机顺序列出每步）
+N. **{{终态}}**：`{{terminal_action}}`。
+
+## 非法迁移会被拒
+状态机只允许相邻迁移（见 {{knowledge_skill_name}} SKILL）。跳步会被拒绝，请按顺序。

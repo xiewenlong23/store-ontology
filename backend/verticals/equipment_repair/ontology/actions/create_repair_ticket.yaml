@@ -1,0 +1,32 @@
+api_name: create_repair_ticket
+display_name: 创建维修工单
+description: 设备报修，创建 RepairTicket 进入 reported 态；设备置 in_repair
+status: active
+target_object_type: Equipment
+edits_object_types: [Equipment, RepairTicket]
+locator_field: equipment_id
+parameters:
+  - { name: equipment_id,     type: string, required: true, description: "报修设备ID" }
+  - { name: store_id,         type: string, required: true }
+  - { name: reporter_id,      type: string, required: true, description: "报修人(员工)ID" }
+  - { name: fault_description, type: string, required: true }
+submission_criteria:
+  roles: [store_manager, clerk]
+  conditions:
+    - { field: target.status, operator: is_not, value: in_repair, fail_msg: "设备已在维修中" }
+    - { field: target.status, operator: is_not, value: scrapped,  fail_msg: "设备已报废" }
+side_effects:
+  - type: create_object
+    object_type: RepairTicket
+    fields:
+      equipment_id: $equipment_id
+      store_id: $store_id
+      reporter_id: $reporter_id
+      status: reported
+      fault_description: $fault_description
+      parts_cost: 0
+      labor_cost: 0
+  - type: update_object
+    object_type: Equipment
+    match: { id: $equipment_id }
+    fields: { status: in_repair }

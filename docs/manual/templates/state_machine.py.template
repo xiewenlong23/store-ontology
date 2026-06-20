@@ -1,0 +1,26 @@
+"""{{vertical_name}} vertical 的工作流状态机。
+
+每个有工作流的 vertical 自带一份迁移表，在 config.py 里注册到 VerticalConfig.state_transitions。
+executor 的 state_transition 副作用会查这份表校验合法迁移（建模规范 §5.5、§8 反模式 7）。
+
+填写：把 {{...}} 替换为本 vertical 的工作流对象状态。
+workflow_object_type 在 config.py 声明（如 "RepairTicket"）。
+"""
+
+# {{WorkflowObject}} 的状态迁移表
+# 键 = 当前状态，值 = 允许迁移到的状态列表
+{{WORKFLOW_OBJECT}}_TRANSITIONS = {
+    "{{state1}}": ["{{state2}}", "{{cancelled_state}}"],
+    "{{state2}}": ["{{state3}}", "{{cancelled_state}}"],
+    "{{state3}}": ["{{terminal_state}}", "{{cancelled_state}}"],
+}
+
+# 终态集合（不可再迁移）
+TERMINAL_STATES = {"{{terminal_state}}", "{{cancelled_state}}"}
+
+# 在 config.py 里这样用：
+#   from verticals.{{vertical_name}}.state_machine import {{WORKFLOW_OBJECT}}_TRANSITIONS, TERMINAL_STATES
+#   VerticalConfig(..., workflow_object_type="{{WorkflowObject}}",
+#                  workflow_object_id_field="{{ticket_id}}",
+#                  state_transitions={{WORKFLOW_OBJECT}}_TRANSITIONS,
+#                  terminal_states=list(TERMINAL_STATES))

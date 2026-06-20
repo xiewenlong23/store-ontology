@@ -1,0 +1,24 @@
+api_name: assign_technician
+display_name: 指派技师
+description: 指派维修技师，diagnosed -> assigned
+status: active
+target_object_type: RepairTicket
+edits_object_types: [RepairTicket]
+locator_field: ticket_id
+parameters:
+  - { name: ticket_id,      type: string, required: true }
+  - { name: technician_id,  type: string, required: true }
+submission_criteria:
+  roles: [store_manager]
+  conditions:
+    - { field: target.status, operator: is, value: diagnosed, fail_msg: "仅 diagnosed 态可指派" }
+side_effects:
+  - type: state_transition
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    from: diagnosed
+    to: assigned
+  - type: update_object
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    fields: { technician_id: $technician_id }

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ticket_001",
+    "equipment_id": "equip_002",
+    "store_id": "store_001",
+    "reporter_id": "emp_002",
+    "technician_id": "tech_001",
+    "status": "repairing",
+    "fault_description": "加热不均匀，转盘异响",
+    "diagnosis": "磁控管老化需更换",
+    "parts_cost": 0,
+    "labor_cost": 0,
+    "created_at": "2026-06-18T09:30:00",
+    "started_at": "2026-06-18T14:00:00",
+    "resolved_at": null
+  },
+  {
+    "id": "ticket_002",
+    "equipment_id": "equip_001",
+    "store_id": "store_001",
+    "reporter_id": "emp_001",
+    "technician_id": "tech_001",
+    "status": "resolved",
+    "fault_description": "温度显示异常",
+    "diagnosis": "温控传感器故障已换",
+    "parts_cost": 80.0,
+    "labor_cost": 50.0,
+    "created_at": "2026-05-20T10:00:00",
+    "started_at": "2026-05-20T11:00:00",
+    "resolved_at": "2026-05-20T16:00:00"
+  }
+]

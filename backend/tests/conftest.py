@@ -45,3 +45,16 @@ def clearance_data_dir(tmp_path):
     (tmp_path / "tasks.json").write_text("[]", encoding="utf-8")
     (tmp_path / "loss_reports.json").write_text("[]", encoding="utf-8")
     return str(tmp_path)
+
+
+@pytest.fixture
+def repair_data_dir(tmp_path):
+    """设备维修 vertical 种子数据副本（隔离，不污染真实 data/equipment_repair/）。"""
+    import shutil
+    src = Path(__file__).resolve().parent.parent.parent / "data" / "equipment_repair"
+    if src.is_dir():
+        shutil.copytree(src, tmp_path, dirs_exist_ok=True)
+    else:
+        for f in ["equipments.json", "repair_tickets.json", "technicians.json", "vendors.json"]:
+            (tmp_path / f).write_text("[]", encoding="utf-8")
+    return str(tmp_path)

@@ -1,0 +1,45 @@
+"""{{vertical_name}} vertical 的配置注册。
+
+这是接入新 vertical 的唯一"接线"动作：本文件 import 时调用 register_vertical。
+main.py 启动时 bootstrap() 自动发现 backend/verticals/{{vertical_name}}/config.py 并注册。
+**无需改任何内核文件。**
+
+填写：把 {{...}} 替换为本 vertical 的实际值。
+"""
+import os
+
+from ontology.vertical import VerticalConfig, register_vertical
+
+_BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # backend/
+_VROOT = os.path.dirname(os.path.abspath(__file__))   # backend/verticals/{{vertical_name}}/
+
+# 若本 vertical 用独立数据子目录（推荐）：data/{{vertical_name}}/
+_DATA_DIR = os.path.join(_BASE, "..", "data", "{{vertical_name}}")
+
+# 若有工作流，import 本 vertical 的状态机表（见 state_machine.py.template）
+try:
+    from verticals.{{vertical_name}}.state_machine import (
+        {{WORKFLOW_OBJECT}}_TRANSITIONS, TERMINAL_STATES)
+    _TRANSITIONS = {{WORKFLOW_OBJECT}}_TRANSITIONS
+    _TERMINALS = list(TERMINAL_STATES)
+except ImportError:
+    _TRANSITIONS = {}
+    _TERMINALS = []
+
+{{VERTICAL_NAME}}_CONFIG = VerticalConfig(
+    name="{{vertical_name}}",
+    ttl_path=os.path.join(_VROOT, "ontology", "{{vertical_name}}.ttl"),
+    actions_dir=os.path.join(_VROOT, "ontology", "actions"),
+    data_dir=_DATA_DIR,
+    skills_dir=os.path.join(_VROOT, "skills"),
+    system_prompt_intro="你是{{业务领域}}助手。",
+    # 工作流（无工作流的 vertical 留 None/空）
+    workflow_object_type="{{WorkflowObject}}" if _TRANSITIONS else None,
+    workflow_object_id_field="{{workflow_id_param}}",   # 如 ticket_id
+    state_transitions=_TRANSITIONS,
+    terminal_states=_TERMINALS,
+    tools_module="verticals.{{vertical_name}}.tools" if os.path.exists(
+        os.path.join(_VROOT, "tools.py")) else None,
+)
+
+register_vertical({{VERTICAL_NAME}}_CONFIG)

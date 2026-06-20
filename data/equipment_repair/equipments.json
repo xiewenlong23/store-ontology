@@ -1,0 +1,38 @@
+[
+  {
+    "id": "equip_001",
+    "name": "冷藏陈列柜A",
+    "store_id": "store_001",
+    "category": "制冷设备",
+    "vendor_id": "vendor_001",
+    "purchased_date": "2024-03-10",
+    "status": "normal"
+  },
+  {
+    "id": "equip_002",
+    "name": "商用微波炉",
+    "store_id": "store_001",
+    "category": "厨房设备",
+    "vendor_id": "vendor_002",
+    "purchased_date": "2023-11-20",
+    "status": "in_repair"
+  },
+  {
+    "id": "equip_003",
+    "name": "收银机1号",
+    "store_id": "store_002",
+    "category": "IT设备",
+    "vendor_id": "vendor_001",
+    "purchased_date": "2024-06-01",
+    "status": "normal"
+  },
+  {
+    "id": "equip_004",
+    "name": "制冰机",
+    "store_id": "store_001",
+    "category": "制冷设备",
+    "vendor_id": "vendor_001",
+    "purchased_date": "2022-08-15",
+    "status": "scrapped"
+  }
+]

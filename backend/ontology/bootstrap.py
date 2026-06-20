@@ -15,9 +15,10 @@ def bootstrap() -> None:
     """发现并注册所有 vertical（幂等，重复调用安全）。"""
     import verticals  # backend/verticals 包
     pkg_path = os.path.dirname(verticals.__file__)
-    for _, name, ispkg in pkgutil.iter_modules([pkg_path]):
-        if not ispkg:
-            continue
+    # 排序保证注册顺序确定（决定 all_verticals()[0] = 默认 vertical），
+    # 避免跨测试/跨启动的默认 vertical 漂移。
+    names = sorted(name for _, name, ispkg in pkgutil.iter_modules([pkg_path]) if ispkg)
+    for name in names:
         try:
             importlib.import_module(f"verticals.{name}.config")
         except ModuleNotFoundError:

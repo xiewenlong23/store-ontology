@@ -1,0 +1,24 @@
+api_name: diagnose_ticket
+display_name: 诊断工单
+description: 技师诊断故障，reported -> diagnosed
+status: active
+target_object_type: RepairTicket
+edits_object_types: [RepairTicket]
+locator_field: ticket_id
+parameters:
+  - { name: ticket_id, type: string, required: true }
+  - { name: diagnosis, type: string, required: true }
+submission_criteria:
+  roles: [technician, store_manager]
+  conditions:
+    - { field: target.status, operator: is, value: reported, fail_msg: "仅 reported 态可诊断" }
+side_effects:
+  - type: state_transition
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    from: reported
+    to: diagnosed
+  - type: update_object
+    object_type: RepairTicket
+    match: { id: $ticket_id }
+    fields: { diagnosis: $diagnosis }
