@@ -1,0 +1,30 @@
+api_name: accept_task
+display_name: 接受任务
+description: 执行人接单，approved -> accepted
+status: active
+target_object_type: Task
+edits_object_types:
+- Task
+parameters:
+- name: task_id
+  type: string
+  required: true
+- name: assignee_id
+  type: string
+  required: true
+submission_criteria:
+  roles:
+  - store_manager
+  - clerk
+  conditions:
+  - field: target.status
+    operator: is
+    value: approved
+side_effects:
+- type: state_transition
+  object_type: Task
+  match:
+    id: $task_id
+  from: approved
+  to: accepted
+locator_field: task_id

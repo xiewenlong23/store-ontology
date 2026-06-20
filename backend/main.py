@@ -57,18 +57,47 @@ def _aggregate_vertical_tools():
     return collected
 
 
+def _aggregate_pack_tools():
+    """从各 pack 的 process.tools_module 聚合专属工具（P2 行业包）。"""
+    import importlib
+    from ontology.pack import all_packs
+    collected = []
+    for pack in all_packs():
+        for proc in pack.processes:
+            if not proc.tools_module:
+                continue
+            try:
+                mod = importlib.import_module(proc.tools_module)
+                collected.extend(getattr(mod, "TOOLS", []))
+            except Exception as e:  # noqa: BLE001
+                print(f"[main] 加载 pack '{pack.name}' process '{proc.name}' 工具失败: {e}")
+    return collected
+
+
 def _aggregate_skill_paths():
-    """聚合各 vertical 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
+    """聚合各 vertical + pack process 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
     paths = []
+    sources = []
+    # vertical skills
     for cfg in _all_verticals():
-        if cfg.skills_dir and os.path.isdir(cfg.skills_dir):
-            for name in os.listdir(cfg.skills_dir):
-                if name in ("tmp", "__pycache__"):
-                    continue
-                skill_path = os.path.join(cfg.skills_dir, name)
-                if os.path.isdir(skill_path) and os.path.exists(
-                        os.path.join(skill_path, "SKILL.md")):
-                    paths.append(f"/{name}/")
+        if cfg.skills_dir:
+            sources.append(cfg.skills_dir)
+    # pack process skills
+    from ontology.pack import all_packs
+    for pack in all_packs():
+        for proc in pack.processes:
+            if proc.skills_dir:
+                sources.append(proc.skills_dir)
+    for skills_dir in sources:
+        if not os.path.isdir(skills_dir):
+            continue
+        for name in os.listdir(skills_dir):
+            if name in ("tmp", "__pycache__"):
+                continue
+            skill_path = os.path.join(skills_dir, name)
+            if os.path.isdir(skill_path) and os.path.exists(
+                    os.path.join(skill_path, "SKILL.md")):
+                paths.append(f"/{name}/")
     return paths
 
 
@@ -98,7 +127,7 @@ llm = ChatOpenAI(
 
 
 # ============ 工具清单（内核固定 + vertical 聚合）===========
-tools = [
+_all_tools = [
     query_entity,
     create_entity,
     update_entity,
@@ -107,7 +136,17 @@ tools = [
     confirm_action,
     query_task,
     update_task,
-] + _aggregate_vertical_tools()
+] + _aggregate_vertical_tools() + _aggregate_pack_tools()
+
+# 去重：同名工具只保留第一个（vertical 与 pack 共存期避免冲突）
+_seen = set()
+tools = []
+for _t in _all_tools:
+    _n = getattr(_t, "name", "")
+    if _n in _seen:
+        continue
+    _seen.add(_n)
+    tools.append(_t)
 
 
 # ============ Deep Agent Graph ============
