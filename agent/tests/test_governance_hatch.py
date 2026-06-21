@@ -7,8 +7,8 @@ update_task_notes Action；bypass_action_check 只剩 executor 内部用。
 import inspect
 import pytest
 
-from engine.tools import update_task, execute_action
-from engine import tools as T
+from agent.tools import update_task, execute_action
+import agent.tools.shared as T
 
 
 def _setup(monkeypatch, data_dir):

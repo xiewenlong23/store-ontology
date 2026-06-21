@@ -155,7 +155,7 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
     reg = repo.registry
 
     # monkeypatch tools 层的依赖装配
-    import engine.tools as T
+    import agent.tools.shared as T
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
@@ -173,7 +173,7 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
     prompt = "\n".join(lines)
 
     BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-    from engine.tools import query_entity, create_entity, update_entity, traverse_relation, \
+    from agent.tools import query_entity, create_entity, update_entity, traverse_relation, \
         execute_action, confirm_action, query_task, update_task
     from workspace.retail.skills.clearance_workflow.tools import query_near_expiry
     tools = [query_entity, create_entity, update_entity, traverse_relation,

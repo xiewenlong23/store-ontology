@@ -1,6 +1,6 @@
 """测试工具层按 customer/org_unit 过滤（P1）。"""
-from engine.tools import query_entity
-from engine import tools as T
+from agent.tools import query_entity
+import agent.tools.shared as T
 
 
 def _setup(monkeypatch, data_dir):

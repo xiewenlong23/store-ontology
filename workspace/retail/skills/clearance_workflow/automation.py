@@ -90,7 +90,7 @@ def register_clearance_automation(scheduler, interval_seconds: int = 1800) -> No
     """把 clearance 的两个定时 job 加进调度器。"""
     # job 闭包需要 executor；延迟获取（main.py 启动后 vertical 已注册）
     def _get_executor():
-        from engine.tools import _get_executor as _ge
+        from agent.tools import _get_executor as _ge
         return _ge(vertical="clearance")
 
     def expiry_tick():

@@ -6,8 +6,8 @@
 
 修复：预览阶段就按 Action 契约校验参数，错误立即返回，不进缓存。
 """
-from engine.tools import execute_action
-from engine import tools as T
+from agent.tools import execute_action
+import agent.tools.shared as T
 
 
 def _setup(monkeypatch, data_dir):

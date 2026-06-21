@@ -1,5 +1,5 @@
-from engine.tools import query_entity, confirm_action, execute_action
-from engine import tools as T
+from agent.tools import query_entity, confirm_action, execute_action
+import agent.tools.shared as T
 
 
 def _setup(monkeypatch, data_dir):
@@ -38,7 +38,7 @@ def test_update_task_blocks_governed_fields(clearance_data_dir, monkeypatch):
     显式参数签名比运行时白名单更强——受治理字段根本不在参数列表里。
     """
     _setup(monkeypatch, clearance_data_dir)
-    from engine.tools import update_task
+    from agent.tools import update_task
     params = set(update_task.args)  # langchain StructuredTool.args
     forbidden = {"discount_percent", "status", "sold_quantity", "planned_quantity", "assignee_id"}
     assert not (params & forbidden), \

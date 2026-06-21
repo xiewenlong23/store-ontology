@@ -29,7 +29,7 @@ from deepagents.backends.filesystem import FilesystemBackend
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
 # ===== 内核通用工具（与 vertical 无关）=====
-from engine.tools import (
+from agent.tools import (
     query_entity, create_entity, update_entity, traverse_relation,
     execute_action, confirm_action, query_task, update_task,
     build_ontology_prompt,
@@ -351,7 +351,7 @@ async def webhook_approval(body: dict):
     body: {task_id, approver_id, approved: bool}
     真实审批系统集成留 v2。
     """
-    from engine.tools import _get_executor
+    from agent.tools.shared import _get_executor
     from workspace.retail.skills.clearance_workflow.automation import handle_approval
     ex = _get_executor(vertical="clearance")
     try:
@@ -370,7 +370,7 @@ async def webhook_pos(body: dict):
     body: {target_id, task_id, quantity}
     真实 POS 系统集成留 v2。
     """
-    from engine.tools import _get_executor
+    from agent.tools.shared import _get_executor
     from workspace.retail.skills.clearance_workflow.automation import handle_pos_scan
     ex = _get_executor(vertical="clearance")
     try:

@@ -6,8 +6,8 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from engine import tools as _tools_mod
-from engine.tools import _wrap
+from agent.tools import shared as _tools_mod
+from agent.tools import _wrap
 from workspace.retail.ontology.domains.marketing.discount import calculate_discount
 
 
