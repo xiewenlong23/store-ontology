@@ -1,6 +1,6 @@
 """存储抽象层 —— 所有数据读写经此，承载多租户隔离、文件锁、原子写、edits-only 治理。
 
-P1 升级：从单 tenant_id 过滤改为 customer_id（硬隔离）+ org_unit_id（权限范围）双层。
+架构 spec §3.3/§5.5：workspace_name（硬隔离）+ org_unit_id（权限范围）双层。
 向后兼容：字符串 tenant_id 自动转为 TenantContext（customer_default + 通配 org）。
 """
 import json
@@ -18,7 +18,7 @@ def _normalize_tenant(tenant) -> TenantContext:
     if isinstance(tenant, TenantContext):
         return tenant
     # 旧式字符串：视为 customer_default + 通配 org
-    return TenantContext(customer_id="customer_default", org_unit_id="*")
+    return TenantContext(workspace_name="customer_default", org_unit_id="*")
 
 
 class Repository:
@@ -44,9 +44,9 @@ class Repository:
 class JSONFileRepository(Repository):
     """JSON 文件实现。
 
-    - 多租户（P1 双层）：customer_id 硬隔离 + org_unit_id 权限范围。
-      过滤用 TenantContext.matches(record)；写入盖 customer_id + org_unit_id。
-      向后兼容旧 tenant_id 字符串/旧数据。
+    - 多租户（架构 spec §3.3 双层）：workspace_name 硬隔离 + org_unit_id 权限范围。
+      过滤用 TenantContext.matches(record)；写入盖 workspace_name + org_unit_id。
+      向后兼容旧 tenant_id 字符串/旧数据（customer_id 字段）。
     - 文件锁：fcntl.flock（仅 Unix）。
     - 原子写：临时文件 + os.replace。
     - edits-only-via-actions：object_type 在 registry 中标记时，非 bypass 写直接拒绝。
@@ -114,7 +114,7 @@ class JSONFileRepository(Repository):
         path = self._path(object_type)
         rows = self._load(path)
         record = dict(record)
-        record["customer_id"] = tc.customer_id
+        record["workspace_name"] = tc.workspace_name
         record["org_unit_id"] = tc.org_unit_id
         if create:
             rows.append(record)

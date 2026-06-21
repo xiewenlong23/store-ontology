@@ -3,14 +3,14 @@
     "id": "region_001",
     "name": "华东区",
     "code": "HD",
-    "customer_id": "customer_default",
-    "org_unit_id": "brand_default"
+    "org_unit_id": "brand_default",
+    "workspace_name": "customer_default"
   },
   {
     "id": "region_002",
     "name": "华北区",
     "code": "HB",
-    "customer_id": "customer_default",
-    "org_unit_id": "brand_default"
+    "org_unit_id": "brand_default",
+    "workspace_name": "customer_default"
   }
 ]

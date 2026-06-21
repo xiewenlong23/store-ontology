@@ -1,4 +1,4 @@
-customer_id: customer_default
+workspace_name: customer_default
 name: 默认客户
 source_pack: retail
 storage:

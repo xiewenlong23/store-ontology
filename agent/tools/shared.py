@@ -50,6 +50,6 @@ def _wrap(data: dict, summary: str) -> str:
     return f"{summary}\n<!--COPILOTKIT_DATA-->\n{json.dumps(data, ensure_ascii=False)}\n<!--/COPILOTKIT_DATA-->"
 
 
-def _tc(customer_id: str, org_unit_id: str) -> TenantContext:
+def _tc(workspace_name: str, org_unit_id: str) -> TenantContext:
     """从工具参数构造 TenantContext。"""
-    return TenantContext(customer_id=customer_id, org_unit_id=org_unit_id)
+    return TenantContext(workspace_name=workspace_name, org_unit_id=org_unit_id)

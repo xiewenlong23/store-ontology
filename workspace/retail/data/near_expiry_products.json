@@ -10,8 +10,8 @@
     "days_left": 5,
     "discount_tier": "T2",
     "status": "expiring",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_002",
@@ -24,8 +24,8 @@
     "days_left": 10,
     "discount_tier": "T3",
     "status": "clearance",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_003",
@@ -38,8 +38,8 @@
     "days_left": 2,
     "discount_tier": "T1",
     "status": "clearance",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_004",
@@ -52,8 +52,8 @@
     "days_left": 3,
     "discount_tier": "T1",
     "status": "expiring",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_002"
+    "org_unit_id": "store_002",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_005",
@@ -66,8 +66,8 @@
     "days_left": 6,
     "discount_tier": "T2",
     "status": "expiring",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_002"
+    "org_unit_id": "store_002",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_006",
@@ -80,8 +80,8 @@
     "days_left": -1,
     "discount_tier": "T1",
     "status": "expired",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "nep_007",
@@ -94,7 +94,7 @@
     "days_left": 1,
     "discount_tier": "T1",
     "status": "sold_out",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   }
 ]

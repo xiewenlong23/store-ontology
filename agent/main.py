@@ -248,8 +248,12 @@ app.add_middleware(
 
 @app.middleware("http")
 async def tenant_middleware(request, call_next):
-    """从 X-Customer-ID + X-Org-Unit-ID header 解析，注入 TenantContext contextvar。"""
+    """从 X-Workspace（架构 §3.4，优先）+ X-Org-Unit-ID header 解析，注入 TenantContext contextvar。
+
+    TenantContext.from_headers 内部兼容 X-Workspace 优先、X-Customer-ID 回退（旧前端）。
+    """
     tc = TenantContext.from_headers({
+        "X-Workspace": request.headers.get("X-Workspace"),
         "X-Customer-ID": request.headers.get("X-Customer-ID"),
         "X-Org-Unit-ID": request.headers.get("X-Org-Unit-ID"),
     })
@@ -266,7 +270,7 @@ async def workspace_middleware(request, call_next):
 
     前端通过 X-Workspace header 告诉后端运行在哪个 workspace 上。
     未传时默认 customer_default（保持向后兼容）。
-    具体 workspace 运行时上下文的构建（bootstrap_customer）在各路由内按需调用，
+    具体 workspace 运行时上下文的构建（bootstrap_workspace）在各路由内按需调用，
     通过 _resolve_workspace_name(request) 统一取值（header 优先，URL {cid} 回退）。
     """
     ws = request.headers.get("X-Workspace") or "customer_default"
@@ -306,13 +310,13 @@ async def health():
 
 # ============ 本体管理 API（P4 §4.5，只读浏览）============
 
-from engine.customer_bootstrap import bootstrap_customer
+from engine.workspace_bootstrap import bootstrap_workspace
 
 
 @app.get("/api/admin/customers/{cid}/ontology/objects")
 async def admin_ontology_objects(request: Request, cid: str):
     """该客户所有 Object Type 定义（只读浏览）。"""
-    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     objects = []
     for ot in inst.registry.object_types.values():
         objects.append({
@@ -327,7 +331,7 @@ async def admin_ontology_objects(request: Request, cid: str):
 @app.get("/api/admin/customers/{cid}/ontology/actions")
 async def admin_ontology_actions(request: Request, cid: str):
     """该客户所有 Action Type 定义。"""
-    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     actions = []
     for at in inst.registry.action_types.values():
         actions.append({
@@ -342,7 +346,7 @@ async def admin_ontology_actions(request: Request, cid: str):
 @app.get("/api/admin/customers/{cid}/ontology/links")
 async def admin_ontology_links(request: Request, cid: str):
     """该客户所有 Link Type 定义。"""
-    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     links = []
     for lt in inst.registry.link_types.values():
         links.append({
@@ -357,7 +361,7 @@ async def admin_ontology_links(request: Request, cid: str):
 @app.get("/api/dashboard/{cid}/metrics")
 async def dashboard_metrics(request: Request, cid: str):
     """跨域 KPI 指标卡。"""
-    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     tc = inst.tenant_context
 
     # Task 按 status 分组计数
@@ -383,7 +387,7 @@ async def dashboard_metrics(request: Request, cid: str):
 @app.get("/api/dashboard/{cid}/todos")
 async def dashboard_todos(request: Request, cid: str):
     """待办列表：非终态的 Task（需人介入）。"""
-    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     tc = inst.tenant_context
     tasks = inst.repository.read("Task", tc)
     active_statuses = {"created", "pending_approval", "approved", "accepted", "in_progress"}

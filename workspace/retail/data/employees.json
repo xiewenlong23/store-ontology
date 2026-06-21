@@ -5,8 +5,8 @@
     "store_id": "store_001",
     "role": "manager",
     "phone": "13800138001",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "emp_002",
@@ -14,8 +14,8 @@
     "store_id": "store_001",
     "role": "clerk",
     "phone": "13800138002",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_001"
+    "org_unit_id": "store_001",
+    "workspace_name": "customer_default"
   },
   {
     "id": "emp_003",
@@ -23,8 +23,8 @@
     "store_id": "store_002",
     "role": "manager",
     "phone": "13800138003",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_002"
+    "org_unit_id": "store_002",
+    "workspace_name": "customer_default"
   },
   {
     "id": "emp_004",
@@ -32,7 +32,7 @@
     "store_id": "store_002",
     "role": "clerk",
     "phone": "13800138004",
-    "customer_id": "customer_default",
-    "org_unit_id": "store_002"
+    "org_unit_id": "store_002",
+    "workspace_name": "customer_default"
   }
 ]

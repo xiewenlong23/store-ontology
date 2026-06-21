@@ -1,15 +1,15 @@
-"""测试 CustomerConfig + OrgUnit 树（P1 客户配置）。"""
+"""测试 WorkspaceConfig + OrgUnit 树（P1 客户配置）。"""
 import os
 import pytest
-from engine.customer import CustomerConfig, OrgUnit, load_customer_config
+from engine.workspace import WorkspaceConfig, OrgUnit, load_workspace_config
 
 
 def test_customer_config_basic():
-    cfg = CustomerConfig(
-        customer_id="c1", name="测试客户", source_pack="retail",
+    cfg = WorkspaceConfig(
+        workspace_name="c1", name="测试客户", source_pack="retail",
         storage_type="json_files", data_dir="/tmp/c1",
         enabled_domains=["marketing"], enabled_processes=["clearance"])
-    assert cfg.customer_id == "c1"
+    assert cfg.workspace_name == "c1"
     assert cfg.enabled_domains == ["marketing"]
 
 
@@ -43,22 +43,22 @@ def test_org_unit_user_sees_descendants():
     assert tree.visible_units("region_north") == {"region_north", "store_001", "store_002"}
 
 
-def test_load_customer_config_default():
+def test_load_workspace_config_default():
     """加载默认客户配置（data/customers/customer_default/config.yaml）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root = os.path.dirname(base)
-    cfg = load_customer_config(os.path.join(root, "workspace", "customer_default"))
-    assert cfg.customer_id == "customer_default"
+    cfg = load_workspace_config(os.path.join(root, "workspace", "customer_default"))
+    assert cfg.workspace_name == "customer_default"
     assert cfg.storage_type == "json_files"
 
 
 def test_customer_registry():
     """客户注册表：注册/获取/列表。"""
-    from engine.customer import register_customer, get_customer, all_customers, clear_customers
-    clear_customers()
-    cfg = CustomerConfig(customer_id="cx", name="x", source_pack="retail",
+    from engine.workspace import register_workspace, get_workspace, all_workspaces, clear_workspaces
+    clear_workspaces()
+    cfg = WorkspaceConfig(workspace_name="cx", name="x", source_pack="retail",
                          storage_type="json_files", data_dir="/tmp")
-    register_customer(cfg)
-    assert get_customer("cx") is cfg
-    assert len(all_customers()) >= 1
-    clear_customers()
+    register_workspace(cfg)
+    assert get_workspace("cx") is cfg
+    assert len(all_workspaces()) >= 1
+    clear_workspaces()

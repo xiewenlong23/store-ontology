@@ -1,6 +1,6 @@
-"""客户配置（P1）：CustomerConfig + OrgUnit 树 + 客户注册表。
+"""Workspace 配置（架构 spec §3.3）：WorkspaceConfig + OrgUnit 树 + workspace 注册表。
 
-每个客户（企业）一份 CustomerConfig，声明启用的域/流程、存储、OrgUnit 树。
+每个 workspace（行业包模板或客户实例）一份 WorkspaceConfig，声明启用的域/流程、存储、OrgUnit 树。
 """
 import os
 import yaml
@@ -48,9 +48,9 @@ class OrgUnit:
 
 
 @dataclass
-class CustomerConfig:
-    """单个客户的配置。"""
-    customer_id: str
+class WorkspaceConfig:
+    """单个 workspace 的配置。"""
+    workspace_name: str
     name: str
     source_pack: str = ""
     storage_type: str = "json_files"  # MVP: json_files; v2: postgres
@@ -68,36 +68,40 @@ class CustomerConfig:
         return OrgUnit.Tree(self.org_units)
 
 
-# ============ 客户注册表 ============
+# ============ workspace 注册表 ============
 
-_registry: Dict[str, CustomerConfig] = {}
-
-
-def register_customer(config: CustomerConfig) -> None:
-    _registry[config.customer_id] = config
+_registry: Dict[str, WorkspaceConfig] = {}
 
 
-def get_customer(customer_id: str) -> Optional[CustomerConfig]:
-    return _registry.get(customer_id)
+def register_workspace(config: WorkspaceConfig) -> None:
+    _registry[config.workspace_name] = config
 
 
-def all_customers() -> List[CustomerConfig]:
+def get_workspace(workspace_name: str) -> Optional[WorkspaceConfig]:
+    return _registry.get(workspace_name)
+
+
+def all_workspaces() -> List[WorkspaceConfig]:
     return list(_registry.values())
 
 
-def clear_customers() -> None:
+def clear_workspaces() -> None:
     _registry.clear()
 
 
-def load_customer_config(customer_dir: str) -> CustomerConfig:
-    """从 customers/<id>/config.yaml 加载客户配置。"""
-    config_path = os.path.join(customer_dir, "config.yaml")
+def load_workspace_config(workspace_dir: str) -> WorkspaceConfig:
+    """从 workspace/<name>/config.yaml 加载 workspace 配置。
+
+    兼容旧格式：YAML 中若无 workspace_name 字段，回退读 customer_id（数据迁移期）。
+    """
+    config_path = os.path.join(workspace_dir, "config.yaml")
     with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     units = [OrgUnit.from_dict(u) for u in data.get("org_tree", [])]
-    return CustomerConfig(
-        customer_id=data["customer_id"],
-        name=data.get("name", data["customer_id"]),
+    ws_name = data.get("workspace_name") or data.get("customer_id")  # 兼容旧 YAML
+    return WorkspaceConfig(
+        workspace_name=ws_name,
+        name=data.get("name", ws_name),
         source_pack=data.get("source_pack", ""),
         storage_type=data.get("storage", {}).get("type", "json_files"),
         data_dir=data.get("storage", {}).get("data_dir", ""),

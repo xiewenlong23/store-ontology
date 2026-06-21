@@ -2,7 +2,7 @@
 import os
 import json
 import pytest
-from engine.onboarding import copy_pack_to_customer, seed_customer_data
+from engine.onboarding import copy_pack_to_workspace, seed_workspace_data
 
 
 # ============ T1: ontocopy ============
@@ -24,11 +24,11 @@ def test_copy_pack_creates_customer_ontology(tmp_path, monkeypatch):
 
     customer_dir = tmp_path / "workspace" / "customer_test"
 
-    copy_pack_to_customer(
+    copy_pack_to_workspace(
         pack_root=str(pack_dir),
-        customer_root=str(customer_dir),
-        customer_id="customer_test",
-        customer_name="测试客户",
+        workspace_root=str(customer_dir),
+        workspace_name="customer_test",
+        workspace_label="测试客户",
         pack_name="retail")
 
     # 验证：ontology 目录有 domain TTL + Action
@@ -38,7 +38,7 @@ def test_copy_pack_creates_customer_ontology(tmp_path, monkeypatch):
     assert (customer_dir / "config.yaml").exists()
     import yaml
     cfg = yaml.safe_load((customer_dir / "config.yaml").read_text(encoding="utf-8"))
-    assert cfg["customer_id"] == "customer_test"
+    assert cfg["workspace_name"] == "customer_test"
     assert cfg["source_pack"] == "retail"
     assert "marketing" in cfg["enabled_domains"]
     # data 目录存在
@@ -65,8 +65,8 @@ def test_seed_data_valid(tmp_path):
         {"id": "p2", "name": "牛奶"},
     ]), encoding="utf-8")
 
-    seed_customer_data(
-        customer_data_dir=str(customer_dir / "data"),
+    seed_workspace_data(
+        workspace_data_dir=str(customer_dir / "data"),
         source_file=str(source),
         object_type="Product",
         registry=reg)
@@ -91,8 +91,8 @@ def test_seed_data_missing_required_field(tmp_path):
     source.write_text(json.dumps([{"name": "无ID商品"}]), encoding="utf-8")
 
     with pytest.raises(ValueError, match="id"):
-        seed_customer_data(
-            customer_data_dir=str(customer_dir / "data"),
+        seed_workspace_data(
+            workspace_data_dir=str(customer_dir / "data"),
             source_file=str(source),
             object_type="Product",
             registry=reg)

@@ -14,11 +14,11 @@ def _setup(monkeypatch, data_dir):
 
 
 def test_query_entity_accepts_customer_and_org_unit(clearance_data_dir, monkeypatch):
-    """工具接受 customer_id + org_unit_id，按客户过滤。"""
+    """工具接受 workspace_name + org_unit_id，按 workspace 过滤。"""
     _setup(monkeypatch, clearance_data_dir)
     out = query_entity.invoke({
         "entity_type": "Store",
-        "customer_id": "customer_default",
+        "workspace_name": "customer_default",
         "org_unit_id": "*",
     })
     assert "store_001" in out
@@ -28,14 +28,14 @@ def test_query_entity_defaults_to_customer_default(clearance_data_dir, monkeypat
     """不传 customer_id 时默认 customer_default。"""
     _setup(monkeypatch, clearance_data_dir)
     out = query_entity.invoke({"entity_type": "Store"})
-    assert "store_001" in out  # 旧数据（无 customer_id）兼容可见
+    assert "store_001" in out  # 旧数据（无 workspace_name）兼容可见
 
 
 def test_query_entity_isolates_by_customer(clearance_data_dir, monkeypatch):
-    """不同 customer_id 看不到彼此数据。"""
+    """不同 workspace_name 看不到彼此数据。"""
     _setup(monkeypatch, clearance_data_dir)
     out = query_entity.invoke({
         "entity_type": "Store",
-        "customer_id": "customer_other",
+        "workspace_name": "customer_other",
     })
     assert "store_001" not in out  # 属于 customer_default，不属于 customer_other

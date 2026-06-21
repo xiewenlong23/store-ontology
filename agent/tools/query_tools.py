@@ -14,12 +14,12 @@ from agent.tools import shared
 def query_entity(entity_type: str, entity_id: Optional[str] = None,
                  filter_field: Optional[str] = None,
                  filter_value: Optional[str] = None,
-                 customer_id: str = "customer_default",
+                 workspace_name: str = "customer_default",
                  org_unit_id: str = "*") -> str:
     """通用实体查询。entity_type: Store/Employee/Product/NearExpiryProduct/Task/LossReport。
-    customer_id + org_unit_id 决定可见范围。
+    workspace_name + org_unit_id 决定可见范围。
     """
-    tc = shared._tc(customer_id, org_unit_id)
+    tc = shared._tc(workspace_name, org_unit_id)
     if not shared._parser().registry.object_types.get(entity_type):
         return f"未知实体类型: {entity_type}"
     filters = {filter_field: filter_value} if filter_field else None
@@ -34,10 +34,10 @@ def query_entity(entity_type: str, entity_id: Optional[str] = None,
 
 @tool
 def traverse_relation(source_type: str, source_id: str, relation: str,
-                      customer_id: str = "customer_default",
+                      workspace_name: str = "customer_default",
                       org_unit_id: str = "*") -> str:
     """遍历实体关系。"""
-    tc = shared._tc(customer_id, org_unit_id)
+    tc = shared._tc(workspace_name, org_unit_id)
     link = shared._parser().registry.link_types.get(relation)
     if not link:
         return f"未知关系: {relation}"
@@ -54,10 +54,10 @@ def traverse_relation(source_type: str, source_id: str, relation: str,
 
 @tool
 def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
-               customer_id: str = "customer_default",
+               workspace_name: str = "customer_default",
                org_unit_id: str = "*") -> str:
     """查询任务记录。"""
-    tc = shared._tc(customer_id, org_unit_id)
+    tc = shared._tc(workspace_name, org_unit_id)
     rows = shared._get_repo(tc).read("Task", tc)
     if status:
         rows = [t for t in rows if t.get("status") == status]
