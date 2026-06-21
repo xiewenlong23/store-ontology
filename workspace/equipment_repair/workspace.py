@@ -1,6 +1,6 @@
-"""equipment_repair 行业包（workspace 重构版，从 verticals 迁移）。"""
+"""equipment_repair 工作目录（示例）。1 能力域 + 1 价值链流程（repair）。"""
 import os
-from engine.pack import IndustryPack, CapabilityDomain, ValueChainProcess, register_pack
+from engine.pack import WorkspaceDef, CapabilityDomain, ValueChainProcess, register_workspace_dir
 from workspace.equipment_repair.skills.repair_workflow.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
 
@@ -22,10 +22,10 @@ REPAIR = ValueChainProcess(
     actions_dir=os.path.join(_BASE, "ontology", "domains", "maintenance", "actions"),
     system_prompt_intro="你是门店设备维修管理助手。")
 
-EQUIPMENT_REPAIR_PACK = IndustryPack(
-    name="equipment_repair", display_name="设备维修行业包",
+EQUIPMENT_REPAIR_WS = WorkspaceDef(
+    name="equipment_repair", display_name="设备维修（示例）",
     domains=[MAINTENANCE],
     processes=[REPAIR],
     data_dir=os.path.join(_BASE, "data"))
 
-register_pack(EQUIPMENT_REPAIR_PACK)
+register_workspace_dir(EQUIPMENT_REPAIR_WS)

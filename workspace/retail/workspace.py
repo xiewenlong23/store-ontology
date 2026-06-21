@@ -1,19 +1,13 @@
-"""retail 行业包声明（workspace 重构版）。
+"""retail 工作目录（示例）。3 能力域 + 1 价值链流程（clearance）。
 
-import 时注册到 pack 注册表。bootstrap() 自动发现。
-retail-pack = 3 能力域（marketing/organization/finance）+ 1 价值链流程（clearance）。
-
-目录结构（workspace 重构后）：
-- ontology/domains/<domain>/domain.ttl + actions/  ← 本体声明
-- data/                                            ← 种子数据
-- skills/clearance_workflow/                       ← 场景单元（SKILL.md + tools.py + automation.py + actions/）
+目录结构：ontology/domains/<域>/ + data/ + skills/。
 """
 import os
 
-from engine.pack import IndustryPack, CapabilityDomain, ValueChainProcess, register_pack
+from engine.pack import WorkspaceDef, CapabilityDomain, ValueChainProcess, register_workspace_dir
 from engine.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
 
-_BASE = os.path.dirname(os.path.abspath(__file__))  # workspace/retail/
+_BASE = os.path.dirname(os.path.abspath(__file__))
 
 MARKETING = CapabilityDomain(
     name="marketing", display_name="营销域",
@@ -42,10 +36,10 @@ CLEARANCE = ValueChainProcess(
     actions_dir=os.path.join(_BASE, "skills", "clearance_workflow", "actions"),
     system_prompt_intro="你是门店临期商品管理助手。")
 
-RETAIL_PACK = IndustryPack(
-    name="retail", display_name="零售行业包",
+RETAIL_WS = WorkspaceDef(
+    name="retail", display_name="零售（示例）",
     domains=[MARKETING, ORGANIZATION, FINANCE],
     processes=[CLEARANCE],
     data_dir=os.path.join(_BASE, "data"))
 
-register_pack(RETAIL_PACK)
+register_workspace_dir(RETAIL_WS)

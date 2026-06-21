@@ -1,6 +1,7 @@
-"""启动时发现并注册所有 workspace 行业包（workspace 重构版）。
+"""启动时发现并注册所有 workspace 工作目录。
 
-扫描 workspace/*/pack.py 注册 IndustryPack。main.py 调用 bootstrap() 一次即可。幂等。
+扫描 workspace/*/workspace.py（新）注册工作目录（WorkspaceDef）。
+兼容尚未改名的 workspace/*/pack.py。main.py 调用 bootstrap() 一次即可。幂等。
 """
 import importlib
 import os
@@ -25,5 +26,9 @@ def _discover_packages(pkg_name: str, file_name: str, label: str) -> None:
 
 
 def bootstrap() -> None:
-    """发现并注册所有 workspace 行业包（幂等，重复调用安全）。"""
-    _discover_packages("workspace", "pack", "pack")
+    """发现并注册所有 workspace 工作目录（幂等，重复调用安全）。
+
+    优先扫 workspace.py（新），兼容 pack.py（旧）。两者都 import 触发自注册。
+    """
+    _discover_packages("workspace", "workspace", "workspace")
+    _discover_packages("workspace", "pack", "workspace")  # 兼容尚未改名的工作目录

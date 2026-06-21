@@ -25,9 +25,9 @@ def build_clearance_registry(data_dir: str):
     pack = get_pack("retail")
     if pack is None:
         # bootstrap 可能因模块缓存未重新注册——直接 import + 注册
-        import workspace.retail.pack  # noqa: F401
-        from workspace.retail.pack import RETAIL_PACK
-        register_pack(RETAIL_PACK)
+        import workspace.retail.workspace  # noqa: F401
+        from workspace.retail.workspace import RETAIL_WS
+        register_pack(RETAIL_WS)
         pack = get_pack("retail")
     if pack is None:
         raise RuntimeError("retail pack 未注册")
