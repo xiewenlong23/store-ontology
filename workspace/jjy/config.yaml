@@ -1,0 +1,11 @@
+workspace_name: jjy
+name: 客户 jjy
+storage:
+  type: json_files
+  data_dir: workspace/jjy/data
+enabled_domains: [marketing, organization, finance]
+enabled_processes: [clearance]
+org_tree:
+  - { id: brand_jjy, parent: null }
+  - { id: store_001, parent: brand_jjy }
+  - { id: store_002, parent: brand_jjy }

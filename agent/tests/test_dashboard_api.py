@@ -109,7 +109,7 @@ def test_x_workspace_header_drives_workspace_resolution(client):
     # 带 X-Workspace header（值与 cid 相同）：仍正常，证明 header 被解析且兼容
     r_with_header = client.get(
         "/api/dashboard/customer_default/metrics",
-        headers={"X-Workspace": "customer_default"})
+        headers={"X-Workspace": "jjy"})
     assert r_with_header.status_code == 200
     assert "tasks" in r_with_header.json()
     # 结果与不带 header 一致（同一 workspace）
@@ -124,7 +124,7 @@ def test_x_workspace_header_overrides_url_cid(client):
     """
     r = client.get(
         "/api/dashboard/bogus_cid/metrics",
-        headers={"X-Workspace": "customer_default"})
+        headers={"X-Workspace": "jjy"})
     assert r.status_code == 200
     assert "tasks" in r.json()
 
@@ -144,4 +144,4 @@ def test_resolve_workspace_name_priority(client):
     # header 缺失、url cid 存在 → 用 url cid
     assert main._resolve_workspace_name(_FakeRequest(None), "url_cid") == "url_cid"
     # 都缺失 → 默认 customer_default
-    assert main._resolve_workspace_name(_FakeRequest(None), None) == "customer_default"
+    assert main._resolve_workspace_name(_FakeRequest(None), None) == "jjy"

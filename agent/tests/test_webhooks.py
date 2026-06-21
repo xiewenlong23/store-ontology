@@ -56,17 +56,17 @@ def test_approval_webhook_approves_task(webhook_client):
     r = ex.execute("create_clearance_task", {
         "target_id": "nep_sold", "store_id": "store_001", "assignee_id": "emp_001",
         "discount_percent": 30, "planned_quantity": 5,
-    }, actor={"role": "store_manager"}, tenant_id="tenant_default")
+    }, actor={"role": "store_manager"}, tenant_id="jjy")
     task_id = r["created"]["Task"][0]["id"]
     ex.execute("submit_for_approval", {"task_id": task_id},
-               actor={"role": "store_manager"}, tenant_id="tenant_default")
+               actor={"role": "store_manager"}, tenant_id="jjy")
 
     resp = client.post("/api/webhooks/approval", json={
         "task_id": task_id, "approver_id": "rcm_1", "approved": True})
     assert resp.status_code == 200
     body = resp.json()
     assert body["ok"] is True
-    task = ex.repo.read_one("Task", "tenant_default", task_id)
+    task = ex.repo.read_one("Task", "jjy", task_id)
     assert task["status"] == "approved"
 
 
@@ -85,7 +85,7 @@ def test_pos_webhook_deducts_stock(webhook_client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["ok"] is True
-    ne = ex.repo.read_one("NearExpiryProduct", "tenant_default", "nep_exp")
+    ne = ex.repo.read_one("NearExpiryProduct", "jjy", "nep_exp")
     assert ne["stock_quantity"] == 5  # 7 - 2
 
 

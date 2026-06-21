@@ -18,7 +18,7 @@ def test_query_entity_accepts_customer_and_org_unit(clearance_data_dir, monkeypa
     _setup(monkeypatch, clearance_data_dir)
     out = query_entity.invoke({
         "entity_type": "Store",
-        "workspace_name": "customer_default",
+        "workspace_name": "jjy",
         "org_unit_id": "*",
     })
     assert "store_001" in out
@@ -52,7 +52,7 @@ def test_query_entity_isolates_by_contextvar(clearance_data_dir, monkeypatch):
     from engine.tenant import TenantContext
 
     # contextvar = customer_default → 看得到 store_001
-    token = main.tenant_ctx.set(TenantContext(workspace_name="customer_default", org_unit_id="*"))
+    token = main.tenant_ctx.set(TenantContext(workspace_name="jjy", org_unit_id="*"))
     try:
         out_default = query_entity.invoke({"entity_type": "Store"})
         assert "store_001" in out_default

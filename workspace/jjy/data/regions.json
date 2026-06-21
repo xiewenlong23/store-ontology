@@ -1,0 +1,16 @@
+[
+  {
+    "id": "region_001",
+    "name": "华东区",
+    "code": "HD",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "region_002",
+    "name": "华北区",
+    "code": "HB",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  }
+]

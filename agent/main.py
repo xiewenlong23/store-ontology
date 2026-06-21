@@ -276,7 +276,7 @@ async def workspace_middleware(request, call_next):
     具体 workspace 运行时上下文的构建（bootstrap_workspace）在各路由内按需调用，
     通过 _resolve_workspace_name(request) 统一取值（header 优先，URL {cid} 回退）。
     """
-    ws = request.headers.get("X-Workspace") or "customer_default"
+    ws = request.headers.get("X-Workspace") or "jjy"
     request.state.workspace_name = ws
     return await call_next(request)
 
@@ -292,7 +292,7 @@ def _resolve_workspace_name(request, url_cid: str = None) -> str:
         return ws
     if url_cid:
         return url_cid
-    return "customer_default"
+    return "jjy"
 
 
 add_langgraph_fastapi_endpoint(

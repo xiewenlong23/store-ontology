@@ -16,7 +16,7 @@ def _setup(monkeypatch, data_dir):
     ex, repo = build_clearance_executor(data_dir)
     reg = repo.registry
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
-    monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
+    monkeypatch.setattr(T, "_get_repo", lambda tenant="jjy", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
     return ex, repo
 
@@ -52,13 +52,13 @@ def test_update_task_notes_via_action(clearance_data_dir, monkeypatch):
     r = ex.execute("create_clearance_task", {
         "target_id": "ne_001", "store_id": "store_001", "assignee_id": "emp_001",
         "discount_percent": 30, "planned_quantity": 50,
-    }, actor={"role": "store_manager"}, tenant_id="tenant_default")
+    }, actor={"role": "store_manager"}, tenant_id="jjy")
     task_id = r["created"]["Task"][0]["id"]
 
     # 用 update_task 工具改 notes（应经 Action，不再 bypass）
     out = update_task.invoke({"task_id": task_id, "notes": "测试备注"})
     assert "成功" in out or "success" in out.lower(), f"应成功改 notes，实际: {out[:200]}"
-    task = repo.read_one("Task", "tenant_default", task_id)
+    task = repo.read_one("Task", "jjy", task_id)
     assert task["notes"] == "测试备注"
 
 

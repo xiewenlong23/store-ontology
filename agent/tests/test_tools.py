@@ -7,7 +7,7 @@ def _setup(monkeypatch, data_dir):
     ex, repo = build_clearance_executor(data_dir)
     reg = repo.registry
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P', (), {'registry': reg})())
-    monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
+    monkeypatch.setattr(T, "_get_repo", lambda tenant="jjy", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
 
 
@@ -58,10 +58,10 @@ def test_get_executor_default_resolves_workspace_from_contextvar():
     import main  # 提供 main.tenant_ctx contextvar
 
     reset_instances()
-    token = main.tenant_ctx.set(TenantContext(workspace_name="customer_default", org_unit_id="*"))
+    token = main.tenant_ctx.set(TenantContext(workspace_name="jjy", org_unit_id="*"))
     try:
         ex = shared._get_executor()
-        inst = bootstrap_workspace("customer_default")
+        inst = bootstrap_workspace("jjy")
         # 同一 workspace 实例的 executor（缓存复用），而非临时新建
         assert ex is inst.executor, \
             "_get_executor() 默认应返回 bootstrap_workspace 缓存的 executor（workspace 装配）"

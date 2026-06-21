@@ -18,7 +18,7 @@ def _normalize_tenant(tenant) -> TenantContext:
     if isinstance(tenant, TenantContext):
         return tenant
     # 旧式字符串：视为 customer_default + 通配 org
-    return TenantContext(workspace_name="customer_default", org_unit_id="*")
+    return TenantContext(workspace_name="jjy", org_unit_id="*")
 
 
 class Repository:

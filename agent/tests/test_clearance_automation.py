@@ -23,13 +23,13 @@ def test_expiry_check_job_scraps_expired_task(automation_data_dir):
     from workspace.retail.skills.clearance_workflow.automation import expiry_check_job
     ex, repo = _exec(automation_data_dir)
 
-    expiry_check_job(ex, tenant_id="tenant_default")
+    expiry_check_job(ex, tenant_id="jjy")
 
-    task = repo.read_one("Task", "tenant_default", "task_exp")
-    ne = repo.read_one("NearExpiryProduct", "tenant_default", "nep_exp")
+    task = repo.read_one("Task", "jjy", "task_exp")
+    ne = repo.read_one("NearExpiryProduct", "jjy", "nep_exp")
     assert task["status"] == "scrapped"
     assert ne["status"] == "scrapped"
-    loss_reports = repo.read("LossReport", "tenant_default")
+    loss_reports = repo.read("LossReport", "jjy")
     assert len(loss_reports) == 1
     assert loss_reports[0]["loss_quantity"] == 7  # planned 10 - sold 3
     assert loss_reports[0]["task_id"] == "task_exp"
@@ -41,8 +41,8 @@ def test_expiry_check_skips_non_expired(automation_data_dir):
     from workspace.retail.skills.clearance_workflow.automation import expiry_check_job
     ex, repo = _exec(automation_data_dir)
     # task_sold 关联 nep_sold（days_left=5，未过期）
-    expiry_check_job(ex, tenant_id="tenant_default")
-    sold_task = repo.read_one("Task", "tenant_default", "task_sold")
+    expiry_check_job(ex, tenant_id="jjy")
+    sold_task = repo.read_one("Task", "jjy", "task_sold")
     assert sold_task["status"] == "in_progress"  # 未被报损
 
 
@@ -51,9 +51,9 @@ def test_inventory_check_completes_soldout_task(automation_data_dir):
     bootstrap()
     from workspace.retail.skills.clearance_workflow.automation import inventory_check_job
     ex, repo = _exec(automation_data_dir)
-    inventory_check_job(ex, tenant_id="tenant_default")
-    task = repo.read_one("Task", "tenant_default", "task_sold")
-    ne = repo.read_one("NearExpiryProduct", "tenant_default", "nep_sold")
+    inventory_check_job(ex, tenant_id="jjy")
+    task = repo.read_one("Task", "jjy", "task_sold")
+    ne = repo.read_one("NearExpiryProduct", "jjy", "nep_sold")
     assert task["status"] == "completed"
     assert ne["status"] == "sold_out"
 
@@ -63,9 +63,9 @@ def test_inventory_check_skips_unsold(automation_data_dir):
     bootstrap()
     from workspace.retail.skills.clearance_workflow.automation import inventory_check_job
     ex, repo = _exec(automation_data_dir)
-    inventory_check_job(ex, tenant_id="tenant_default")
+    inventory_check_job(ex, tenant_id="jjy")
     # task_exp: sold=3 < planned=10，未售罄
-    task = repo.read_one("Task", "tenant_default", "task_exp")
+    task = repo.read_one("Task", "jjy", "task_exp")
     assert task["status"] == "in_progress"
 
 
@@ -90,7 +90,7 @@ def test_handle_approval_approves(automation_data_dir):
     ex, repo = _exec(automation_data_dir)
     result = handle_approval(ex, task_id="task_app", approver_id="rcm_1", approved=True)
     assert result["ok"] is True
-    task = repo.read_one("Task", "tenant_default", "task_app")
+    task = repo.read_one("Task", "jjy", "task_app")
     assert task["status"] == "approved"
 
 
@@ -104,8 +104,8 @@ def test_handle_pos_scan_deducts(automation_data_dir):
     ex, repo = _exec(automation_data_dir)
     result = handle_pos_scan(ex, target_id="nep_exp", task_id="task_exp", quantity=2)
     assert result["ok"] is True
-    ne = repo.read_one("NearExpiryProduct", "tenant_default", "nep_exp")
-    task = repo.read_one("Task", "tenant_default", "task_exp")
+    ne = repo.read_one("NearExpiryProduct", "jjy", "nep_exp")
+    task = repo.read_one("Task", "jjy", "task_exp")
     assert ne["stock_quantity"] == 5  # 7 - 2
     assert task["sold_quantity"] == 5  # 3 + 2
 

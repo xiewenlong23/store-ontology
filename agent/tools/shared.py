@@ -47,7 +47,7 @@ def _workspace_name_from_ctx() -> str:
         tc = main.tenant_ctx.get()
         return tc.workspace_name
     except (ImportError, LookupError):
-        return "customer_default"
+        return "jjy"
 
 
 def _parser(vertical: str = None):

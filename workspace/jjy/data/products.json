@@ -1,0 +1,46 @@
+[
+  {
+    "id": "prod_001",
+    "name": "蒙牛酸奶",
+    "category": "乳制品",
+    "brand": "蒙牛",
+    "unit": "盒",
+    "cost_price": 4.5,
+    "retail_price": 6.0,
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "prod_002",
+    "name": "伊利纯牛奶",
+    "category": "乳制品",
+    "brand": "伊利",
+    "unit": "盒",
+    "cost_price": 3.5,
+    "retail_price": 5.0,
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "prod_003",
+    "name": "盼盼小面包",
+    "category": "糕点",
+    "brand": "盼盼",
+    "unit": "袋",
+    "cost_price": 3.0,
+    "retail_price": 4.5,
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "prod_004",
+    "name": "农夫山泉",
+    "category": "饮料",
+    "brand": "农夫山泉",
+    "unit": "瓶",
+    "cost_price": 1.0,
+    "retail_price": 2.0,
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  }
+]

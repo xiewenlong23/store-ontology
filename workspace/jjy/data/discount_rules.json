@@ -1,0 +1,26 @@
+[
+  {
+    "id": "rule_T1",
+    "tier": "T1",
+    "days_min": 0,
+    "days_max": 3,
+    "discount_percent": 50,
+    "description": "即将过期，5折(减50%)"
+  },
+  {
+    "id": "rule_T2",
+    "tier": "T2",
+    "days_min": 4,
+    "days_max": 7,
+    "discount_percent": 30,
+    "description": "中期临期，7折(减30%)"
+  },
+  {
+    "id": "rule_T3",
+    "tier": "T3",
+    "days_min": 8,
+    "days_max": 14,
+    "discount_percent": 10,
+    "description": "初期临期，9折(减10%)"
+  }
+]

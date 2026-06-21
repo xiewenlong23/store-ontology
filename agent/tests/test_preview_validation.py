@@ -16,7 +16,7 @@ def _setup(monkeypatch, data_dir):
     ex, repo = build_clearance_executor(data_dir)
     reg = repo.registry
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P', (), {'registry': reg})())
-    monkeypatch.setattr(T, "_get_repo", lambda tenant="tenant_default", vertical=None: repo)
+    monkeypatch.setattr(T, "_get_repo", lambda tenant="jjy", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
 
 

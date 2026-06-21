@@ -1,0 +1,27 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 财务域（Finance）—— 报损单 + 损耗核算
+# ============================================================
+
+store:LossReport a rdfs:Class ;
+    rdfs:label "报损单"@zh , "Loss Report"@en ;
+    rdfs:comment "到期未售罄的报损记录，由 create_loss_report 创建"@zh ;
+    store:properties "id:string,task_id:string,target_id:string,loss_quantity:int,loss_value:float,loss_reason:string,status:LossReportStatus,created_at:datetime" ;
+    store:storage "loss_reports.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" .
+
+# Link Types
+
+store:has_loss_report a rdfs:Property ;
+    rdfs:label "产生报损单"@zh , "has loss report"@en ;
+    rdfs:comment "Task 的报损单。via task_id 在 LossReport（range 侧）上"@zh ;
+    rdfs:domain store:Task ; rdfs:range store:LossReport ; store:via "task_id" .
+
+store:written_off a rdfs:Property ;
+    rdfs:label "核销"@zh , "written off"@en ;
+    rdfs:comment "LossReport 通过 target_id（domain 侧）指向被核销的 NearExpiryProduct"@zh ;
+    rdfs:domain store:LossReport ; rdfs:range store:NearExpiryProduct ; store:via "target_id" .

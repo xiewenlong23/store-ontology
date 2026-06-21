@@ -72,7 +72,7 @@ def test_bootstrap_reads_customer_data(tmp_path):
 
 def test_bootstrap_fallback_no_ontology(tmp_path):
     """无客户 ontology 目录时回退全局 store.ttl（customer_default 兼容）。"""
-    inst = bootstrap_workspace("customer_default")
+    inst = bootstrap_workspace("jjy")
     assert inst is not None
     # 全局 store.ttl 的 Product 无 organic_cert
     product = inst.registry.object_types.get("Product")

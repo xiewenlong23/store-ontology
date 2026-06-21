@@ -12,17 +12,17 @@ def _clean():
 
 def test_bootstrap_default_customer():
     """bootstrap 默认客户，得到一个 WorkspaceAgentInstance。"""
-    inst = bootstrap_workspace("customer_default")
+    inst = bootstrap_workspace("jjy")
     assert inst is not None
-    assert inst.workspace_name == "customer_default"
+    assert inst.workspace_name == "jjy"
     assert inst.registry is not None
     assert inst.repository is not None
 
 
 def test_instance_cached_per_customer():
     """同 customer 多次 bootstrap 返回缓存实例。"""
-    inst1 = bootstrap_workspace("customer_default")
-    inst2 = bootstrap_workspace("customer_default")
+    inst1 = bootstrap_workspace("jjy")
+    inst2 = bootstrap_workspace("jjy")
     assert inst1 is inst2
 
 
@@ -46,8 +46,8 @@ def test_two_customers_isolated():
 
 
 def test_get_workspace_agent_instance():
-    inst = bootstrap_workspace("customer_default")
-    assert get_workspace_agent_instance("customer_default") is inst
+    inst = bootstrap_workspace("jjy")
+    assert get_workspace_agent_instance("jjy") is inst
     assert get_workspace_agent_instance("nonexistent") is None
 
 
@@ -57,6 +57,6 @@ def test_workspace_instance_has_executor():
     executor 的 config 取自该 workspace source_pack 的（第一个）价值链流程，
     用于状态机校验。
     """
-    inst = bootstrap_workspace("customer_default")
+    inst = bootstrap_workspace("jjy")
     assert inst.executor is not None, "executor 应已接通，不再为 None"
     assert inst.executor.config is not None, "executor.config 应为价值链流程（非 None）"

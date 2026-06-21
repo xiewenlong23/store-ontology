@@ -26,7 +26,7 @@ class TenantContext:
         rec_workspace = record.get("workspace_name")
         if rec_workspace is None:
             # 旧格式兼容：customer_id 存在则读取；完全无租户字段视为默认 workspace
-            rec_workspace = record.get("customer_id", "customer_default")
+            rec_workspace = record.get("customer_id", "jjy")
         rec_org = record.get("org_unit_id", "*")
 
         if rec_workspace != self.workspace_name:
@@ -37,11 +37,11 @@ class TenantContext:
 
     @classmethod
     def default(cls) -> "TenantContext":
-        return cls(workspace_name="customer_default", org_unit_id="*")
+        return cls(workspace_name="jjy", org_unit_id="*")
 
     @classmethod
     def from_headers(cls, headers: dict) -> "TenantContext":
         # 兼容：X-Workspace 优先（架构 spec §3.4），回退 X-Customer-ID（旧前端）
-        workspace = headers.get("X-Workspace") or headers.get("X-Customer-ID") or "customer_default"
+        workspace = headers.get("X-Workspace") or headers.get("X-Customer-ID") or "jjy"
         org = headers.get("X-Org-Unit-ID") or "*"
         return cls(workspace_name=workspace, org_unit_id=org)

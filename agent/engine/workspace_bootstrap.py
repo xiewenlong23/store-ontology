@@ -30,7 +30,7 @@ _instances: Dict[str, WorkspaceAgentInstance] = {}
 
 _DEFAULT_WORKSPACE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "workspace", "customer_default")
+    "workspace", "jjy")
 
 
 def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
@@ -48,11 +48,11 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
 
     cfg = get_workspace(workspace_name)
     if cfg is None:
-        if workspace_name == "customer_default":
+        if workspace_name == "jjy":
             try:
                 cfg = load_workspace_config(_DEFAULT_WORKSPACE_DIR)
             except Exception:
-                cfg = WorkspaceConfig(workspace_name="customer_default", name="默认",
+                cfg = WorkspaceConfig(workspace_name="jjy", name="默认",
                                       storage_type="json_files",
                                       data_dir=os.path.join(base, "..", "workspace", "retail", "data"))
         else:
@@ -90,16 +90,16 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     from engine.repository import JSONFileRepository
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
-    # 接通 executor：config 取该 workspace source_pack 的（第一个）价值链流程（spec §5.3）。
-    # 解析链：WorkspaceConfig.source_pack → get_workspace_dir → ws.processes → processes[0]。
-    # 多 process 按 process_name 精确选择留 v2（_get_executor(workspace, process)）。
+    # 接通 executor：config 取该工作目录的（第一个）价值链流程。
+    # 解析链：优先 source_pack；否则用 workspace_name 本身（自洽工作目录以自己名字注册）。
     from engine.executor import ActionExecutor
     from engine.pack import get_workspace_dir
     process_config = None
-    if cfg.source_pack:
-        ws = get_workspace_dir(cfg.source_pack)
-        if ws and ws.processes:
-            process_config = ws.processes[0]
+    # 自洽工作目录（如 jjy）以自己名字注册为 workspace_dir；旧式薄壳用 source_pack
+    ws_name_for_dir = cfg.source_pack or workspace_name
+    ws = get_workspace_dir(ws_name_for_dir)
+    if ws and ws.processes:
+        process_config = ws.processes[0]
     executor = ActionExecutor(
         repository=repo, actions=registry.action_types,
         registry=registry, config=process_config)

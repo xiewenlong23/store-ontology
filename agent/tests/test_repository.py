@@ -20,7 +20,7 @@ def _registry_with(managed: bool):
 def test_read_filters_by_tenant(tmp_data_dir):
     reg = _registry_with(managed=False)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
-    rows = repo.read("Store", "tenant_default")
+    rows = repo.read("Store", "jjy")
     assert len(rows) == 1
     assert rows[0]["id"] == "store_001"
 
@@ -28,18 +28,18 @@ def test_read_filters_by_tenant(tmp_data_dir):
 def test_read_one_missing_returns_none(tmp_data_dir):
     reg = _registry_with(managed=False)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
-    assert repo.read_one("Store", "tenant_default", "nope") is None
+    assert repo.read_one("Store", "jjy", "nope") is None
 
 
 def test_write_stamps_tenant(tmp_data_dir):
     reg = _registry_with(managed=False)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
     from engine.tenant import TenantContext
-    tc = TenantContext(workspace_name="customer_default", org_unit_id="*")
+    tc = TenantContext(workspace_name="jjy", org_unit_id="*")
     repo.write("Store", tc,
                {"id": "store_002", "name": "新店"}, create=True)
     rec = repo.read_one("Store", tc, "store_002")
-    assert rec["workspace_name"] == "customer_default"
+    assert rec["workspace_name"] == "jjy"
     assert rec["org_unit_id"] == "*"
 
 
@@ -47,7 +47,7 @@ def test_write_blocked_when_edits_only(tmp_data_dir):
     reg = _registry_with(managed=True)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
     try:
-        repo.write("Store", "tenant_default", {"id": "store_002"}, create=True)
+        repo.write("Store", "jjy", {"id": "store_002"}, create=True)
         assert False, "应抛 ActionRequiredError"
     except ActionRequiredError:
         pass
@@ -56,9 +56,9 @@ def test_write_blocked_when_edits_only(tmp_data_dir):
 def test_write_bypass_for_executor(tmp_data_dir):
     reg = _registry_with(managed=True)
     repo = JSONFileRepository(data_dir=tmp_data_dir, registry=reg)
-    repo.write("Store", "tenant_default", {"id": "store_002"}, create=True,
+    repo.write("Store", "jjy", {"id": "store_002"}, create=True,
                bypass_action_check=True)
-    assert repo.read_one("Store", "tenant_default", "store_002") is not None
+    assert repo.read_one("Store", "jjy", "store_002") is not None
 
 
 def test_tenant_isolation(tmp_data_dir):

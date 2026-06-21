@@ -47,8 +47,8 @@ def test_load_workspace_config_default():
     """加载默认客户配置（data/customers/customer_default/config.yaml）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root = os.path.dirname(base)
-    cfg = load_workspace_config(os.path.join(root, "workspace", "customer_default"))
-    assert cfg.workspace_name == "customer_default"
+    cfg = load_workspace_config(os.path.join(root, "workspace", "jjy"))
+    assert cfg.workspace_name == "jjy"
     assert cfg.storage_type == "json_files"
 
 
