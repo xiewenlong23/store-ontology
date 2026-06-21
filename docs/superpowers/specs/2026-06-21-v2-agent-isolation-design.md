@@ -1,174 +1,181 @@
-# v2-agent 隔离：per-workspace agent 实例设计
+# v2-agent 隔离 + workspace 自洽设计
 
 > **状态**：设计待确认
 > **日期**：2026-06-21
-> **性质**：架构级改造——agent 从全局单例 → per-workspace 实例。让工具/skill/本体 prompt 按 workspace 隔离。
+> **性质**：架构级改造。① agent 从全局单例 → per-workspace 实例隔离；② workspace 目录自洽化（每个工作目录独立定义本体/数据/skill，平级隔离）。
 > **关联**：[`roadmap.md`](../design/roadmap.md) §9、[`00-architecture.md`](../design/00-architecture.md) §3.3
 
 ---
 
 ## 0. 问题陈述
 
-v2-tenant 动态（数据层）完成后发现更深的 gap：`main.py` 构建 agent 时，工具/skill/本体 prompt **全局聚合所有 pack**：
-- `_aggregate_pack_tools()`：`for pack in all_packs()` → 所有行业包工具都注入 agent
-- `_aggregate_skill_paths()`：所有行业包 skill 都挂载
-- `_build_combined_prompt()`：所有行业包实体/关系/Action 合并进系统提示
+两个相互关联的 gap：
 
-实测：agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(equipment_repair)，本体 prompt 同时含 `NearExpiryProduct` + `RepairTicket`。`bootstrap_workspace()` 返回的 per-workspace `WorkspaceAgentInstance` 只被 dashboard API 消费，**agent 本身没消费**。
+### gap 1：agent 全局聚合（v2-agent 隔离）
+`main.py` 构建 agent 时，`_aggregate_pack_tools()`/`_aggregate_skill_paths()`/`_build_combined_prompt()` 用 `all_packs()` 聚合**所有**工作目录的工具/skill/本体。实测 agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(equipment_repair)，本体 prompt 同时含两套实体。不同 workspace 的请求共用一个 agent，工具/skill/本体未隔离。
 
-**影响**：不同 workspace 的请求共用同一个 agent，LLM 看到所有 pack 的工具/skill/本体。多 workspace 共存时互相干扰（LLM 可调到不属于当前 workspace pack 的工具）。
+### gap 2：workspace 目录角色混乱
+当前结构：
+- `workspace/retail/`、`workspace/equipment_repair/` = 自洽工作目录（有 pack.py + ontology + data + skills）
+- `workspace/customer_default/` = **薄壳**（只有 config.yaml，`source_pack: retail` + `data_dir: workspace/retail/data`，无自己的本体/数据/skill）
 
----
+**正确的架构**：workspace 下是 **N 个平级、独立、自洽的工作目录**。每个工作目录完整定义自己的本体语义/数据/skill，互不引用。工作目录分两类：
+- **行业工作目录**（公司开发，如 retail）：定义某行业的本体/工具/skill，可作客户初始化的拷贝源
+- **客户工作目录**（如 jjy、customerA）：某客户的定制实例，从行业目录拷贝修改或从 0 自定义
 
-## 1. 方案：per-workspace agent 实例 + 网关路由
+当前 customer_default 这个薄壳违背了"自洽"原则——它复用 retail 的数据和本体，没有真正隔离。
 
-### 决策（用户确认）
-- **隔离粒度**：per-workspace（每个 workspace 一个独立 agent 实例）
-- **跨 pack**：不支持（一个 workspace 一个 source_pack）
-- **jjy workspace**：真实存在的第二个 workspace（当前待创建）
-
-### 架构
-```
-浏览器（X-Workspace header）
-    → AG-UI 网关 endpoint（POST /api/copilotkit）
-        → 解析 workspace_name（从 header）
-        → get_or_build_workspace_agent(workspace_name)  ← per-workspace 缓存
-            → 按 workspace 的 source_pack 构建 graph：
-                - 只含该 pack 的工具（_aggregate_pack_tools 改为按指定 pack）
-                - 只含该 pack 的 skill
-                - 只含该 pack 的本体 prompt
-            → 缓存到 _workspace_agents[workspace_name]
-        → agent.clone()（per-request 状态隔离）
-        → agent.run(input_data) → SSE 流式响应
-```
-
-### 为什么不用 add_langgraph_fastapi_endpoint
-它内部 `agent.clone()` 每请求 clone，但 **graph 固定**（`self.graph = graph` 构造时绑定）。要 per-workspace 不同 graph，需自己写 endpoint，per-request 按 workspace 选 agent（复用 EventEncoder + LangGraphAgent.run）。
+### 用户的明确要求
+- `customer_default` → 改名 `jjy`（客户 jjy 的独立工作目录）
+- `equipment_repair` → 改名 `customerA`（客户A 的独立工作目录）
+- jjy/customerA 本体定义**后续做**，本次只确保**架构隔离**（jjy 暂从 retail 拷贝本体/数据让它自洽能跑）
+- 工作目录初始化支持"从行业目录拷贝修改"或"从 0 自定义"
 
 ---
 
-## 2. 实现要点
+## 1. 目标状态
 
-### 2.1 per-workspace graph 构建
-
-新增 `build_workspace_graph(workspace_name) -> CompiledStateGraph`：
-- 从 `bootstrap_workspace(workspace_name)` 取 `WorkspaceAgentInstance`（已有 registry/repository/executor）
-- 取该 workspace 的 `source_pack`
-- **工具**：只聚合该 pack 的工具（内核 8 个 + 该 pack 的 `process.tools_module`）
-- **skill**：只挂载该 pack 的 skill 路径
-- **prompt**：只构建该 pack 的本体提示
-- `create_deep_agent(model, tools=..., system_prompt=..., skills=..., ...)`
-
-现有 `_aggregate_pack_tools`/`_build_combined_prompt`/`_aggregate_skill_paths` 从"遍历 all_packs()"改为"接受指定 pack 参数"。
-
-### 2.2 per-workspace agent 缓存
-
-```python
-_workspace_agents: Dict[str, LangGraphAgent] = {}
-
-def get_or_build_workspace_agent(workspace_name: str) -> LangGraphAgent:
-    if workspace_name not in _workspace_agents:
-        graph = build_workspace_graph(workspace_name)
-        _workspace_agents[workspace_name] = LangGraphAgent(
-            name=workspace_name, graph=graph)
-    return _workspace_agents[workspace_name]
+```
+workspace/
+├── retail/          # 零售行业工作目录（公司开发，自洽：pack.py + ontology/ + data/ + skills/）
+├── jjy/             # 客户 jjy 工作目录（原 customer_default 改名 + 自洽化）
+│                     #   本次：从 retail 拷贝 pack.py/ontology/data/skills，改 pack.name=jjy
+│                     #   后续：客户定义自己的本体语义
+└── customerA/       # 客户A 工作目录（原 equipment_repair 改名，内容不变，自洽）
 ```
 
-graph 按 workspace 缓存（不每请求重建，高效）。workspace 数稳定（当前 2 个），内存可控。
+每个工作目录经 `bootstrap()` 发现 `pack.py` 注册为独立 pack。**agent 按 pack（=工作目录）隔离**：不同 workspace 的请求路由到只含该工作目录工具/skill/本体的 agent 实例。
 
-### 2.3 替换 endpoint
+---
 
+## 2. 方案：per-workspace agent 实例 + 工作目录自洽化
+
+### 2.1 工作目录自洽化（gap 2）
+
+**改名 + 自洽化 jjy**：
+- `workspace/customer_default/` → `workspace/jjy/`
+- 从 `workspace/retail/` 拷贝 `pack.py`/`ontology/`/`data/`/`skills/` 到 `jjy/`
+- 改 `jjy/pack.py` 的 pack name 为 `jjy`、display_name 为"客户 jjy"
+- 删除原 config.yaml 的 source_pack 依赖（jjy 自洽，不再指向 retail）
+- 数据文件的 `workspace_name` 字段值改 `customer_default` → `jjy`
+
+**改名 customerA**：
+- `workspace/equipment_repair/` → `workspace/customerA/`
+- 改 `customerA/pack.py` 的 pack name 为 `customerA`
+- 内容（本体/数据/skill）不变
+
+**bootstrap 机制不变**：`bootstrap()` 扫描 `workspace/*/pack.py`，jjy/customerA/retail 各自被注册为独立 pack。
+
+### 2.2 per-workspace agent 实例（gap 1）
+
+新增 `build_workspace_graph(pack_name) -> CompiledStateGraph`：
+- 只构建**指定 pack** 的工具/skill/本体 prompt（不再 `all_packs()` 聚合）
+- 现有 `_aggregate_pack_tools`/`_build_combined_prompt`/`_aggregate_skill_paths` 改为接受单个 pack 参数
+
+per-pack agent 缓存：
 ```python
-from ag_ui_langgraph import LangGraphAgent
-from ag_ui.core import EventEncoder  # 复用 SSE 编码
+_pack_agents: Dict[str, LangGraphAgent] = {}
+def get_or_build_pack_agent(pack_name: str) -> LangGraphAgent:
+    if pack_name not in _pack_agents:
+        graph = build_workspace_graph(pack_name)
+        _pack_agents[pack_name] = LangGraphAgent(name=pack_name, graph=graph)
+    return _pack_agents[pack_name]
+```
 
+### 2.3 替换 endpoint（网关路由）
+
+不用 `add_langgraph_fastapi_endpoint`（它 graph 固定）。自写 endpoint：
+```python
 @app.post("/api/copilotkit")
 async def copilotkit_endpoint(input_data: RunAgentInput, request: Request):
-    workspace = _resolve_workspace_name(request)  # 从 X-Workspace header
-    agent = get_or_build_workspace_agent(workspace)
-    request_agent = agent.clone()  # per-request 状态隔离
-    accept = request.headers.get("accept")
-    encoder = EventEncoder(accept=accept)
-
-    async def event_generator():
-        async for event in request_agent.run(input_data):
-            yield encoder.encode(event)
-    return StreamingResponse(event_generator(), media_type=encoder.get_content_type())
+    # 从 X-Workspace header 解析 workspace → 取对应 pack → 路由到该 pack 的 agent
+    workspace_name = _resolve_workspace_name(request)
+    cfg = get_workspace(workspace_name)
+    pack_name = cfg.source_pack if cfg else "retail"  # 或 workspace 本身就是 pack
+    agent = get_or_build_pack_agent(pack_name)
+    request_agent = agent.clone()
+    encoder = EventEncoder(accept=request.headers.get("accept"))
+    async def gen():
+        async for ev in request_agent.run(input_data): yield encoder.encode(ev)
+    return StreamingResponse(gen(), media_type=encoder.get_content_type())
 ```
 
-> 注：需确认 `EventEncoder` 的 import 路径（ag_ui_langgraph 或 ag_ui.core）。实现时核实。
+### 2.4 workspace → pack 映射
 
-### 2.4 创建 jjy workspace（验证用）
+工作目录自洽后，workspace 名 = pack 名（jjy 工作目录的 pack name=jjy）。endpoint 从 `X-Workspace` header 取 workspace_name，直接作为 pack_name 查 agent。
 
-建 `workspace/jjy/config.yaml`：
-```yaml
-workspace_name: jjy
-name: JJY 客户
-source_pack: equipment_repair   # 待用户确认；用 equipment_repair 验证工具/本体与 retail 完全不同
-storage:
-  type: json_files
-  data_dir: workspace/equipment_repair/data
-enabled_domains: [maintenance]
-enabled_processes: [repair]
-org_tree:
-  - { id: brand_jjy, parent: null }
-```
-
-> **待用户确认**：jjy 的 source_pack。默认设 equipment_repair（验证最有力：customer_default→retail 工具，jjy→equipment_repair 工具，完全不同）。若 jjy 应是 retail 客户，改为 retail（验证数据隔离 + 独立实例）。
+> **兜底**：无 X-Workspace 或未知 workspace → 路由到默认 pack（jjy 或首个 pack）。
 
 ---
 
-## 3. 目标 / 范围 / 成功标准
+## 3. customer_default 引用处理（101 处）
 
-### 3.1 目标
-不同 workspace 的请求路由到不同 agent 实例，工具/skill/本体 prompt 完全按 workspace 的 source_pack 隔离。
+`customer_default` 在代码里有两种用途：
+1. **兜底常量**：`TenantContext.default()`、`shared._workspace_name_from_ctx()` 的 `or "customer_default"`、config 默认值——表示"未知请求的默认 workspace"。
+2. **测试 fixture**：测试里硬编码 `workspace_name="customer_default"`。
 
-### 3.2 范围 — In
-1. `build_workspace_graph`：按 workspace 的 source_pack 构建 graph（工具/skill/prompt 隔离）
-2. per-workspace agent 缓存
-3. 替换 endpoint（网关路由）
-4. 创建 jjy workspace（验证）
-5. 现有 `_aggregate_*` 函数改为接受指定 pack
+**处理**：
+- 兜底常量改为 `jjy`（默认 workspace 现在是 jjy）
+- 测试 fixture 改 `customer_default` → `jjy`
+- 数据文件 `workspace_name` 字段 → `jjy`
 
-### 3.3 范围 — Out
-- ❌ 不支持跨 pack workspace（单 source_pack）
-- ❌ 不改 pack 本身（retail/equipment_repair 定义不动）
-- ❌ 不改数据层（Repository 隔离已实现）
-- ❌ 不做 workspace 动态创建 UI（config.yaml 手动建）
+---
 
-### 3.4 成功标准
-1. customer_default 请求 → agent 只含 retail 工具/本体（无 equipment_repair）
-2. jjy 请求 → agent 只含 equipment_repair 工具/本体（无 retail）
-3. 两个 workspace 的 LLM schema/prompt 互不干扰
-4. 现有对话流程（查询/出清/确认）在 customer_default 不回归
+## 4. 目标 / 范围 / 成功标准
+
+### 4.1 目标
+① 工作目录自洽化（customer_default→jjy 自洽、equipment_repair→customerA 改名）；② agent per-workspace 实例隔离。
+
+### 4.2 范围 — In
+1. workspace 改名 + jjy 自洽化（拷贝 retail 内容）
+2. `_aggregate_*` 改为按指定 pack 构建
+3. per-pack agent 缓存 + 自写 endpoint 网关路由
+4. customer_default 101 处引用 → jjy
+5. 数据文件 workspace_name → jjy
+
+### 4.3 范围 — Out
+- ❌ 不定义 jjy/customerA 的业务本体（后续做；jjy 暂用 retail 拷贝）
+- ❌ 不改 pack 内部定义（retail 本体/工具不动，只是被 jjy 拷贝）
+- ❌ 不改数据层隔离机制（Repository 已实现）
+- ❌ 不做 workspace 初始化 UI（手动建/拷贝）
+
+### 4.4 成功标准
+1. `workspace/` 下是 retail / jjy / customerA 三个自洽工作目录
+2. jjy 请求 → agent 只含 jjy(retail 拷贝)的工具/本体；customerA 请求 → 只含 customerA(equipment_repair)工具/本体
+3. 工作目录互相隔离（jjy 看不到 customerA 的工具/本体/skill）
+4. 代码无 `customer_default` 残留（除非历史兼容注释）
 5. pytest 全套通过
-6. endpoint SSE 流式响应正常（浏览器对话不崩）
+6. endpoint SSE 流式正常，浏览器对话不崩
 
 ---
 
-## 4. 风险与缓解
+## 5. 风险与缓解
 
 | 风险 | 缓解 |
 |------|------|
-| 替换 endpoint 的 SSE 编码不对（EventEncoder 用法） | 参考 `add_langgraph_fastapi_endpoint` 源码逐行复刻；用 playwright 验证流式响应 |
-| per-workspace graph 构建慢（首次请求延迟） | 缓存（`_workspace_agents`）；可在 startup 预热已知 workspace |
-| workspace graph 缓存失效（config 改后不更新） | 提供 invalidate 接口；MVP 重启生效（config 变更低频） |
-| 现有测试依赖全局 `deep_agent_graph` | 改为用 `get_or_build_workspace_agent("customer_default")` |
-| deepagents create_deep_agent 多次调用的副作用（MemorySaver 共享？） | 每个 workspace graph 独立 MemorySaver（会话隔离） |
+| 自写 endpoint 的 SSE 编码错误 | 逐行复刻 add_langgraph_fastapi_endpoint 源码；playwright 验证流式 |
+| jjy 从 retail 拷贝后，pack name/路径冲突 | 拷贝后改 pack.name=jjy、data_dir 指向 jjy/data |
+| 101 处 customer_default 改名漏改 | grep 兜底；pytest 全套验证 |
+| per-pack agent 首次构建延迟 | startup 预热已知 pack；或首次请求懒加载（可接受） |
+| MemorySaver 会话隔离 | 每个 pack graph 独立 MemorySaver |
+| retail 同时是"行业模板"又是 pack——jjy 拷贝后 retail 还该被注册吗 | retail 保留注册（它是有效行业目录，也能独立跑）；jjy 是它的拷贝实例 |
 
 ---
 
-## 5. 验证
+## 6. 验证
 
-1. **单元测试**：`build_workspace_graph("customer_default")` 的 tools 只含 retail 工具；`build_workspace_graph("jjy")` 只含 equipment_repair 工具
+1. **单元**：`build_workspace_graph("jjy")` 的 tools 只含 retail 工具集（因 jjy 拷贝自 retail）；`build_workspace_graph("customerA")` 只含 equipment_repair 工具集
 2. **端到端（playwright）**：
-   - customer_default 对话 → AI 只知 retail 实体/工具
-   - jjy 对话 → AI 只知 equipment_repair 实体/工具
-3. **回归**：现有 pytest 全套通过；customer_default 对话流程正常
+   - jjy 对话 → AI 只知 jjy 的实体（retail 拷贝来的）
+   - customerA 对话 → AI 只知 customerA 的实体（维修）
+   - 切换 workspace（X-Workspace header）→ agent 实例切换
+3. **回归**：pytest 全套通过；jjy 对话流程正常（查询/出清/确认）
 
 ---
 
-## 附录：待用户确认
+## 附录：决策记录
 
-1. **jjy 的 source_pack**：equipment_repair（默认，验证工具隔离）还是 retail（验证数据+实例隔离）？
-2. **jjy 是否需要独立数据**：用 equipment_repair 的现有数据（共享）还是独立数据目录？
+- **隔离粒度**：per-workspace（用户确认）。工作目录 = pack，workspace 名 = pack 名。
+- **跨 pack**：不支持（一个工作目录一个 pack）。
+- **jjy 本体**：后续定义（本次从 retail 拷贝占位）。
+- **兜底 workspace**：jjy（原 customer_default 角色）。
