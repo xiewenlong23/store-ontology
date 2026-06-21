@@ -16,8 +16,7 @@ def query_near_expiry(store_id: Optional[str] = None,
                       workspace_name: str = "customer_default",
                       org_unit_id: str = "*") -> str:
     """查询临期商品列表（折扣来自单一事实源 calculate_discount）。"""
-    from engine.tenant import TenantContext
-    tc = TenantContext(workspace_name=workspace_name, org_unit_id=org_unit_id)
+    tc = _tools_mod._tc_ctx()  # 从请求 contextvar 取（v2-tenant动态，由 header 注入）
     repo = _tools_mod._get_repo(tc)  # 延迟引用，支持 monkeypatch
     rows = repo.read("NearExpiryProduct", tc)
     if store_id:

@@ -15,10 +15,10 @@ from engine.errors import OntologyError
 
 @tool
 def create_entity(entity_type: str,
-                  workspace_name: str = "customer_default",
-                  org_unit_id: str = "*", **kwargs: Any) -> str:
+                  workspace_name: str = None,
+                  org_unit_id: str = None, **kwargs: Any) -> str:
     """通用创建（仅限非业务数据；受治理实体会被 Repository 拒绝）。"""
-    tc = shared._tc(workspace_name, org_unit_id)
+    tc = shared._tc_ctx(workspace_name, org_unit_id)
     kwargs.setdefault("id", f"{entity_type.lower()}_{uuid.uuid4().hex[:8]}")
     try:
         rec = shared._get_repo(tc).write(entity_type, tc, kwargs, create=True)
@@ -31,10 +31,10 @@ def create_entity(entity_type: str,
 
 @tool
 def update_entity(entity_type: str, entity_id: str,
-                  workspace_name: str = "customer_default",
-                  org_unit_id: str = "*", **kwargs) -> str:
+                  workspace_name: str = None,
+                  org_unit_id: str = None, **kwargs) -> str:
     """通用更新（仅限非业务数据；受治理实体会被 Repository 拒绝）。"""
-    tc = shared._tc(workspace_name, org_unit_id)
+    tc = shared._tc_ctx(workspace_name, org_unit_id)
     repo = shared._get_repo(tc)
     rec = repo.read_one(entity_type, tc, entity_id)
     if not rec:
@@ -51,8 +51,8 @@ def update_entity(entity_type: str, entity_id: str,
 
 @tool
 def update_task(task_id: str, notes: str = None, priority: str = None,
-                workspace_name: str = "customer_default",
-                org_unit_id: str = "*") -> str:
+                workspace_name: str = None,
+                org_unit_id: str = None) -> str:
     """任务更新（受治理实体，仅允许改 notes/priority，走受治理的 update_task_notes Action）。
 
     Task 标记为 edits-only-via-actions。本工具仅放行白名单字段（notes/priority），
@@ -60,7 +60,7 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
     （discount_percent/planned_quantity/sold_quantity/assignee_id/status 等）
     必须经各自对应的 Action 修改。
     """
-    tc = shared._tc(workspace_name, org_unit_id)
+    tc = shared._tc_ctx(workspace_name, org_unit_id)
     params = {"task_id": task_id}
     if notes is not None:
         params["notes"] = notes

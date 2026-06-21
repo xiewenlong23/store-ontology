@@ -131,3 +131,21 @@ def _wrap(data: dict, summary: str) -> str:
 def _tc(workspace_name: str, org_unit_id: str) -> TenantContext:
     """从工具参数构造 TenantContext。"""
     return TenantContext(workspace_name=workspace_name, org_unit_id=org_unit_id)
+
+
+def _tc_ctx(workspace_name: str = None, org_unit_id: str = None) -> TenantContext:
+    """构造 TenantContext：从请求 contextvar 取默认值，显式参数覆盖（v2-tenant动态）。
+
+    工具应优先用本函数取 TenantContext。workspace_name/org_unit_id 传 None（默认）
+    时从 main.tenant_ctx contextvar 取（反映当前请求的 header 注入值）；显式传值则
+    覆盖（保留 LLM/测试显式指定租户的能力）。无 contextvar（离线/测试）回退默认。
+    """
+    try:
+        import main
+        base = main.tenant_ctx.get()
+    except (ImportError, LookupError):
+        base = TenantContext.default()
+    return TenantContext(
+        workspace_name=workspace_name if workspace_name is not None else base.workspace_name,
+        org_unit_id=org_unit_id if org_unit_id is not None else base.org_unit_id,
+    )

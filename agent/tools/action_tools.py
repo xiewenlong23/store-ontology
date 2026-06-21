@@ -14,15 +14,15 @@ from engine.errors import OntologyError
 @tool
 def execute_action(action_type: str, params: dict,
                    actor_role: str = "store_manager",
-                   workspace_name: str = "customer_default",
-                   org_unit_id: str = "*") -> str:
+                   workspace_name: str = None,
+                   org_unit_id: str = None) -> str:
     """执行 Action 预览。返回 preview_id，用户确认后用 confirm_action(preview_id) 提交。
 
     params 是该 Action 的参数字典，具体参数名见系统提示中的 Action 清单。
     例如 create_clearance_task 的 params: {"target_id":"...", "store_id":"...",
     "assignee_id":"...", "discount_percent":30, "planned_quantity":50}
     """
-    tc = shared._tc(workspace_name, org_unit_id)
+    tc = shared._tc_ctx(workspace_name, org_unit_id)
     ex = shared._get_executor()
     actions = ex.actions
     if action_type not in actions:
