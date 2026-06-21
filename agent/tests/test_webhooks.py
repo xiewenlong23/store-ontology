@@ -22,7 +22,7 @@ def _setup_app(monkeypatch, data_dir):
     from tests._clearance_helper import build_clearance_executor
     ex, repo = build_clearance_executor(data_dir)
     import agent.tools.shared as T
-    monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
+    monkeypatch.setattr(T, "_get_executor", lambda vertical=None, process_name=None: ex)
     monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
 
     import main
@@ -51,7 +51,7 @@ def test_approval_webhook_approves_task(webhook_client):
     """
     client, main = webhook_client
     from agent.tools.shared import _get_executor
-    ex = _get_executor(vertical="clearance")
+    ex = _get_executor(process_name="clearance")
     # 建一个 task 并推到 pending_approval
     r = ex.execute("create_clearance_task", {
         "target_id": "nep_sold", "store_id": "store_001", "assignee_id": "emp_001",
@@ -78,7 +78,7 @@ def test_pos_webhook_deducts_stock(webhook_client):
     """
     client, main = webhook_client
     from agent.tools.shared import _get_executor
-    ex = _get_executor(vertical="clearance")
+    ex = _get_executor(process_name="clearance")
 
     resp = client.post("/api/webhooks/pos", json={
         "target_id": "nep_exp", "task_id": "task_exp", "quantity": 2})
@@ -87,3 +87,13 @@ def test_pos_webhook_deducts_stock(webhook_client):
     assert body["ok"] is True
     ne = ex.repo.read_one("NearExpiryProduct", "tenant_default", "nep_exp")
     assert ne["stock_quantity"] == 5  # 7 - 2
+
+
+def test_webhook_handlers_no_longer_use_vertical_keyword():
+    """webhook handler 应改用 process_name=（不再用 vertical=），spec §5.3。"""
+    import inspect
+    import main
+    for fn_name in ("webhook_approval", "webhook_pos"):
+        src = inspect.getsource(getattr(main, fn_name))
+        assert "vertical=" not in src, f"{fn_name} 不应再用 vertical="
+        assert "process_name=" in src, f"{fn_name} 应改用 process_name="

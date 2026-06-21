@@ -427,7 +427,7 @@ async def webhook_approval(body: dict):
     """
     from agent.tools.shared import _get_executor
     from workspace.retail.skills.clearance_workflow.automation import handle_approval
-    ex = _get_executor(vertical="clearance")
+    ex = _get_executor(process_name="clearance")
     try:
         result = handle_approval(ex, task_id=body["task_id"],
                                  approver_id=body["approver_id"],
@@ -446,7 +446,7 @@ async def webhook_pos(body: dict):
     """
     from agent.tools.shared import _get_executor
     from workspace.retail.skills.clearance_workflow.automation import handle_pos_scan
-    ex = _get_executor(vertical="clearance")
+    ex = _get_executor(process_name="clearance")
     try:
         result = handle_pos_scan(ex, target_id=body["target_id"],
                                  task_id=body["task_id"], quantity=body["quantity"])
