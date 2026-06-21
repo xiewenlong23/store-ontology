@@ -1,12 +1,14 @@
 'use client'
 
 import { useCoAgent } from '@copilotkit/react-core'
+import { useWorkspace } from './workspace-context'
 
 /**
- * MVP：租户/门店选择。
- * selected_store 写入 co-agent state，经 CopilotKit 转发到后端（body state）。
- * 当前后端 X-Tenant-ID header 走静态默认（见 api/copilotkit/route.ts），
- * 动态按门店注入留 v2（需自定义 fetch wrapper）。
+ * 门店选择。
+ * selected_store 双写：
+ * - WorkspaceContext（selectedStore）→ 供 CopilotKit headers prop 注入 X-Org-Unit-ID（后端按门店过滤）
+ * - useCoAgent（co-agent state）→ 供 LLM 读当前门店（走 request body，LLM 可见）
+ * 见 docs/superpowers/specs/2026-06-21-v2-tenant-dynamic-design.md。
  */
 const STORES = [
   { id: 'store_001', name: '北京朝阳店' },
@@ -14,14 +16,14 @@ const STORES = [
 ]
 
 export default function HomePage() {
-  const { state: agentState, setState: setAgentState } = useCoAgent<{
+  const { selectedStore, setSelectedStore } = useWorkspace()
+  const { setState: setAgentState } = useCoAgent<{
     selected_store: string
   }>({
     name: 'default',
     initialState: { selected_store: 'store_001' },
   })
 
-  const selectedStore = agentState.selected_store || 'store_001'
   const selectedName = STORES.find(s => s.id === selectedStore)?.name || selectedStore
 
   return (
@@ -53,7 +55,10 @@ export default function HomePage() {
                 key={s.id}
                 className="btn"
                 disabled={selectedStore === s.id}
-                onClick={() => setAgentState({ selected_store: s.id })}
+                onClick={() => {
+                  setSelectedStore(s.id)
+                  setAgentState({ selected_store: s.id })
+                }}
               >
                 {s.name}
               </button>
