@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/manual/` 下接入手册，已被 [`manual/`](../../manual/) 重写版取代（对齐 pack/能力域/价值链流程模型）。保留作历史追溯。
+
+---
+
 # Worked Example：门店设备维修工单（第二 vertical 端到端）
 
 > **目的**：完整走通第二个 vertical，证明三件事：
