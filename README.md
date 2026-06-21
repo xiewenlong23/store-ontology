@@ -2,7 +2,7 @@
 
 AI 门店大脑 — 临期商品管理系统。基于 FastAPI + Deep Agents + CopilotKit + Next.js。
 
-> 详细设计见 [docs/项目设计文档.md](docs/项目设计文档.md)。
+> 详细设计见 [docs/design/README.md](docs/design/README.md)。
 
 ## 环境要求
 
@@ -39,9 +39,9 @@ npm run dev
 store-ontology/
 ├── agent/                # FastAPI + Deep Agents（Agent 平台层）
 │   ├── main.py           # 入口（端口 8123）
-│   ├── engine/           # 核心引擎（parser/executor/repository/bootstrap）
-│   ├── tools/            # 系统原子 Tool（占位，迁移留后续 plan）
-│   └── skills/           # 系统 Skill（占位）
+│   ├── engine/           # 核心引擎（parser/executor/repository/pack/workspace_bootstrap/tenant）
+│   ├── tools/            # 系统原子 Tool（query/crud/action + shared 装配）
+│   └── skills/           # 系统 Skill（platform-help，所有 workspace 共享）
 ├── workspace/            # Workspace 层（行业包 + 客户实例）
 │   ├── retail/           # 零售行业基础包（只读模板）
 │   │   ├── ontology/domains/   # 本体声明（domain.ttl + actions/*.yaml）
