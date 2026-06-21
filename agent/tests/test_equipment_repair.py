@@ -120,6 +120,21 @@ def test_retail_pack_still_works_alongside():
     assert "create_clearance_task" in reg.action_types
 
 
+def test_query_repair_tickets_tool_invokes_without_error(repair_data_dir, monkeypatch):
+    """回归 C1：query_repair_tickets 工具必须能被实际调用（曾因 _get_repo(字符串,...) 崩溃）。
+
+    工具经 shared._get_repo(tc) 装配；此处 monkeypatch 指向 repair_data_dir 的 repo，
+    验证工具签名（workspace_name/org_unit_id + TenantContext）与调用链正确。
+    """
+    from workspace.equipment_repair.skills.repair_workflow.tools import query_repair_tickets
+    _, repo = _exec(repair_data_dir)
+    import agent.tools.shared as T
+    monkeypatch.setattr(T, "_get_repo", lambda tc=None, vertical=None: repo)
+    # invoke 走 @tool 的参数解包；workspace_name/org_unit_id 是工具参数
+    out = query_repair_tickets.invoke({"workspace_name": "customer_default"})
+    assert "repair_ticket_list" in out  # 返回格式正确，未抛 AttributeError
+
+
 def test_state_machine_table_loaded():
     """equipment_repair 的状态迁移表正确（独立于 clearance）。"""
     assert "repairing" in REPAIR_TICKET_TRANSITIONS

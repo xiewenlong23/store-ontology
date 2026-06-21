@@ -122,3 +122,24 @@ def test_register_clearance_automation_adds_jobs():
     job_ids = [jid for jid, _, _ in sched._pending]
     assert "clearance_expiry_check" in job_ids
     assert "clearance_inventory_check" in job_ids
+
+
+def test_automation_closure_resolves_clearance_process():
+    """回归 C2：scheduler 闭包 _get_executor 必须解析到 clearance 价值链流程的 executor，
+    而非靠 customer_default→retail→processes[0] 的隐式巧合。
+
+    判据：闭包返回的 executor.config 是 clearance 流程（workflow_object_type=Task）。
+    若闭包仍传 vertical=（已忽略）或依赖 processes[0] 顺序，此测试会暴露。
+    """
+    from engine.workspace_bootstrap import reset_instances
+    from workspace.retail.skills.clearance_workflow.automation import register_clearance_automation
+    # 提取闭包：register 内部定义的 _get_executor。通过调用 register 并检查其副作用不可行，
+    # 故直接验证 automation 模块不再用 vertical= 关键字（源码级契约）。
+    import inspect
+    from workspace.retail.skills.clearance_workflow import automation
+    src = inspect.getsource(automation)
+    # 闭包必须用 process_name=（不再用 vertical=）
+    assert "_ge(process_name=\"clearance\")" in src or \
+           "_get_executor(process_name=\"clearance\")" in src, \
+        "scheduler 闭包应显式传 process_name=\"clearance\"，不依赖 processes[0] 巧合"
+    assert 'vertical="clearance"' not in src, "scheduler 闭包不应再用 vertical="

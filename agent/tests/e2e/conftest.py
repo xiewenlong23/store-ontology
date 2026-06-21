@@ -194,5 +194,4 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
 
     yield E2EAgent(graph=graph, scripted_llm=scripted_llm)
 
-    # 清理
-    reset_parser_cache() if False else None  # 不再需要 reset（用 monkeypatch）
+    # 清理（parser cache 已移除，无需 reset；用 monkeypatch 隔离）

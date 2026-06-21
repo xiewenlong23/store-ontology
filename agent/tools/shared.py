@@ -12,6 +12,7 @@
 系统 Tool（query/crud/action）与 workspace 业务 Tool 都依赖这些 helper。
 """
 import json
+import warnings
 
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
@@ -23,6 +24,16 @@ from engine.workspace_bootstrap import bootstrap_workspace
 # ============ 依赖装配（经 bootstrap_workspace；测试用 monkeypatch 替换）============
 
 _preview_cache = PreviewCache(ttl_seconds=300)
+
+
+def _warn_deprecated_vertical(vertical):
+    """vertical= 参数已废弃（spec §5.3）；传非 None 值时警告，避免静默回归。"""
+    if vertical is not None:
+        warnings.warn(
+            "_get_executor/_get_repo/_parser/build_ontology_prompt 的 vertical= 参数"
+            "已废弃并被忽略；workspace 由 contextvar 解析，价值链流程用 process_name= 选。",
+            DeprecationWarning,
+            stacklevel=3)
 
 
 def _workspace_name_from_ctx() -> str:
@@ -45,7 +56,7 @@ def _parser(vertical: str = None):
     vertical 已废弃（保留签名仅为 monkeypatch 向后兼容，spec §5.3）；忽略之，
     一律从 contextvar 解析 workspace 经 bootstrap_workspace 装配。
     """
-    del vertical  # 废弃参数，忽略
+    _warn_deprecated_vertical(vertical)
     inst = bootstrap_workspace(_workspace_name_from_ctx())
 
     class _P:
@@ -63,7 +74,7 @@ def _get_repo(tenant=None, vertical: str = None) -> JSONFileRepository:
 
     vertical 已废弃（保留签名仅为 monkeypatch 向后兼容）；忽略之。
     无 tenant 时从 contextvar 解析 workspace。"""
-    del vertical
+    _warn_deprecated_vertical(vertical)
     if tenant is not None:
         return bootstrap_workspace(tenant.workspace_name).repository
     return bootstrap_workspace(_workspace_name_from_ctx()).repository
@@ -74,8 +85,9 @@ def _get_executor(vertical: str = None, process_name: str = None) -> ActionExecu
 
     vertical 已废弃（保留仅为向后兼容，将被忽略）；改用 process_name 精确选价值链流程。
     默认从 contextvar 解析 workspace，返回该 workspace 缓存实例的 executor。
+    process_name 匹配不到时回退默认 executor（processes[0]）并警告——避免静默错误。
     """
-    del vertical
+    _warn_deprecated_vertical(vertical)
     workspace_name = _workspace_name_from_ctx()
     inst = bootstrap_workspace(workspace_name)
     if process_name is None:
@@ -84,18 +96,24 @@ def _get_executor(vertical: str = None, process_name: str = None) -> ActionExecu
     from engine.pack import get_pack
     pack = get_pack(inst.config.source_pack) if inst.config and inst.config.source_pack else None
     if pack is None:
+        warnings.warn(f"workspace '{workspace_name}' 无 source_pack，忽略 process_name='{process_name}'",
+                      stacklevel=2)
         return inst.executor
     for proc in pack.processes:
         if proc.name == process_name:
             return ActionExecutor(
                 repository=inst.repository, actions=inst.registry.action_types,
                 registry=inst.registry, config=proc)
+    warnings.warn(
+        f"process_name='{process_name}' 在 pack '{pack.name}' 的 processes "
+        f"{[p.name for p in pack.processes]} 中未找到，回退默认 executor。",
+        stacklevel=2)
     return inst.executor
 
 
 def build_ontology_prompt(vertical: str = None) -> str:
     """为本体注入 system prompt。vertical 已废弃，忽略。"""
-    del vertical
+    _warn_deprecated_vertical(vertical)
     p = _parser()
     intro = ""
     from engine.pack import get_pack
