@@ -49,3 +49,14 @@ def test_get_workspace_agent_instance():
     inst = bootstrap_workspace("customer_default")
     assert get_workspace_agent_instance("customer_default") is inst
     assert get_workspace_agent_instance("nonexistent") is None
+
+
+def test_workspace_instance_has_executor():
+    """bootstrap_workspace 返回的实例应已接通 executor（非 None，spec §5.3）。
+
+    executor 的 config 取自该 workspace source_pack 的（第一个）价值链流程，
+    用于状态机校验。
+    """
+    inst = bootstrap_workspace("customer_default")
+    assert inst.executor is not None, "executor 应已接通，不再为 None"
+    assert inst.executor.config is not None, "executor.config 应为价值链流程（非 None）"

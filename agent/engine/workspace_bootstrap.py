@@ -18,7 +18,7 @@ class WorkspaceAgentInstance:
     config: WorkspaceConfig
     registry: object  # EntityRegistry
     repository: object  # Repository
-    executor: object  # ActionExecutor（后续 task 构建；P1 先不接 executor）
+    executor: object  # ActionExecutor（config 取自 source_pack 的价值链流程）
 
     @property
     def tenant_context(self) -> TenantContext:
@@ -90,9 +90,23 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     from engine.repository import JSONFileRepository
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
+    # 接通 executor：config 取该 workspace source_pack 的（第一个）价值链流程（spec §5.3）。
+    # 解析链：WorkspaceConfig.source_pack → get_pack → pack.processes → processes[0]。
+    # 多 process 按 process_name 精确选择留 v2（_get_executor(workspace, process)）。
+    from engine.executor import ActionExecutor
+    from engine.pack import get_pack
+    process_config = None
+    if cfg.source_pack:
+        pack = get_pack(cfg.source_pack)
+        if pack and pack.processes:
+            process_config = pack.processes[0]
+    executor = ActionExecutor(
+        repository=repo, actions=registry.action_types,
+        registry=registry, config=process_config)
+
     inst = WorkspaceAgentInstance(
         workspace_name=workspace_name, config=cfg,
-        registry=registry, repository=repo, executor=None)
+        registry=registry, repository=repo, executor=executor)
     _instances[workspace_name] = inst
     return inst
 
