@@ -1,5 +1,5 @@
 from engine.discount_stub import set_discount_source
-from workspace.retail.ontology.domains.marketing.discount import calculate_discount
+from workspace.retail.skills.clearance_workflow.discount import calculate_discount
 import pytest
 
 

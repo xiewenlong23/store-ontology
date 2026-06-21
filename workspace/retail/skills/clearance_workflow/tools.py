@@ -8,7 +8,7 @@ from langchain_core.tools import tool
 
 from agent.tools import shared as _tools_mod
 from agent.tools import _wrap
-from workspace.retail.ontology.domains.marketing.discount import calculate_discount
+from workspace.retail.skills.clearance_workflow.discount import calculate_discount
 
 
 @tool
