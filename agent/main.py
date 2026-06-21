@@ -29,7 +29,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from deepagents import create_deep_agent
 from deepagents.backends.filesystem import FilesystemBackend
-from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
+from ag_ui_langgraph import LangGraphAgent
 
 # ===== 内核通用工具（与行业包无关）=====
 from agent.tools import (
@@ -42,41 +42,6 @@ from agent.tools import (
 from engine.bootstrap import bootstrap as _bootstrap
 
 _bootstrap()
-
-
-def _aggregate_pack_tools():
-    """从各 pack 的 process.tools_module 聚合专属工具。"""
-    import importlib
-    from engine.pack import all_workspace_dirs
-    collected = []
-    for ws in all_workspace_dirs():
-        for proc in ws.processes:
-            if not proc.tools_module:
-                continue
-            try:
-                mod = importlib.import_module(proc.tools_module)
-                collected.extend(getattr(mod, "TOOLS", []))
-            except Exception as e:  # noqa: BLE001
-                print(f"[main] 加载 pack '{ws.name}' process '{proc.name}' 工具失败: {e}")
-    return collected
-
-
-def _aggregate_skill_paths():
-    """聚合各 pack process 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
-    paths = []
-    from engine.pack import all_workspace_dirs
-    for ws in all_workspace_dirs():
-        for proc in ws.processes:
-            if not proc.skills_dir or not os.path.isdir(proc.skills_dir):
-                continue
-            for name in os.listdir(proc.skills_dir):
-                if name in ("tmp", "__pycache__"):
-                    continue
-                skill_path = os.path.join(proc.skills_dir, name)
-                if os.path.isdir(skill_path) and os.path.exists(
-                        os.path.join(skill_path, "SKILL.md")):
-                    paths.append(f"/{name}/")
-    return paths
 
 
 def _list_system_skill_dirs():
@@ -98,28 +63,7 @@ def _list_system_skill_dirs():
     return dirs
 
 
-def _build_combined_prompt() -> str:
-    """合并所有工作目录的本体提示。"""
-    from engine.pack import all_workspace_dirs, domains_to_registry
-    from engine.parser import OntologyParser
-    parts = []
-    for ws in all_workspace_dirs():
-        for proc in ws.processes:
-            intro = proc.system_prompt_intro or ws.display_name
-            registry = domains_to_registry(ws, data_dir=ws.data_dir or ".")
-            # 用 parser 的 build_system_prompt 格式化
-            p = type('P', (), {'registry': registry})()
-            lines = [f"{intro}\n"]
-            lines.append("可用实体（用 query_entity 查询）: "
-                         + ", ".join(ot.label_zh for ot in registry.object_types.values()))
-            lines.append("\n关系（用 traverse_relation）: "
-                         + ", ".join(f"{lt.label_zh}({lt.domain}->{lt.range})"
-                                     for lt in registry.link_types.values()))
-            lines.append("\n操作（用 execute_action/confirm_action）: "
-                         + ", ".join(registry.action_types.keys()))
-            lines.append("\n用中文回复。")
-            parts.append("\n".join(lines))
-    return "\n\n---\n\n".join(parts) if parts else ""
+# ============ 工具清单（内核固定）=============
 
 
 # ============ LLM 配置 ============
@@ -278,7 +222,6 @@ def build_workspace_graph(ws_name: str):
     )
 
 
-from ag_ui_langgraph import LangGraphAgent
 _ws_agents: dict = {}
 
 

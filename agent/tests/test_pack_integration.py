@@ -1,4 +1,4 @@
-"""测试 main.py 聚合 pack + vertical（P2 集成）。"""
+"""测试工作目录注册 + registry 装配（集成）。"""
 import pytest
 
 
@@ -30,13 +30,3 @@ def test_ws_to_registry_all_objects():
     ws = get_workspace_dir("retail")
     reg = domains_to_registry(ws, data_dir="../data")
     assert len(reg.object_types) == 7
-
-
-def test_aggregate_pack_tools_includes_query_near_expiry():
-    """main._aggregate_pack_tools 收录 clearance 的 query_near_expiry。"""
-    import os
-    os.environ["QWEN_API_KEY"] = "stub"
-    import main
-    tools = main._aggregate_pack_tools()
-    names = [getattr(t, "name", "") for t in tools]
-    assert "query_near_expiry" in names
