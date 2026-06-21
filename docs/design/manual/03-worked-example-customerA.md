@@ -21,7 +21,7 @@
 
 ```
 workspace/customerA/
-├── workspace.py                                     # 工作目录（WorkspaceDef） 声明（register_workspace_dir）
+├── workspace.py                                     # WorkspaceDef 声明（register_workspace_dir）
 ├── ontology/
 │   └── domains/
 │       └── maintenance/                        # 1 能力域：维修域
@@ -42,7 +42,7 @@ workspace/customerA/
 ## 3. workspace.py 实际结构（对照 `workspace/customerA/workspace.py`）
 
 ```python
-from engine.pack import 工作目录（WorkspaceDef）, CapabilityDomain, ValueChainProcess, register_workspace_dir
+from engine.pack import WorkspaceDef, CapabilityDomain, ValueChainProcess, register_workspace_dir
 from workspace.customerA.skills.repair_workflow.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
 
@@ -64,7 +64,7 @@ REPAIR = ValueChainProcess(
     actions_dir=os.path.join(_BASE, "ontology", "domains", "maintenance", "actions"),
     system_prompt_intro="你是门店设备维修管理助手。")
 
-EQUIPMENT_REPAIR_PACK = 工作目录（WorkspaceDef）(
+EQUIPMENT_REPAIR_PACK = WorkspaceDef(
     name="customerA", display_name="设备维修工作目录",
     domains=[MAINTENANCE],
     processes=[REPAIR],
@@ -110,11 +110,15 @@ reported → diagnosed → assigned → repairing → resolved
 
 启动后端，`bootstrap()` 发现 `workspace/customerA/workspace.py` → 注册进 pack 注册表。
 
-### 5.1 多工作目录并存的工具与 Skill 聚合
+### 5.1 per-workspace agent 隔离
 
-- `main._aggregate_pack_tools()` 聚合 retail + customerA 的专属工具 → `query_near_expiry` + `query_repair_tickets`
-- `_aggregate_skill_paths()` 收录两工作目录的 Skill
-- `_build_combined_prompt()` 合并两工作目录的本体知识
+切换 workspace 时，agent 只含**该工作目录**的工具/skill/本体（非全局聚合）：
+
+- customerA workspace 的 agent 只含 `query_repair_tickets`（不含 retail 的 `query_near_expiry`）
+- customerA 的本体 prompt 只含 `RepairTicket`/`Equipment`/`Technician`/`Vendor`（不含 `NearExpiryProduct`）
+- jjy workspace 的 agent 反之——只含零售实体/工具
+
+这是 `build_workspace_graph(ws_name)` + `get_or_build_ws_agent(ws_name)` per-workspace 构建的结果。
 
 ### 5.2 可验证的操作
 

@@ -70,13 +70,11 @@
 
 ## 6. v2-UI：手写 renderToolCalls → A2UI 标准 + 多工作目录切换
 
-**当前实现**：CopilotKit v1.57 + 9 个手写 `renderToolCalls`（clearance 专用）+ workspace 选择器。
+**当前实现**：CopilotKit v1.57 + 9 个手写 `renderToolCalls` + workspace 切换 UI + CopilotChat key 隔离对话。前端 `headers` prop 动态注入 `X-Workspace` + `X-Org-Unit-ID`（已完成）。
 
 **🔜 目标（未实现）**：
 - **A2UI 标准渲染**（node_modules 已有但未启用）。
-- **多工作目录切换 UI**。
 - **ECharts 图表**、**权限管理 UI**、**审计查询 UI**。
-- **route.ts 动态注入 X-Workspace**：现因 CopilotKit `LangGraphHttpAgent` 仅支持构造时静态 header，注入静态默认；🔜 用自定义 fetch wrapper 按选中门店动态注入。
 
 ---
 
@@ -90,9 +88,7 @@
 
 ## 8. v2-tenant 动态：静态 header → 动态注入
 
-**当前实现**：✅ 已完成（数据层）。前端 CopilotKit `headers` prop 函数式注入 `X-Workspace` + `X-Org-Unit-ID`，CopilotKit runtime 自动透传给后端，middleware 存入 contextvar，工具经 `_tc_ctx()` 读取，Repository 按 workspace_name + org_unit 过滤。详见 `docs/superpowers/specs/2026-06-21-v2-tenant-dynamic-design.md`。
-
-**🔜 仍待实现（agent 层隔离，见 §9）**：工具/skill/本体 prompt 仍全局聚合，未按 workspace 隔离。
+**当前实现**：✅ 已完成（数据层 + agent 层）。前端 CopilotKit `headers` prop 函数式注入 `X-Workspace` + `X-Org-Unit-ID`，CopilotKit runtime 自动透传给后端，middleware 存入 contextvar，工具经 `_tc_ctx()` 读取，Repository 按 workspace_name + org_unit 过滤。详见 `docs/superpowers/specs/2026-06-21-v2-tenant-dynamic-design.md`。
 
 ---
 
@@ -100,16 +96,12 @@
 
 > **状态**：✅ 已完成。去掉 IndustryPack 中间层，每个工作目录独立 agent 实例（工具/skill/本体隔离）。
 
-**当前实现（已验证的 gap）**：`main.py` 构建 agent 时，工具/skill/本体 prompt **全局聚合所有 pack**：
-- `_aggregate_pack_tools()`：`for pack in all_workspace_dirs()` —— 所有工作目录的工具都注入 agent
-- `_aggregate_skill_paths()`：所有工作目录的 skill 都挂载
-- `_build_combined_prompt()`：所有工作目录的实体/关系/Action 都合并进系统提示
-
-实测：agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(customerA)，本体 prompt 同时含 `NearExpiryProduct` + `RepairTicket`。`bootstrap_workspace()` 返回的独立 `WorkspaceAgentInstance` 只被 dashboard API 消费，**agent 本身没消费它**。
-
-**影响**：即使切到 customerA 的 workspace，LLM 仍能看到 retail 的工具/skill/本体。当前因只有一个有效 workspace(jjy→retail)未暴露问题，但多 workspace 共存时工具/skill/本体会互相干扰。
-
-**🔜 目标（未实现）**：agent 按 workspace 动态构建（per-request 或 per-workspace 缓存），工具/skill/本体 prompt 只含该 workspace `source_pack` 的内容。这是架构级改造（agent 从全局单例 → per-workspace），需独立 spec。
+**已完成**：
+- 去掉 `IndustryPack` 中间层：工作目录直接声明 `CapabilityDomain[]` + `ValueChainProcess[]`（经 `workspace.py` 注册）
+- per-workspace agent 隔离：`build_workspace_graph(ws_name)` 只含该工作目录的工具/skill/prompt；`get_or_build_ws_agent(ws_name)` 缓存 per-workspace agent
+- 自写网关 endpoint：按 `X-Workspace` 路由 + `agent.clone()` per-request 隔离
+- 验证：jjy agent 只含 `query_near_expiry` + `NearExpiryProduct`；customerA agent 只含 `query_repair_tickets` + `RepairTicket`。工具/本体/skill 完全隔离。
+- 前端 `CopilotChat key={selectedWorkspace}` 切换时重置聊天，对话 session 隔离
 
 ---
 

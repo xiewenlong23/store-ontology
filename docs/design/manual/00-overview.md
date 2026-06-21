@@ -2,14 +2,14 @@
 
 > **状态**：✅ 当前（生效中，随内核多工作目录架构同步更新）。
 > **受众**：要在本平台落地一个新业务场景的工程师 / 架构师。
-> **配套**：[`01-onboarding.md`](./01-onboarding.md)（标准流程 Phase A-F）、[`02-templates.md`](./02-templates.md)、[`03-worked-example-equipment-repair.md`](./03-worked-example-equipment-repair.md)。
+> **配套**：[`01-onboarding.md`](./01-onboarding.md)（标准流程 Phase A-F）、[`02-templates.md`](./02-templates.md)、[`03-worked-example-customerA.md`](./03-worked-example-customerA.md)。
 > **依据规范**：[`40-ontology-modeling-spec.md`](../40-ontology-modeling-spec.md)。
 
 ---
 
 ## 0. 一句话定位
 
-**OntologyAgent = 本体驱动的通用 AI Agent 平台。** 通用内核（存储 / workspace 隔离 / Agent harness / Tool-Skill 体系）固定不变；每个业务场景作为一个 **工作目录（工作目录（WorkspaceDef））**，在本体之上声明式建模即可接入，**新增工作目录零改内核**。
+**OntologyAgent = 本体驱动的通用 AI Agent 平台。** 通用内核（存储 / workspace 隔离 / Agent harness / Tool-Skill 体系）固定不变；每个业务场景作为一个 **WorkspaceDef**，在本体之上声明式建模即可接入，**新增工作目录零改内核**。
 
 一个工作目录 = 多个**能力域**（CapabilityDomain，原子 Object/Link/Action）+ 多个**价值链流程**（ValueChainProcess，跨域编排带状态机 + Skill + 专属工具）。retail 工作目录（含 clearance 出清流程）是第一个；customerA（含 repair 流程）是第二个 worked example。本文档教你接入第三个。
 
@@ -27,14 +27,14 @@
 | `agent/engine/action_loader.py` | **内核** | 复用。YAML → ActionDefinition |
 | `agent/engine/state_machine.py` | **内核** | 复用。`is_valid_transition(transitions, terminals)` 接受 per-process 表 |
 | `agent/engine/preview_cache.py` | **内核** | 复用。preview→confirm 闭环 |
-| `agent/engine/workspace.py` | **内核** | 复用。`工作目录（WorkspaceDef）`/`CapabilityDomain`/`ValueChainProcess` + 注册表 |
+| `agent/engine/workspace.py` | **内核** | 复用。`WorkspaceDef`/`CapabilityDomain`/`ValueChainProcess` + 注册表 |
 | `agent/engine/workspace.py` / `workspace_bootstrap.py` | **内核** | 复用。`WorkspaceConfig` + `bootstrap_workspace` 装配 |
 | `agent/engine/tenant.py` | **内核** | 复用。`TenantContext`（workspace_name + org_unit_id） |
 | `agent/engine/bootstrap.py` | **内核** | 复用。自动发现 `workspace/*/workspace.py` |
 | `agent/engine/scheduler.py` | **内核** | 复用。`AutomationScheduler` |
 | `agent/tools/*.py` | **内核**（含 8 个内核工具） | 复用内核 8 个工具（query_entity/create/update/traverse/execute/confirm/query_task/update_task） |
-| `agent/main.py` | **内核** | 复用。tools/skills/prompt 从 pack 注册表聚合 |
-| `workspace/<pack>/workspace.py` | **工作目录** | **新工作目录在此新建**：声明 `工作目录（WorkspaceDef）` 并 `register_workspace_dir` |
+| `agent/main.py` | **内核** | 复用。per-workspace agent 构建（build_workspace_graph/get_or_build_ws_agent），自写 endpoint 按 X-Workspace 路由 |
+| `workspace/<pack>/workspace.py` | **工作目录** | **新工作目录在此新建**：声明 `WorkspaceDef` 并 `register_workspace_dir` |
 | `workspace/<pack>/ontology/domains/<域>/domain.ttl` | **工作目录** | 新工作目录建自己的能力域 TTL |
 | `workspace/<pack>/ontology/domains/<域>/actions/*.yaml` | **工作目录** | 新工作目录建自己的域内 Action |
 | `workspace/<pack>/skills/<process>/actions/*.yaml` | **工作目录** | 价值链流程的专属 Action（状态迁移类） |
@@ -42,7 +42,7 @@
 | `workspace/<pack>/data/*.json` | **工作目录** | 新工作目录的种子数据（每条带 workspace_name） |
 | `agent/engine/schemas.py` | **工作目录**（Pydantic 镜像） | 新工作目录按需建自己的 schemas |
 
-**判断口诀**：如果一段代码提到具体的领域名词（NearExpiryProduct / clearance / 折扣 / 出清），它是工作目录；如果只认 `工作目录（WorkspaceDef）` 和 pack 注册表，它是 kernel。
+**判断口诀**：如果一段代码提到具体的领域名词（NearExpiryProduct / clearance / 折扣 / 出清），它是工作目录；如果只认 `WorkspaceDef` 和 pack 注册表，它是 kernel。
 
 ---
 
@@ -80,7 +80,7 @@
 ### 3.3 存储隔离
 
 - **每个工作目录的种子数据放 `workspace/<pack>/data/`**，每个实体类型一个 JSON（如 `tasks.json`、`near_expiry_products.json`）。
-- TTL 的 `:storage "<file>.json"` 写文件名；`工作目录（WorkspaceDef）.data_dir` 指向 `workspace/<pack>/data`。
+- TTL 的 `:storage "<file>.json"` 写文件名；`WorkspaceDef.data_dir` 指向 `workspace/<pack>/data`。
 - 每条数据带 `workspace_name`（+ `org_unit_id` 若需 org 隔离）。
 
 ### 3.4 Action / Skill 命名
@@ -102,6 +102,6 @@
 
 ## 5. 阅读路线
 
-- **第一次接入**：读本文 → [`01-onboarding.md`](./01-onboarding.md)（跟 Phase A-F）→ 遇填法疑问查 [`02-templates.md`](./02-templates.md) → 卡住看 [`03-...`](./03-worked-example-equipment-repair.md) 完整例子对照。
+- **第一次接入**：读本文 → [`01-onboarding.md`](./01-onboarding.md)（跟 Phase A-F）→ 遇填法疑问查 [`02-templates.md`](./02-templates.md) → 卡住看 [`03-...`](./03-worked-example-customerA.md) 完整例子对照。
 - **后续接入**：直接 [`01-onboarding.md`](./01-onboarding.md) → [`02-templates.md`](./02-templates.md) 查模板。
 - **想理解内核装配**：[`00-architecture.md`](../00-architecture.md) §4（Tool 两类 + 依赖装配）。

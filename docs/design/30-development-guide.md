@@ -111,7 +111,7 @@ def my_tool(...) -> str:
 ### 2.3 Tool 注册流程
 
 1. **内核工具**：写在 `agent/tools/{query,crud,action}_tools.py`，已自动加入 `main.tools` 列表。
-2. **工作目录工具**：写在工作目录的 `tools_module`（如 `workspace/retail/skills/clearance_workflow/tools.py`），导出 `TOOLS` 列表；`main._aggregate_pack_tools()` 自动聚合。
+2. **工作目录工具**：写在工作目录的 `tools_module`（如 `workspace/retail/skills/clearance_workflow/tools.py`），导出 `TOOLS` 列表；`_build_ws_tools(ws_name)` 自动聚合。
 3. **SKILL.md**：新 Tool 改变 LLM 可用操作时，更新相关 Skill 的 `allowed_tools` 与工具使用策略。
 
 ---
@@ -239,7 +239,7 @@ class TenantContext:
 | 类别 | 规范 | 示例 |
 |------|------|------|
 | Python 文件 | snake_case | `state_machine.py`, `discount_rules.json` |
-| Python 类 | PascalCase | `ObjectType`, `工作目录（WorkspaceDef）`, `ValueChainProcess` |
+| Python 类 | PascalCase | `ObjectType`, `WorkspaceDef`, `ValueChainProcess` |
 | Python 函数 | snake_case | `build_ontology_prompt`, `calculate_discount` |
 | Python 常量 | UPPER_SNAKE_CASE | `TASK_TRANSITIONS`, `TERMINAL_STATES` |
 | Tool 函数名 | snake_case | `query_entity`, `execute_action` |
@@ -259,19 +259,21 @@ class TenantContext:
 
 ```
 agent/                          # 后端
-├── main.py                     # 入口：FastAPI + Agent + 端点 + webhook
+├── main.py                     # 入口：FastAPI + per-workspace agent 构建 + 自写 endpoint + webhook
 ├── engine/                     # 核心引擎（内核，不依赖任何工作目录符号）
 │   ├── parser.py / repository.py / executor.py / action_loader.py
-│   ├── state_machine.py / preview_cache.py / workspace.py
-│   ├── workspace.py / workspace_bootstrap.py / tenant.py / bootstrap.py
-│   ├── scheduler.py / schemas.py / errors.py
+│   ├── state_machine.py / preview_cache.py / pack.py（WorkspaceDef/CapabilityDomain/ValueChainProcess）
+│   ├── workspace.py（WorkspaceConfig）/ workspace_bootstrap.py / tenant.py / bootstrap.py
+│   ├── scheduler.py / schemas.py / errors.py / discount_stub.py / onboarding.py
 ├── tools/                      # 系统原子 Tool（query/crud/action + shared）
 └── skills/                     # 系统 Skill（platform-help）
 workspace/                      # workspace 层（工作目录 + 客户实例）
-├── jjy/config.yaml
+├── jjy/{config.yaml, workspace.py, ontology/domains/, data/, skills/}
 ├── retail/{workspace.py, ontology/domains/<域>/, data/, skills/}
 └── customerA/{workspace.py, ontology/domains/, data/, skills/}
 ```
+
+> 注：`engine/pack.py` 文件名保留历史，但内容是 `WorkspaceDef`（不含 IndustryPack）。
 
 **导入规则**：`engine/` 不 import 任何 `workspace/` 符号（内核不依赖工作目录）。工作目录通过注册表（`register_workspace_dir`）在 import 时自报家门，`bootstrap()` 统一发现。
 
@@ -308,4 +310,4 @@ cd agent
 | **Tool 返回字符串** | 测试返回值是合法字符串格式（含 COPILOTKIT_DATA 或错误文本） |
 | **不测 LLM 调用** | 集成测试用 ScriptedLLM mock |
 | **数据隔离** | 每个测试用例用独立临时数据目录（`tmp_path` fixture），不污染 `workspace/*/data/` |
-| **pack 注册隔离** | 测 pack 的测试用 `clear_packs()` fixture 清理全局注册表 |
+| **pack 注册隔离** | 测 pack 的测试用 `clear_workspace_dirs()` fixture 清理全局注册表 |

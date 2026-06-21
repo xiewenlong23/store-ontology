@@ -16,7 +16,7 @@
 | **Content-Type** | `application/json`（请求） |
 | **响应** | `text/event-stream`（SSE） |
 
-**请求体**：由 CopilotKit 客户端自动构造，包含对话消息和 shared state。后端通过 `ag_ui_langgraph` 的 `add_langgraph_fastapi_endpoint` 自动处理。
+**请求体**：由 CopilotKit 客户端自动构造，包含对话消息和 shared state。后端用**自写网关 endpoint**（`@app.post("/api/copilotkit")`，`agent/main.py`）处理：按 `X-Workspace` header 路由到 per-workspace agent 实例 → `agent.clone()` per-request 隔离 → `EventEncoder` + `StreamingResponse` SSE 流式响应。不再使用 `add_langgraph_fastapi_endpoint`（它 graph 固定，无法 per-workspace 路由）。
 
 **Header 约定（workspace 传递）**：
 
@@ -119,7 +119,7 @@ Task 是 edits-only-via-actions 实体。本工具仅放行白名单字段（`no
 
 ### 2.3 工作目录工具（聚合）
 
-由各价值链流程的 `tools_module` 导出的 `TOOLS` 列表聚合（`main._aggregate_pack_tools()`）。例：
+由各价值链流程的 `tools_module` 导出的 `TOOLS` 列表聚合（`_build_ws_tools(ws_name)`）。例：
 - retail/clearance：`query_near_expiry`（临期商品查询，关联 Product + 计算折扣价）
 - customerA/repair：`query_repair_tickets`
 
@@ -180,7 +180,7 @@ side_effects:
 
 **clearance 价值链流程（retail 工作目录，8 个流程 Action + 1 个内核辅助 Action）**：`create_clearance_task` / `submit_for_approval` / `approve_clearance` / `accept_task` / `print_labels` / `deduct_stock` / `complete_task` / `create_loss_report`（流程 Action）；外加 `update_task_notes`（支撑 `update_task` 内核工具的白名单字段写入）。详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md)。
 
-**repair 价值链流程（customerA 工作目录，6 个）**：`create_repair_ticket` / `diagnose_ticket` / `assign_technician` / `start_repair` / `complete_repair` / `cancel_ticket`。详见 [`manual/03-worked-example-equipment-repair.md`](./manual/03-worked-example-equipment-repair.md)。
+**repair 价值链流程（customerA 工作目录，6 个）**：`create_repair_ticket` / `diagnose_ticket` / `assign_technician` / `start_repair` / `complete_repair` / `cancel_ticket`。详见 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)。
 
 > 🔜 `transfer`/`restock` 契约补全留后续（当前工作目录聚焦 clearance + customerA）。
 

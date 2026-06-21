@@ -4,7 +4,7 @@
 agent/main.py 启动时 bootstrap() 自动发现 workspace/{{pack_name}}/pack.py 并注册。
 **无需改任何内核文件。**
 
-填写：把 {{...}} 替换为本工作目录的实际值。参照 workspace/customerA/pack.py。
+填写：把 {{...}} 替换为本工作目录的实际值。参照 workspace/customerA/workspace.py。
 """
 import os
 

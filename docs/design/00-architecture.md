@@ -33,8 +33,9 @@
 │  未来（v2）：A2UI 标准渲染、多工作目录切换 UI、定时自动化作业 UI              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  第4层：Agent 层                                                          │
-│  现状：单 Agent（deepagents create_deep_agent + SkillsMiddleware）         │
-│  系统提示 = 各工作目录本体合并（_build_combined_prompt）                     │
+│  现状：per-workspace Agent（build_workspace_graph + 缓存）                 │
+│  每个工作目录独立 graph（工具/skill/prompt 隔离），网关 endpoint 按         │
+│  X-Workspace 路由 + agent.clone() per-request 隔离                         │
 │  未来（v2）：subagent / 多 Agent 协作（Planner/Tool/Reasoner/Reporter）   │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  第3层：Tools / Action Types / Skills / 计算逻辑                          │
@@ -47,7 +48,7 @@
 │  计算逻辑：工作目录私有 Python 模块（如 marketing/rules/discount）            │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  第2层：Ontology 层（通用内核 + 多工作目录注册表）                           │
-│  通用内核：工作目录（WorkspaceDef） + CapabilityDomain + ValueChainProcess +         │
+│  通用内核：WorkspaceDef + CapabilityDomain + ValueChainProcess +         │
 │            注册表 + bootstrap 自动发现 + Repository                       │
 │            （多 workspace 隔离/锁/原子写/edits-only）+ 声明式 ActionExecutor │
 │  工作目录（声明式接入，零改内核）：                                          │
@@ -165,7 +166,7 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 
 **customerA 工作目录**（worked example）：1 能力域（maintenance）+ 1 价值链流程（repair）。4 Object（Equipment/RepairTicket/Technician/Vendor）+ 4 Link + 6 Action。证明多工作目录并存 + 零改内核 + 无折扣概念也能跑。
 
-详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md) 与 [`manual/03-worked-example-equipment-repair.md`](./manual/03-worked-example-equipment-repair.md)。
+详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md) 与 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)。
 
 ### 3.3 多 workspace 抽象层（内核关键设计）
 
@@ -232,12 +233,12 @@ side_effects:                       # 副作用声明（create_object/update_obj
 | **内核工具（固定）** | 通用原子操作，所有工作目录共享 | query_entity / create_entity / update_entity / traverse_relation / execute_action / confirm_action / query_task / update_task（共 8 个） |
 | **工作目录工具（聚合）** | 工作目录专属读工具，从各 `workspace/<pack>/` 的 `tools_module` 聚合 | retail: `query_near_expiry`；customerA: `query_repair_tickets` |
 
-- **内核工具**：`main.tools = 内核8个 + _aggregate_pack_tools()`。读工具走 Repository；`execute_action`/`confirm_action` 走 ActionExecutor + PreviewCache；通用 CRUD 按 §2.3 降级。
-- **工作目录工具**：复用内核装配函数，但下沉到工作目录内，不污染内核。新增工作目录的专属工具自动聚合进 agent。
+- **内核工具**：per-workspace 构建（`_build_ws_tools(ws_name)` = 内核8个 + 该工作目录的 process 工具）。读工具走 Repository；`execute_action`/`confirm_action` 走 ActionExecutor + PreviewCache；通用 CRUD 按 §2.3 降级。
+- **工作目录工具**：per-workspace 隔离——jjy 只含 `query_near_expiry`，customerA 只含 `query_repair_tickets`。切换 workspace 时 agent 只暴露该工作目录的工具。
 
-### 4.2 依赖装配（tool/webhook/agent 三路统一）
+### 4.2 依赖装配 + per-workspace agent 构建
 
-所有路径经 `bootstrap_workspace()` 装配（`agent/tools/shared.py`、`agent/engine/workspace_bootstrap.py`）：
+**数据层**（tool/webhook 共用）：经 `bootstrap_workspace()` 装配（`agent/tools/shared.py`、`agent/engine/workspace_bootstrap.py`）：
 ```
 _get_executor / _get_repo / _parser  （agent/tools/shared.py）
         │  从 main.tenant_ctx contextvar 解析 workspace_name
@@ -246,7 +247,25 @@ bootstrap_workspace(workspace_name)  （agent/engine/workspace_bootstrap.py）
         │  返回缓存的 WorkspaceAgentInstance
         │  = {config, registry, repository, executor}
         ▼
-executor.config = 该 workspace source_pack 的（第一个/指定）价值链流程
+executor.config = 该工作目录的（第一个/指定）价值链流程
+```
+
+**agent 层**（per-workspace 隔离）：自写网关 endpoint 按 `X-Workspace` 路由：
+```
+POST /api/copilotkit  （agent/main.py）
+        │  _resolve_workspace_name(request) → ws_name
+        ▼
+get_or_build_ws_agent(ws_name)  （per-workspace agent 缓存 _ws_agents）
+        │  首次访问时 build_workspace_graph(ws_name)：
+        │    _build_ws_tools(ws_name)   ← 只含该工作目录的工具
+        │    _build_ws_prompt(ws_name)  ← 只含该工作目录的本体
+        │    _build_ws_skills(ws_name)  ← 只含该工作目录的 skill
+        │    create_deep_agent(model, tools, prompt, skills, ...)
+        │  缓存到 _ws_agents[ws_name]
+        ▼
+agent.clone()  ← per-request 状态隔离
+        ▼
+agent.run(input_data) → SSE 流式响应
 ```
 
 webhook 取 executor 用 `_get_executor(process_name="clearance")`（精确选价值链流程，workspace 由 contextvar 解析）。
@@ -287,18 +306,29 @@ customerA 工作目录无折扣概念 → 无计算模块 → 证明内核不依
 
 ## 5. 第4层：Agent 层
 
-### 现状：单 Agent
+### 现状：per-workspace Agent 隔离
 
-继承现有 `create_deep_agent(model, tools, system_prompt, backend, skills)`，deepagents 自带工具循环 + SummarizationMiddleware + SkillsMiddleware。
+每个工作目录有独立的 agent 实例（graph + 工具/skill/prompt 完全隔离）。自写 `/api/copilotkit` 网关 endpoint 按 `X-Workspace` header 路由到对应 agent。
 
-**系统提示组装**（`_build_combined_prompt` 合并所有工作目录本体）：
+**per-workspace graph 构建**（`build_workspace_graph(ws_name)`）：
 ```
-Layer 1: 各工作目录本体知识合并（build_system_prompt 动态生成，多工作目录共存）
-Layer 2: 通用操作流程（Preview→Confirm + 状态机相邻迁移，领域无关）
-Layer 3: 可用工具清单（deepagents 自动注入）
+_build_ws_tools(ws_name)   → 内核8 + 该工作目录的 process 工具（只含该目录的）
+_build_ws_prompt(ws_name)  → 只含该工作目录的实体/关系/Action
+_build_ws_skills(ws_name)  → 只挂载该工作目录的 skill
+→ create_deep_agent(model, tools, prompt, skills, checkpointer=MemorySaver())
 ```
 
-tenant 上下文经 `X-Workspace` middleware → contextvar 注入（§3.3）。
+**per-workspace agent 缓存**（`get_or_build_ws_agent(ws_name)`）：graph 按工作目录名缓存（`_ws_agents[ws_name]`），首次请求懒构建，后续复用。每个 workspace 独立 MemorySaver（对话历史隔离）。
+
+**自写网关 endpoint**（`@app.post("/api/copilotkit")`）：
+1. 从 `X-Workspace` header 解析 `ws_name`
+2. `get_or_build_ws_agent(ws_name)` 取/构建该 workspace 的 agent
+3. `agent.clone()` per-request 状态隔离
+4. `agent.run(input_data)` → SSE 流式响应（`EventEncoder` + `StreamingResponse`）
+
+> 已不用 `add_langgraph_fastapi_endpoint`（它 graph 固定，无法 per-workspace 路由）。
+
+**验证**：jjy agent 只含 `query_near_expiry` + `NearExpiryProduct`（零售）；customerA agent 只含 `query_repair_tickets` + `RepairTicket`（维修）。工具/本体/skill 完全隔离。
 
 ### 未来：subagent / 多 Agent（🔜 v2，架构预留）
 
@@ -306,13 +336,15 @@ tenant 上下文经 `X-Workspace` middleware → contextvar 注入（§3.3）。
 
 ## 6. 第5层：前端
 
-**现状**：CopilotKit v1.57 + 9 个手写 renderToolCalls（clearance 专用，已验证可用）。workspace 选择器从硬编码两按钮升级为列表，选中写入 co-agent state。
+**现状**：CopilotKit v1.57 + 9 个手写 renderToolCalls + workspace 切换 UI。
 
 **已落地**：
-- `app/api/copilotkit/route.ts` 注入 `X-Workspace` header（现状：静态默认；🔜 v2：按选中门店动态注入）。
-- `app/home-page.tsx` 切换门店按钮写入 co-agent state。
+- `app/layout.tsx`：CopilotKit `headers` prop 函数式注入 `X-Workspace`（=selectedWorkspace）+ `X-Org-Unit-ID`（=selectedStore），随选中动态变化。CopilotKit runtime 自动透传 header 给后端。
+- `app/layout.tsx`：`CopilotChat key={selectedWorkspace}`——切换 workspace 时完全重建组件，清空聊天历史，确保不同 workspace 对话隔离。
+- `app/workspace-context.tsx`：workspace 切换（jjy/customerA/retail）+ localStorage 持久化。
+- `app/api/copilotkit/route.ts`：CopilotRuntime 透传 incoming header（无需手动注入）。
 
-**🔜 v2**：A2UI 标准渲染、多工作目录切换 UI、ECharts 图表、权限管理 UI、审计查询 UI。
+**🔜 v2**：A2UI 标准渲染、ECharts 图表、权限管理 UI、审计查询 UI。
 
 ---
 
@@ -329,7 +361,7 @@ store-ontology/
 │   │   ├── action_loader.py      # YAML → ActionDefinition
 │   │   ├── state_machine.py      # is_valid_transition（per-process 表）
 │   │   ├── preview_cache.py      # preview→confirm 闭环
-│   │   ├── workspace.py               # 工作目录（WorkspaceDef） / CapabilityDomain / ValueChainProcess + 注册表
+│   │   ├── workspace.py               # WorkspaceDef / CapabilityDomain / ValueChainProcess + 注册表
 │   │   ├── workspace.py          # WorkspaceConfig / OrgUnit + 注册表
 │   │   ├── workspace_bootstrap.py # bootstrap_workspace → WorkspaceAgentInstance
 │   │   ├── tenant.py             # TenantContext（workspace_name + org_unit_id 双层）
@@ -345,7 +377,7 @@ store-ontology/
 ├── workspace/                    # workspace 层（工作目录 + 客户实例）
 │   ├── jjy/         # 默认 workspace（config.yaml，source_pack=retail）
 │   ├── retail/                   # 零售工作目录
-│   │   ├── workspace.py               # 工作目录（WorkspaceDef） 声明（3 能力域 + clearance 流程）
+│   │   ├── workspace.py               # WorkspaceDef 声明（3 能力域 + clearance 流程）
 │   │   ├── ontology/domains/     # 能力域本体（marketing/organization/finance，各 domain.ttl + actions/）
 │   │   ├── data/                 # 种子数据
 │   │   └── skills/               # 场景单元（clearance_workflow/ + store_ontology/）

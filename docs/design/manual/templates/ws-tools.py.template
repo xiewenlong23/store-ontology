@@ -1,6 +1,6 @@
 """{{pack_name}}/{{process}} 价值链流程的专属工具。
 
-导出 TOOLS = [...] 列表。main._aggregate_pack_tools() 自动聚合进 agent。
+导出 TOOLS = [...] 列表。_build_ws_tools(ws_name) 自动聚合进 agent。
 工具经 agent.tools.shared 的 helper 装配（_get_repo/_get_executor/_tc/_wrap）。
 
 填写：把 {{...}} 替换为实际值。参照 workspace/retail/skills/clearance_workflow/tools.py。

@@ -10,7 +10,7 @@
 声明文件：`workspace/retail/workspace.py`。`bootstrap()` 自动发现 `workspace/*/workspace.py`。
 
 ```python
-RETAIL_PACK = 工作目录（WorkspaceDef）(
+RETAIL_PACK = WorkspaceDef(
     name="retail", display_name="零售工作目录",
     domains=[MARKETING, ORGANIZATION, FINANCE],   # 3 能力域
     processes=[CLEARANCE],                         # 1 价值链流程
@@ -101,7 +101,7 @@ SKILL.md 引用此 JSON，不在文档里重复写数值。
 
 ## 7. 专属工具
 
-`workspace/retail/skills/clearance_workflow/tools.py` 导出 `TOOLS = [query_near_expiry]`（临期商品查询，关联 Product + 计算折扣价）。被 `main._aggregate_pack_tools()` 自动聚合进 agent。
+`workspace/retail/skills/clearance_workflow/tools.py` 导出 `TOOLS = [query_near_expiry]`（临期商品查询，关联 Product + 计算折扣价）。被 `_build_ws_tools(ws_name)` 自动聚合进 agent。
 
 ---
 

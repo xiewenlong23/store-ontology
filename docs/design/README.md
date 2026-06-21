@@ -41,7 +41,7 @@
 | **接入总览** | [`manual/00-overview.md`](./manual/00-overview.md) | 内核/工作目录边界、何时建工作目录、阅读路线 |
 | **接入手册** | [`manual/01-onboarding.md`](./manual/01-onboarding.md) | 新工作目录接入的 Phase A-F 标准流程 |
 | **模板说明** | [`manual/02-templates.md`](./manual/02-templates.md) | 8 个模板的占位符填法与常见错误 |
-| **Worked Example** | [`manual/03-worked-example-equipment-repair.md`](./manual/03-worked-example-equipment-repair.md) | 设备维修工作目录端到端实例 |
+| **Worked Example** | [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md) | 设备维修工作目录端到端实例 |
 | **模板** | [`manual/templates/`](./manual/templates/) | 8 个可填模板（workspace.py / action.yaml / ...） |
 
 ### 参考（📚 第三方）
@@ -59,7 +59,7 @@
 ## 阅读路线
 
 - **第一次理解架构** → [`00-architecture.md`](./00-architecture.md) → [`40-ontology-modeling-spec.md`](./40-ontology-modeling-spec.md)
-- **第一次接入新工作目录** → [`manual/00-overview.md`](./manual/00-overview.md) → [`manual/01-onboarding.md`](./manual/01-onboarding.md) → 卡住查 [`manual/02-templates.md`](./manual/02-templates.md) → 对照 [`manual/03-...`](./manual/03-worked-example-equipment-repair.md)
+- **第一次接入新工作目录** → [`manual/00-overview.md`](./manual/00-overview.md) → [`manual/01-onboarding.md`](./manual/01-onboarding.md) → 卡住查 [`manual/02-templates.md`](./manual/02-templates.md) → 对照 [`manual/03-...`](./manual/03-worked-example-customerA.md)
 - **看 API/契约** → [`20-api-data-contract.md`](./20-api-data-contract.md)
 - **看前瞻方向** → [`roadmap.md`](./roadmap.md)（注意：**未实现**）
 - **查历史决策** → [`archive/`](./archive/)
@@ -73,7 +73,7 @@
 | **workspace**（`workspace_name`） | 硬隔离边界 | customer / tenant（笼统） |
 | **org_unit**（`org_unit_id`） | workspace 内权限范围（`*`=总部全可见） | — |
 | **TenantContext** | workspace + org_unit 双层上下文（代码类名保留） | — |
-| **工作目录**（工作目录（WorkspaceDef）） | 业务场景包，`workspace/<name>/workspace.py` 声明 | vertical |
+| **工作目录**（WorkspaceDef） | 业务场景包，`workspace/<name>/workspace.py` 声明 | vertical |
 | **能力域**（CapabilityDomain） | 原子 Object/Link/Action，`ontology/domains/<域>/` | — |
 | **价值链流程**（ValueChainProcess） | 跨域编排（状态机+Skill+工具），如 clearance/repair | — |
 

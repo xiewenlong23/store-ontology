@@ -9,7 +9,7 @@
 | 模板 | 产出 | 用于 Phase |
 |------|------|-----------|
 | [`workspace.py.template`](./templates/workspace.py.template) | `workspace/<pack>/workspace.py` | F（注册） |
-| [`pack-tools.py.template`](./templates/pack-tools.py.template) | `workspace/<pack>/skills/<process>/tools.py` | E.1（专属工具） |
+| [`ws-tools.py.template`](./templates/ws-tools.py.template) | `workspace/<pack>/skills/<process>/tools.py` | E.1（专属工具） |
 | [`ontology.ttl.template`](./templates/ontology.ttl.template) | `workspace/<pack>/ontology/domains/<域>/domain.ttl` | A（能力域建模） |
 | [`action.yaml.template`](./templates/action.yaml.template) | `workspace/<pack>/ontology/domains/<域>/actions/*.yaml` 或 `skills/<process>/actions/*.yaml` | B（Action 契约） |
 | [`state_machine.py.template`](./templates/state_machine.py.template) | `workspace/<pack>/skills/<process>/state_machine.py` | C（状态机） |
@@ -21,7 +21,7 @@
 
 ## 关键占位符填法
 
-### `workspace.py`：工作目录（WorkspaceDef） + CapabilityDomain + ValueChainProcess
+### `workspace.py`：WorkspaceDef + CapabilityDomain + ValueChainProcess
 
 ```python
 DOMAIN_X = CapabilityDomain(
@@ -43,7 +43,7 @@ PROCESS_Y = ValueChainProcess(
     actions_dir=...,            # workspace/<pack>/skills/<process>/actions（流程专属 Action）
     system_prompt_intro="你是<场景>助手。")
 
-PACK = 工作目录（WorkspaceDef）(
+PACK = WorkspaceDef(
     name="<pack>", display_name="<工作目录中文名>",
     domains=[DOMAIN_X, ...],
     processes=[PROCESS_Y, ...],
