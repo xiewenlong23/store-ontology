@@ -5,7 +5,8 @@ import { CopilotKit } from '@copilotkit/react-core'
 import { CopilotChat } from '@copilotkit/react-ui'
 import '@copilotkit/react-ui/styles.css'
 import './globals.css'
-import { Fragment, useMemo } from 'react'
+import { Fragment, ReactNode, useMemo } from 'react'
+import { WorkspaceProvider, useWorkspace } from './workspace-context'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -32,11 +33,12 @@ function TaskCard({ text }: { text: string }) {
   )
 }
 
-export default function RootLayout({
+function AppWithWorkspace({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { selectedStore } = useWorkspace()
   // 通用：从工具返回文本中提取 JSON 数据
   const extractData = (result: any) => {
     const str = typeof result === 'string' ? result : JSON.stringify(result);
@@ -383,22 +385,38 @@ export default function RootLayout({
   ], [])
 
   return (
+    <CopilotKit
+      runtimeUrl="/api/copilotkit"
+      agent="default"
+      headers={() => ({
+        'X-Workspace': 'customer_default',
+        'X-Org-Unit-ID': selectedStore || '*',
+      })}
+      renderToolCalls={renderToolCalls as any}
+    >
+      <div className="golden-layout">
+        <div className="golden-left">
+          {children}
+        </div>
+        <div className="golden-right">
+          <CopilotChat />
+        </div>
+      </div>
+    </CopilotKit>
+  )
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
     <html lang="zh-CN">
       <body className={inter.className}>
-        <CopilotKit
-          runtimeUrl="/api/copilotkit"
-          agent="default"
-          renderToolCalls={renderToolCalls as any}
-        >
-          <div className="golden-layout">
-            <div className="golden-left">
-              {children}
-            </div>
-            <div className="golden-right">
-              <CopilotChat />
-            </div>
-          </div>
-        </CopilotKit>
+        <WorkspaceProvider>
+          <AppWithWorkspace>{children}</AppWithWorkspace>
+        </WorkspaceProvider>
       </body>
     </html>
   )
