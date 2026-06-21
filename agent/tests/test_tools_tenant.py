@@ -39,3 +39,30 @@ def test_query_entity_isolates_by_customer(clearance_data_dir, monkeypatch):
         "workspace_name": "customer_other",
     })
     assert "store_001" not in out  # 属于 customer_default，不属于 customer_other
+
+
+def test_query_entity_isolates_by_contextvar(clearance_data_dir, monkeypatch):
+    """v2-tenant：contextvar 设不同 workspace → 工具返回数据不同（端到端隔离）。
+
+    模拟请求链路：middleware 设 tenant_ctx contextvar → 工具 _tc_ctx() 读它 →
+    Repository 按 workspace_name 过滤。不显式传工具参数（依赖 contextvar）。
+    """
+    _setup(monkeypatch, clearance_data_dir)
+    import main
+    from engine.tenant import TenantContext
+
+    # contextvar = customer_default → 看得到 store_001
+    token = main.tenant_ctx.set(TenantContext(workspace_name="customer_default", org_unit_id="*"))
+    try:
+        out_default = query_entity.invoke({"entity_type": "Store"})
+        assert "store_001" in out_default
+    finally:
+        main.tenant_ctx.reset(token)
+
+    # contextvar = customer_other → 看不到 store_001
+    token = main.tenant_ctx.set(TenantContext(workspace_name="customer_other", org_unit_id="*"))
+    try:
+        out_other = query_entity.invoke({"entity_type": "Store"})
+        assert "store_001" not in out_other
+    finally:
+        main.tenant_ctx.reset(token)
