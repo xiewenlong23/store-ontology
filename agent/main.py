@@ -76,6 +76,25 @@ def _aggregate_skill_paths():
     return paths
 
 
+def _list_system_skill_dirs():
+    """扫描 agent/skills/ 下的系统级 Skill 目录（含 SKILL.md）。
+
+    系统 Skill 对所有 workspace 通用（平台能力），优先级低于 workspace Skill。
+    架构 spec §3.2：2 级 Skill 加载（workspace > 系统）。
+    """
+    sys_skills_root = os.path.join(os.path.dirname(__file__), "skills")
+    dirs = []
+    if os.path.isdir(sys_skills_root):
+        for name in os.listdir(sys_skills_root):
+            if name in ("tmp", "__pycache__") or name.startswith("."):
+                continue
+            skill_path = os.path.join(sys_skills_root, name)
+            if os.path.isdir(skill_path) and os.path.exists(
+                    os.path.join(skill_path, "SKILL.md")):
+                dirs.append(name)
+    return dirs
+
+
 def _build_combined_prompt() -> str:
     """合并所有 pack 的本体提示。"""
     from engine.pack import all_packs, pack_to_registry
@@ -164,17 +183,40 @@ store_context = """
 
 system_prompt = ontology_prompt + store_context
 
-# Skill 源路径（FilesystemBackend 从磁盘加载）；root 指向 workspace skills
-_clearance_skills_root = os.path.join(os.path.dirname(__file__),
+# ===== Skill 后端：2 级加载（架构 spec §3.2）=====
+# 优先级 1（高）：workspace skills（workspace/retail/skills/）
+# 优先级 2（低）：系统 skills（agent/skills/，所有 workspace 共享）
+# CompositeBackend：workspace skills 在根路径，系统 skills 通过 /system/ 路由访问。
+# sources 顺序：系统在前（低优先级），workspace 在后（高优先级，覆盖同名）。
+_workspace_skills_root = os.path.join(os.path.dirname(__file__),
     "..", "workspace", "retail", "skills")
-skills_backend = FilesystemBackend(root_dir=_clearance_skills_root, virtual_mode=True)
+_system_skills_root = os.path.join(os.path.dirname(__file__), "skills")
+
+from deepagents.backends.composite import CompositeBackend
+
+_workspace_skills_backend = FilesystemBackend(
+    root_dir=_workspace_skills_root, virtual_mode=True)
+
+# 系统 skills 目录存在且有内容时才挂载 /system/ 路由（避免空目录报错）
+_system_skill_names = _list_system_skill_dirs()
+if _system_skill_names:
+    _system_skills_backend = FilesystemBackend(
+        root_dir=_system_skills_root, virtual_mode=True)
+    skills_backend = CompositeBackend(
+        default=_workspace_skills_backend,
+        routes={"/system/": _system_skills_backend})
+else:
+    skills_backend = _workspace_skills_backend
 
 # 创建 Deep Agent Graph
 # - SummarizationMiddleware 默认开启，自动压缩长对话上下文（解决 BadRequestError）
 # - DeltaChannel 内置，checkpoint 增长从 O(N²) 降到 O(N)
-# - SkillsMiddleware 从所有 vertical 的 skills/ 加载 SKILL.md（Progressive Disclosure）
+# - SkillsMiddleware 从 workspace + 系统 skills/ 加载 SKILL.md（Progressive Disclosure）
+#   sources 顺序决定优先级：后面的覆盖前面的同名 skill
 # - checkpointer=MemorySaver 保持多轮会话状态
-_skill_paths = _aggregate_skill_paths() or ["/store-ontology/"]
+_workspace_skill_paths = _aggregate_skill_paths() or ["/store-ontology/"]
+# 系统 skills 在前（低优先级，/system/<name>/），workspace skills 在后（高优先级）
+_skill_paths = [f"/system/{n}/" for n in _system_skill_names] + _workspace_skill_paths
 deep_agent_graph = create_deep_agent(
     model=llm,
     tools=tools,
