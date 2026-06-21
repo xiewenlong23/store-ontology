@@ -852,3 +852,31 @@ cd .. && git log --oneline -20    # 确认 6 阶段 commit 齐整
 - `_REPAIR_PROCESS`/`CLEARANCE_TEST_PROCESS` —— Task 1.5 定义，与 `ValueChainProcess` 字段一致 ✅
 - `bootstrap_workspace` 接通 executor —— Task 1.1 定义字段、1.2 消费 ✅
 - 文档文件名（00-/20-/30-/40-/roadmap/industry-packs/manual/archive/reference）—— spec §2.1 与本 plan 全程一致 ✅
+
+---
+
+## 执行记录（实现后回填）
+
+本 plan 已执行完毕（35 commits，推送到 origin/main）。以下记录执行期与原 plan 的偏离、及最终审查的发现，供后续 plan 借鉴。
+
+### 偏离原 plan 的两处
+
+1. **Task 1.2 shared.py 签名**：plan 预设改签名为 `workspace_name` 参数；实际代码调用点是 `TenantContext`/无参+contextvar，且测试 monkeypatch 用 `vertical=` 关键字。改为保留原签名 + 内部走 contextvar（避免连锁改测试）。最终 `_get_executor(vertical=None, process_name=None)`。
+2. **测试环境**：plan 写"pytest 150 passed"门槛未指明解释器。实现时须用 `/opt/miniconda3/envs/store-ontology/bin/python`（3.11 conda env），系统 Python 缺依赖会误报失败。
+
+### 最终审查发现的问题（plan/spec 未预见，均已修复）
+
+代码（2 Critical）：
+- **C1** `query_repair_tickets` 工具（equipment_repair）调 `_get_repo(字符串,...)` 运行时崩——pre-refactor 遗留，无测试覆盖。修复 + 加回归测试。
+- **C2** clearance scheduler 闭包靠 `processes[0]` 巧合命中。修复 + 加源码契约测试。
+
+文档（5 Critical + 3 Important）：
+- DC1-DC5：折扣路径/Task 域/equipment 目录树/Action api_name/§引用——5 处文档与代码矛盾。
+- DI1-DI3：建模规范 3 个"现有 bug"声明实际早已修复——改为历史标注。
+
+### 流程教训
+
+- **派 final reviewer 是必要的**：grep 验证路径/术语，但无法核实内容准确性。C1/C2（生产 bug）和 DC1-DC5（文档矛盾）只有读真实代码逐条对照才能发现。
+- **plan 的文件级预设需实现前对照真实调用点核实**：避免 Task 1.2 那种"预设改签名、实际不改"的偏离。
+- **测试门槛的 spec 应显式写解释器/环境**：避免 baseline 误判。
+

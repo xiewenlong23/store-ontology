@@ -325,3 +325,38 @@ cd agent && python -m pytest -q
 - **术语基准**：对齐到活代码 pack/workspace 模型（非保留 vertical 术语）。
 - **vertical.py 事实纠正**：brainstorming 初期误判 vertical.py 为"零调用可删死代码"。核实后发现 `get_vertical` 被 parser.py 引用、3 个测试实例化 `VerticalConfig`，属"半退役 + 测试依赖"的中间态。基于正确事实，用户选择"本次全做（含内核重构）"。
 - **webhook 定位语义**：在 (a) workspace / (b) workspace+process / (c) 模块路径推导 中选 (b)，签名 `_get_executor(workspace_name, process_name)`。
+
+---
+
+## 附录 B：执行期偏离与事后纠正（实现后回填）
+
+本附录记录实现期间与原 spec/plan 不一致之处，以及最终审查发现并修复的问题，供后续追溯。
+
+### B.1 执行期偏离 plan 的两处
+
+1. **基线测试需 conda Python（plan 写"150 passed"为门槛，未指明解释器）**
+   plan 与 spec 均以"pytest 150 passed"为阶段 1 门槛，但未指明用哪个 Python。实现时首次用系统 Python 3.9 跑，因缺 `langgraph` 等依赖报 19 errors + 7 failed，一度误判基线不绿。**纠正**：必须用 `/opt/miniconda3/envs/store-ontology/bin/python`（3.11，README 指定的 conda env）。真实基线确为 150 passed。**教训**：凡涉及测试门槛的 spec，应显式写明解释器/环境。
+
+2. **shared.py 装配签名偏离 plan 预设**
+   plan §Task 1.2 预设 `_get_executor/_get_repo/_parser` 应改为接受 `workspace_name` 参数。实现时核实代码发现：真实调用签名是 `_get_repo(tc)`（`tc` 是 `TenantContext`）和 `_get_executor()`（无参，从 contextvar 解析），且多个测试 monkeypatch 用 `vertical=` 关键字。强行改签名会连锁改大量测试 monkeypatch。**纠正**：保留原签名（`vertical=` 作为废弃 no-op 参数保留以兼容 monkeypatch），改为内部从 `main.tenant_ctx` contextvar 解析 workspace。webhook 调用点改用 `process_name=`。最终签名 `_get_executor(vertical=None, process_name=None)`、`_get_repo(tenant=None, vertical=None)`。**教训**：plan 的文件级预设需在实现前对照真实调用点核实，否则易低估工作量或引入不必要的连锁改动。
+
+### B.2 最终独立审查发现并修复的问题
+
+实现完成后派两个 Explore reviewer 做整体审查（代码 + 文档），发现以下 plan/spec 未预见的问题，均已修复：
+
+**代码（2 Critical + 2 Important + 3 Minor）**：
+- **C1（生产 bug）**：`workspace/equipment_repair/skills/repair_workflow/tools.py` 的 `query_repair_tickets` 调 `_get_repo(字符串, vertical=...)`，新 `_get_repo` 期望 `TenantContext` → 运行时 `AttributeError`，工具完全不可用。根因：该工具是 pre-refactor 遗留，未对齐 retail 的 `query_near_expiry` 模式，且无测试覆盖。修复：改为 `workspace_name`+`TenantContext` 模式 + 加回归测试。
+- **C2（脆弱依赖）**：clearance automation 的 scheduler 闭包仍调 `_get_executor(vertical="clearance")`，靠 `customer_default→retail→processes[0]` 巧合命中 clearance。修复：改 `process_name="clearance"` 显式指定 + 加源码契约测试。
+- **I4（根因）**：废弃的 `vertical=` 参数静默忽略，导致 C1/C2 漏网。修复：加 `DeprecationWarning`。
+- I1（未知 `process_name` 静默回退→加 warning）、M1-M4（docstring/死代码/测试名 misnomer）。
+
+**文档（5 Critical + 3 Important）**：
+- **DC1**：`00-architecture §4.5` 折扣模块路径错（实际在 `skills/clearance_workflow/discount.py`）。
+- **DC2**：`retail-clearance §2` Task 域归属错（实际 organization 域，非 finance）。
+- **DC3**：`03-worked-example §2` equipment_repair 目录树错（Action 在 maintenance/actions，非 skills/.../actions）。
+- **DC4**：`20-api §3.2` + `03-worked-example` equipment Action api_name 全错（`diagnose`→`diagnose_ticket` 等）。
+- **DC5**：`40-ontology-modeling-spec` 的"架构文档 §1.X"引用系统性偏移（实际 §2.X，且 §1.5 不存在）。
+- **DI1-DI3**：建模规范描述 3 个"现有 bug"（manages 方向/LinkTypes 常量/缺元数据），但代码里这些早已修复——文档会误导读者去"修"正常代码。改为历史标注。
+
+**教训**：grep 能验证路径/术语表层一致，但**无法核实内容准确性**（Action 名是否真存在、域归属对不对、引用的章节是否存在）。独立审查（读真实代码逐条对照）是内容准确性唯一可靠的验证手段。本次审查抓到的 2 个生产 bug（C1/C2）是 grep/自检都漏掉的——这正是 plan 流程要求"派 final reviewer"的价值。
+
