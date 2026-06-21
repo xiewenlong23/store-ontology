@@ -139,8 +139,8 @@ llm = ChatOpenAI(
 )
 
 
-# ============ 工具清单（内核固定 + 行业包聚合）===========
-_all_tools = [
+# ============ 工具清单（内核固定）===========
+_KERNEL_TOOLS = [
     query_entity,
     create_entity,
     update_entity,
@@ -149,32 +149,10 @@ _all_tools = [
     confirm_action,
     query_task,
     update_task,
-] + _aggregate_pack_tools()
+]
 
-# 去重：同名工具只保留第一个（行业包工具聚合去重）
-_seen = set()
-tools = []
-for _t in _all_tools:
-    _n = getattr(_t, "name", "")
-    if _n in _seen:
-        continue
-    _seen.add(_n)
-    tools.append(_t)
-
-
-# ============ Deep Agent Graph ============
-
-import contextvars
-from engine.tenant import TenantContext
-
-# 客户租户上下文：由 HTTP middleware（X-Customer-ID + X-Org-Unit-ID header）注入
-tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
-    "tenant_ctx", default=TenantContext.default())
-
-# 动态生成本体系统提示（从 pack registry 构建，不依赖单 TTL parser）
-ontology_prompt = _build_combined_prompt()
-store_context = """
-当前客户上下文由请求 header X-Customer-ID + X-Org-Unit-ID 注入（默认 customer_default + 全部门店）。
+_STORE_CONTEXT = """
+当前客户上下文由请求 header X-Workspace + X-Org-Unit-ID 注入。
 
 **操作流程（Preview → Confirm）：**
 1. 用户要求执行业务操作时，先 execute_action 获取预览（返回 preview_id）
@@ -184,51 +162,132 @@ store_context = """
 5. 用中文回复
 """
 
-system_prompt = ontology_prompt + store_context
 
-# ===== Skill 后端：2 级加载（架构 spec §3.2）=====
-# 优先级 1（高）：workspace skills（workspace/retail/skills/）
-# 优先级 2（低）：系统 skills（agent/skills/，所有 workspace 共享）
-# CompositeBackend：workspace skills 在根路径，系统 skills 通过 /system/ 路由访问。
-# sources 顺序：系统在前（低优先级），workspace 在后（高优先级，覆盖同名）。
-_workspace_skills_root = os.path.join(os.path.dirname(__file__),
-    "..", "workspace", "retail", "skills")
-_system_skills_root = os.path.join(os.path.dirname(__file__), "skills")
+# ============ per-workspace agent 构建 + 缓存 ============
 
-from deepagents.backends.composite import CompositeBackend
+import contextvars
+from engine.tenant import TenantContext
 
-_workspace_skills_backend = FilesystemBackend(
-    root_dir=_workspace_skills_root, virtual_mode=True)
+tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
+    "tenant_ctx", default=TenantContext.default())
 
-# 系统 skills 目录存在且有内容时才挂载 /system/ 路由（避免空目录报错）
-_system_skill_names = _list_system_skill_dirs()
-if _system_skill_names:
-    _system_skills_backend = FilesystemBackend(
-        root_dir=_system_skills_root, virtual_mode=True)
-    skills_backend = CompositeBackend(
-        default=_workspace_skills_backend,
-        routes={"/system/": _system_skills_backend})
-else:
-    skills_backend = _workspace_skills_backend
 
-# 创建 Deep Agent Graph
-# - SummarizationMiddleware 默认开启，自动压缩长对话上下文（解决 BadRequestError）
-# - DeltaChannel 内置，checkpoint 增长从 O(N²) 降到 O(N)
-# - SkillsMiddleware 从 workspace + 系统 skills/ 加载 SKILL.md（Progressive Disclosure）
-#   sources 顺序决定优先级：后面的覆盖前面的同名 skill
-# - checkpointer=MemorySaver 保持多轮会话状态
-_workspace_skill_paths = _aggregate_skill_paths() or ["/store-ontology/"]
-# 系统 skills 在前（低优先级，/system/<name>/），workspace skills 在后（高优先级）
-_skill_paths = [f"/system/{n}/" for n in _system_skill_names] + _workspace_skill_paths
-deep_agent_graph = create_deep_agent(
-    model=llm,
-    tools=tools,
-    system_prompt=system_prompt,
-    checkpointer=MemorySaver(),
-    backend=skills_backend,
-    skills=_skill_paths,
-    # 排除 Deep Agents 内置的通用工具（文件系统、shell、子agent），只保留业务工具
-)
+def _build_ws_tools(ws_name: str):
+    """聚合指定工作目录的工具（内核 + 该目录的 process.tools_module）。"""
+    import importlib
+    from engine.pack import get_workspace_dir
+    ws = get_workspace_dir(ws_name)
+    collected = list(_KERNEL_TOOLS)
+    if ws:
+        for proc in ws.processes:
+            if not proc.tools_module:
+                continue
+            try:
+                mod = importlib.import_module(proc.tools_module)
+                collected.extend(getattr(mod, "TOOLS", []))
+            except Exception as e:  # noqa: BLE001
+                print(f"[main] 加载工作目录 '{ws_name}' process '{proc.name}' 工具失败: {e}")
+    # 去重
+    seen = set()
+    tools = []
+    for t in collected:
+        n = getattr(t, "name", "")
+        if n in seen:
+            continue
+        seen.add(n)
+        tools.append(t)
+    return tools
+
+
+def _build_ws_prompt(ws_name: str) -> str:
+    """构建指定工作目录的本体提示（只含该目录的实体/关系/Action）。"""
+    from engine.pack import get_workspace_dir, domains_to_registry
+    ws = get_workspace_dir(ws_name)
+    if not ws:
+        return _STORE_CONTEXT
+    parts = []
+    registry = domains_to_registry(ws, data_dir=ws.data_dir or ".")
+    for proc in ws.processes:
+        intro = proc.system_prompt_intro or ws.display_name
+        lines = [f"{intro}\n"]
+        lines.append("可用实体（用 query_entity 查询）: "
+                     + ", ".join(ot.label_zh for ot in registry.object_types.values()))
+        lines.append("\n关系（用 traverse_relation）: "
+                     + ", ".join(f"{lt.label_zh}({lt.domain}->{lt.range})"
+                                 for lt in registry.link_types.values()))
+        lines.append("\n操作（用 execute_action/confirm_action）: "
+                     + ", ".join(registry.action_types.keys()))
+        lines.append("\n用中文回复。")
+        parts.append("\n".join(lines))
+    ontology = "\n\n---\n\n".join(parts) if parts else ""
+    return ontology + "\n\n" + _STORE_CONTEXT
+
+
+def _build_ws_skills(ws_name: str):
+    """构建指定工作目录的 skill 路径 + skills backend。"""
+    from engine.pack import get_workspace_dir
+    ws = get_workspace_dir(ws_name)
+    ws_skill_paths = []
+    if ws:
+        for proc in ws.processes:
+            if not proc.skills_dir or not os.path.isdir(proc.skills_dir):
+                continue
+            for name in os.listdir(proc.skills_dir):
+                if name in ("tmp", "__pycache__"):
+                    continue
+                skill_path = os.path.join(proc.skills_dir, name)
+                if os.path.isdir(skill_path) and os.path.exists(
+                        os.path.join(skill_path, "SKILL.md")):
+                    ws_skill_paths.append(f"/{name}/")
+
+    sys_skill_names = _list_system_skill_dirs()
+    skill_paths = [f"/system/{n}/" for n in sys_skill_names] + (ws_skill_paths or ["/store-ontology/"])
+
+    # skills backend：workspace skills（根路径）+ 系统 skills（/system/ 路由）
+    ws_skills_root = None
+    if ws and ws.processes:
+        ws_skills_root = ws.processes[0].skills_dir
+    if ws_skills_root and os.path.isdir(ws_skills_root):
+        ws_backend = FilesystemBackend(root_dir=ws_skills_root, virtual_mode=True)
+    else:
+        ws_backend = FilesystemBackend(
+            root_dir=os.path.join(os.path.dirname(__file__), "skills"), virtual_mode=True)
+
+    from deepagents.backends.composite import CompositeBackend
+    if sys_skill_names:
+        sys_backend = FilesystemBackend(
+            root_dir=os.path.join(os.path.dirname(__file__), "skills"), virtual_mode=True)
+        backend = CompositeBackend(default=ws_backend, routes={"/system/": sys_backend})
+    else:
+        backend = ws_backend
+    return skill_paths, backend
+
+
+def build_workspace_graph(ws_name: str):
+    """构建指定工作目录的 deep agent graph（per-workspace 隔离）。"""
+    tools = _build_ws_tools(ws_name)
+    prompt = _build_ws_prompt(ws_name)
+    skill_paths, backend = _build_ws_skills(ws_name)
+    return create_deep_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=prompt,
+        checkpointer=MemorySaver(),
+        backend=backend,
+        skills=skill_paths,
+    )
+
+
+from ag_ui_langgraph import LangGraphAgent
+_ws_agents: dict = {}
+
+
+def get_or_build_ws_agent(ws_name: str) -> LangGraphAgent:
+    """per-workspace agent 缓存。graph 按工作目录隔离。"""
+    if ws_name not in _ws_agents:
+        graph = build_workspace_graph(ws_name)
+        _ws_agents[ws_name] = LangGraphAgent(name=ws_name, graph=graph)
+    return _ws_agents[ws_name]
 
 
 # ============ FastAPI 应用 ============
@@ -295,15 +354,28 @@ def _resolve_workspace_name(request, url_cid: str = None) -> str:
     return "jjy"
 
 
-add_langgraph_fastapi_endpoint(
-    app=app,
-    agent=LangGraphAgent(
-        name="default",
-        description="本体驱动业务助手（多行业包 + Deep Agents）",
-        graph=deep_agent_graph,
-    ),
-    path="/api/copilotkit",
-)
+# ============ AG-UI 网关 endpoint（per-workspace agent 路由）============
+from ag_ui.core.types import RunAgentInput
+from ag_ui.encoder import EventEncoder
+from fastapi.responses import StreamingResponse
+
+
+@app.post("/api/copilotkit")
+async def copilotkit_endpoint(input_data: RunAgentInput, request: Request):
+    """AG-UI 网关：按 X-Workspace 路由到 per-workspace agent 实例。
+
+    每个工作目录有独立 agent（工具/skill/本体隔离）。
+    """
+    ws_name = _resolve_workspace_name(request)
+    agent = get_or_build_ws_agent(ws_name)
+    request_agent = agent.clone()  # per-request 状态隔离
+    accept_header = request.headers.get("accept")
+    encoder = EventEncoder(accept=accept_header)
+
+    async def event_generator():
+        async for event in request_agent.run(input_data):
+            yield encoder.encode(event)
+    return StreamingResponse(event_generator(), media_type=encoder.get_content_type())
 
 
 @app.get("/health")
