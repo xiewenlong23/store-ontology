@@ -17,6 +17,12 @@ def _to_bool(s: str) -> bool:
 class PropertyDef:
     name: str
     type: str
+    # v2 权限元数据（WP3）——可选，未声明时为 ""（表示无限制，allow-by-default）
+    # 含义见设计文档 §2.4/§2.5：roles 正向白名单 / except 反向除外
+    read_roles: str = ""
+    read_except: str = ""
+    write_roles: str = ""
+    write_except: str = ""
 
 
 @dataclass
@@ -30,6 +36,11 @@ class ObjectType:
     status: str = "active"
     visibility: str = "normal"
     edits_only_via_actions: bool = False
+    # v2 权限元数据（WP3）——可选，allow-by-default
+    read_roles: str = ""
+    read_except: str = ""
+    write_roles: str = ""
+    write_except: str = ""
 
 
 @dataclass
@@ -41,6 +52,9 @@ class LinkType:
     via: str
     label_zh: str = ""
     comment: str = ""
+    # v2 权限元数据（WP3）——Link 用 use（遍历）
+    use_roles: str = ""
+    use_except: str = ""
 
 
 @dataclass
@@ -92,11 +106,28 @@ class OntologyParser:
             visibility = self._first(r'visibility\s+"([^"]*)"', body) or "normal"
             edits = _to_bool(
                 self._first(r'edits_only_via_actions\s+"([^"]*)"', body) or "false")
+            # v2 权限元数据（WP3）
+            read_roles = self._first(r'read_roles\s+"([^"]*)"', body) or ""
+            read_except = self._first(r'read_except\s+"([^"]*)"', body) or ""
+            write_roles = self._first(r'write_roles\s+"([^"]*)"', body) or ""
+            write_except = self._first(r'write_except\s+"([^"]*)"', body) or ""
+            # 属性级权限元数据（嵌套 blank node）
+            prop_perms = self._parse_property_permissions(body, P)
+            props = self._parse_properties(props_str)
+            for p in props:
+                if p.name in prop_perms:
+                    pp = prop_perms[p.name]
+                    p.read_roles = pp.get("read_roles", "")
+                    p.read_except = pp.get("read_except", "")
+                    p.write_roles = pp.get("write_roles", "")
+                    p.write_except = pp.get("write_except", "")
             self.registry.object_types[obj_id] = ObjectType(
                 id=obj_id, label=f"{label_zh} ({label_en})", label_zh=label_zh,
-                comment=comment, properties=self._parse_properties(props_str),
+                comment=comment, properties=props,
                 storage_file=storage, status=status, visibility=visibility,
                 edits_only_via_actions=edits,
+                read_roles=read_roles, read_except=read_except,
+                write_roles=write_roles, write_except=write_except,
             )
 
         # Link Types: store:X a rdfs:Property ; ... <line ending with " .">
@@ -111,13 +142,40 @@ class OntologyParser:
             label_zh = self._first(r'rdfs:label\s+"([^"]+)"@zh', body)
             label_en = self._first(r'rdfs:label\s+"[^"]+"@zh\s*,\s*"([^"]+)"@en', body)
             comment = self._first(r'rdfs:comment\s+"([^"]*)"@zh', body)
+            use_roles = self._first(r'use_roles\s+"([^"]*)"', body) or ""
+            use_except = self._first(r'use_except\s+"([^"]*)"', body) or ""
             # `range` 是 Python 关键字，用 dict 展开绕开命名冲突
             self.registry.link_types[link_id] = LinkType(
                 id=link_id, label=f"{label_zh} ({label_en})", label_zh=label_zh,
                 comment=comment, domain=domain,
                 **{"range": self._first(r'range\s+%s(\w+)' % P, body)},
                 via=self._first(r'via\s+"([^"]*)"', body),
+                use_roles=use_roles, use_except=use_except,
             )
+
+    def _parse_property_permissions(self, body: str, prefix: str) -> Dict[str, dict]:
+        """解析 ``:property [ :name "X" ; :read_roles "..." ]`` 嵌套结构。
+
+        返回 ``{property_name: {read_roles, read_except, write_roles, write_except}}``。
+        多个 :property 子句都解析；非法结构跳过。
+        """
+        result: Dict[str, dict] = {}
+        # 单层 [ ... ]（不嵌套）。re.DOTALL 让 . 跨行。
+        for blk in re.finditer(
+            rf'{prefix}property\s*\[\s*(.*?)\s*\]',
+            body, re.DOTALL
+        ):
+            inner = blk.group(1)
+            name = self._first(r'name\s+"([^"]+)"', inner)
+            if not name:
+                continue
+            result[name] = {
+                "read_roles": self._first(r'read_roles\s+"([^"]*)"', inner) or "",
+                "read_except": self._first(r'read_except\s+"([^"]*)"', inner) or "",
+                "write_roles": self._first(r'write_roles\s+"([^"]*)"', inner) or "",
+                "write_except": self._first(r'write_except\s+"([^"]*)"', inner) or "",
+            }
+        return result
 
     @staticmethod
     def _first(pattern: str, text: str) -> Optional[str]:

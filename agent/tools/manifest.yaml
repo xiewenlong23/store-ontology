@@ -1,0 +1,30 @@
+# 内核 8 个工具的权限声明（设计文档 §2.8）。
+#
+# 求值顺序（设计文档 §2.5）：
+#   system_admin 短路 → PermissionGrant runtime → TTL 元数据 → allow-by-default
+# tool_manifest 是 TTL 之外的补充（因为 tool 不在 TTL 里）。
+#
+# 保守默认：
+#   - 通用 CRUD（create/update_entity）锁为 system_admin——核心实体另有
+#     edits-only-via-actions 治理（双重保护）
+#   - 查询类工具开放（"*"）——具体 Object 的读权限由 Object 级 TTL 元数据再校验
+#   - execute_action/confirm_action 开放——具体 action 的执行权限由 Action 级校验
+#   - update_task 锁 admin——业务 task 字段更新必须走 Action
+
+tools:
+  - name: query_entity
+    use_roles: "*"
+  - name: traverse_relation
+    use_roles: "*"
+  - name: query_task
+    use_roles: "*"
+  - name: execute_action
+    use_roles: "*"
+  - name: confirm_action
+    use_roles: "*"
+  - name: create_entity
+    use_roles: "system_admin"
+  - name: update_entity
+    use_roles: "system_admin"
+  - name: update_task
+    use_roles: "system_admin"
