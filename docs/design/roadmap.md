@@ -90,9 +90,26 @@
 
 ## 8. v2-tenant 动态：静态 header → 动态注入
 
-**当前实现**：route.ts 注入静态默认 `X-Workspace` header。
+**当前实现**：✅ 已完成（数据层）。前端 CopilotKit `headers` prop 函数式注入 `X-Workspace` + `X-Org-Unit-ID`，CopilotKit runtime 自动透传给后端，middleware 存入 contextvar，工具经 `_tc_ctx()` 读取，Repository 按 workspace_name + org_unit 过滤。详见 `docs/superpowers/specs/2026-06-21-v2-tenant-dynamic-design.md`。
 
-**🔜 目标（未实现）**：自定义 fetch wrapper 或 CopilotKit 中间件，按选中门店动态注入 `X-Workspace`。
+**🔜 仍待实现（agent 层隔离，见 §9）**：工具/skill/本体 prompt 仍全局聚合，未按 workspace 隔离。
+
+---
+
+## 9. v2-agent 隔离：工具/skill/本体按 workspace 隔离（前瞻·未实现）
+
+> **状态**：🔮 前瞻（未实现）。这是 v2-tenant 动态（§8，数据层）完成后发现的更深架构 gap。
+
+**当前实现（已验证的 gap）**：`main.py` 构建 agent 时，工具/skill/本体 prompt **全局聚合所有 pack**：
+- `_aggregate_pack_tools()`：`for pack in all_packs()` —— 所有行业包的工具都注入 agent
+- `_aggregate_skill_paths()`：所有行业包的 skill 都挂载
+- `_build_combined_prompt()`：所有行业包的实体/关系/Action 都合并进系统提示
+
+实测：agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(equipment_repair)，本体 prompt 同时含 `NearExpiryProduct` + `RepairTicket`。`bootstrap_workspace()` 返回的独立 `WorkspaceAgentInstance` 只被 dashboard API 消费，**agent 本身没消费它**。
+
+**影响**：即使切到 equipment_repair 的 workspace，LLM 仍能看到 retail 的工具/skill/本体。当前因只有一个有效 workspace(customer_default→retail)未暴露问题，但多 workspace 共存时工具/skill/本体会互相干扰。
+
+**🔜 目标（未实现）**：agent 按 workspace 动态构建（per-request 或 per-workspace 缓存），工具/skill/本体 prompt 只含该 workspace `source_pack` 的内容。这是架构级改造（agent 从全局单例 → per-workspace），需独立 spec。
 
 ---
 
@@ -100,7 +117,9 @@
 
 | 阶段 | 目标 | 状态 |
 |------|------|------|
-| **已实现（内核 + retail + equipment_repair）** | 内核多行业包架构 + Repository 多 workspace 隔离/锁/原子写/edits-only + 声明式 ActionExecutor（locator_field 数据驱动）+ per-process 状态机 + preview→confirm 闭环 + 折扣单一事实源 + Action YAML 契约 + CRUD 降级 + clearance 8 Action + equipment_repair 6 Action + tenant 上下文注入 | ✅ 153 测试通过 |
+| **已实现（内核 + retail + equipment_repair）** | 内核多行业包架构 + Repository 多 workspace 隔离/锁/原子写/edits-only + 声明式 ActionExecutor（locator_field 数据驱动）+ per-process 状态机 + preview→confirm 闭环 + 折扣单一事实源 + Action YAML 契约 + CRUD 降级 + clearance 8 Action + equipment_repair 6 Action + tenant 上下文注入 | ✅ |
+| **✅ v2-tenant动态（数据层）** | route.ts 静态 header → 前端 headers prop 动态注入 + 工具 _tc_ctx 从 contextvar 读 + Repository 按 workspace+org_unit 过滤 | ✅ 完成（156 测试，playwright 验证数据隔离） |
+| 🔜 v2-agent 隔离 | 工具/skill/本体 prompt 按 workspace 隔离（agent per-workspace 构建） | 未开始（见 §9） |
 | 🔜 v2-存储 | JSON → PostgreSQL+JSONB | 未开始 |
 | 🔜 v2-权限 | submission_criteria → 完整 RBAC×ABAC（三维 scope、6 层 cascade、快照冻结、操作符全集） | 接口预留 |
 | 🔜 v2-本体 | 零售行业包深化（组织5级/品类5级/DC/职能域）；transfer/restock 契约 | 未开始 |
@@ -108,4 +127,3 @@
 | 🔜 v2-Agent | 单 Agent → subagent/多 Agent | 架构预留 |
 | 🔜 v2-UI | 手写 renderToolCalls → A2UI + 多行业包切换 + 图表 + 审计 UI | 未开始 |
 | 🔜 v2-长流程 | 后端自动化 → 可选 BPM 引擎增强 | 未开始 |
-| 🔜 v2-tenant动态 | route.ts 静态 header → 动态注入 | 未开始 |
