@@ -37,7 +37,7 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     """构建（或取缓存）某 workspace 的 Agent 运行时实例（架构 spec §3.3/§7）。
 
     若 workspace 有自己的 ontology/ 目录（ontocopy 后），从其 TTL/Action
-    构建 registry（本体语义隔离）；否则回退 pack registry（customer_default 兼容）。
+    构建 registry（本体语义隔离）；否则回退 pack registry（jjy 兼容）。
     """
     if workspace_name in _instances:
         return _instances[workspace_name]
@@ -76,7 +76,7 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
         # 从 workspace 自定义 ontology 构建（本体语义隔离）
         registry = _build_registry_from_workspace_ontology(ontology_dir, data_dir)
     else:
-        # 无 workspace ontology 目录时，从 pack registry 构建（customer_default 走此路径）
+        # 无 workspace ontology 目录时，从 pack registry 构建（jjy 走此路径）
         from engine.pack import get_workspace_dir, domains_to_registry
         from engine.bootstrap import bootstrap
         bootstrap()

@@ -53,7 +53,7 @@ def test_tenant_context_default_compat():
 
 
 def test_tenant_context_matches_legacy_tenant_id_record():
-    """旧数据只有 tenant_id 无 customer_id/org_unit_id —— 视为 customer_default。"""
+    """旧数据只有 tenant_id 无 customer_id/org_unit_id —— 视为 jjy。"""
     tc = TenantContext.default()
     record = {"tenant_id": "jjy"}  # 旧格式
     assert tc.matches(record) is True
@@ -67,7 +67,7 @@ def test_tenant_context_from_dict():
 
 
 def test_tenant_context_from_headers_defaults():
-    """缺 header 时默认 customer_default + 通配。"""
+    """缺 header 时默认 jjy + 通配。"""
     tc = TenantContext.from_headers({})
     assert tc.workspace_name == "jjy"
     assert tc.sees_all_org_units() is True

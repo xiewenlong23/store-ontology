@@ -90,7 +90,7 @@ def register_clearance_automation(scheduler, interval_seconds: int = 1800) -> No
     """把 clearance 的两个定时 job 加进调度器。"""
     # job 闭包需要 executor；延迟获取（main.py 启动后 workspace 已装配）。
     # 显式传 process_name="clearance" 精确选 retail 包下的 clearance 价值链流程，
-    # 不依赖 customer_default→retail→processes[0] 的隐式巧合（spec §5.3）。
+    # 不依赖 jjy→retail→processes[0] 的隐式巧合（spec §5.3）。
     def _get_executor():
         from agent.tools import _get_executor as _ge
         return _ge(process_name="clearance")

@@ -31,9 +31,9 @@
 
 ---
 
-## 3. v2-本体：零售行业包深化 + Interface/transfer/restock
+## 3. v2-本体：零售工作目录深化 + Interface/transfer/restock
 
-**当前实现**：retail 行业包扁平组织（Region/Store）+ Product 的扁平 `category` 字符串；clearance 8 Action 完整，equipment_repair 6 Action 完整。
+**当前实现**：retail 工作目录扁平组织（Region/Store）+ Product 的扁平 `category` 字符串；clearance 8 Action 完整，customerA 6 Action 完整。
 
 **🔜 目标（未实现）**：
 - **组织 5 级**：Brand → OrgGroup → Channel → Region → Store（收敛为现有 Region/Store，扩展留 v2）。每级带财务核算字段（company_code / profit_center_code / cost_center_code）。
@@ -41,7 +41,7 @@
 - **DC 配送中心**：正交于组织维度的配送中心，现不实现。
 - **职能域 Domain**：正交于组织维度的职能划分。
 - **Interface Type / Shared Property**：跨 Object 共享形状，元数据预留，MVP 不实现。
-- **transfer/restock Action 契约补全**：当前行业包聚焦 clearance + equipment_repair，调拨/补货契约留后续。
+- **transfer/restock Action 契约补全**：当前工作目录聚焦 clearance + customerA，调拨/补货契约留后续。
 
 详见 `archive/legacy-Harness-Design.md` §1（多组织架构）、§2（品类维度）、§1.2（DC 维度）、§1.3（职能域维度）。
 
@@ -60,7 +60,7 @@
 
 ## 5. v2-Agent：单 Agent → 多 Agent 协作
 
-**当前实现**：单 Agent（`create_deep_agent` + SkillsMiddleware + SummarizationMiddleware），系统提示合并所有行业包本体。
+**当前实现**：单 Agent（`create_deep_agent` + SkillsMiddleware + SummarizationMiddleware），系统提示合并所有工作目录本体。
 
 **🔜 目标（未实现）**：subagent / 多 Agent 协作（Planner / Tool / Reasoner / Reporter 四角色）。架构预留扩展点，deepagents 本身支持 subagent。
 
@@ -68,13 +68,13 @@
 
 ---
 
-## 6. v2-UI：手写 renderToolCalls → A2UI 标准 + 多行业包切换
+## 6. v2-UI：手写 renderToolCalls → A2UI 标准 + 多工作目录切换
 
 **当前实现**：CopilotKit v1.57 + 9 个手写 `renderToolCalls`（clearance 专用）+ workspace 选择器。
 
 **🔜 目标（未实现）**：
 - **A2UI 标准渲染**（node_modules 已有但未启用）。
-- **多行业包切换 UI**。
+- **多工作目录切换 UI**。
 - **ECharts 图表**、**权限管理 UI**、**审计查询 UI**。
 - **route.ts 动态注入 X-Workspace**：现因 CopilotKit `LangGraphHttpAgent` 仅支持构造时静态 header，注入静态默认；🔜 用自定义 fetch wrapper 按选中门店动态注入。
 
@@ -96,18 +96,18 @@
 
 ---
 
-## 9. v2-agent 隔离：工具/skill/本体按 workspace 隔离（前瞻·未实现）
+## 9. v2-agent 隔离：工具/skill/本体按 workspace 隔离（✅ 已完成）
 
-> **状态**：🔮 前瞻（未实现）。这是 v2-tenant 动态（§8，数据层）完成后发现的更深架构 gap。
+> **状态**：✅ 已完成。去掉 IndustryPack 中间层，每个工作目录独立 agent 实例（工具/skill/本体隔离）。
 
 **当前实现（已验证的 gap）**：`main.py` 构建 agent 时，工具/skill/本体 prompt **全局聚合所有 pack**：
-- `_aggregate_pack_tools()`：`for pack in all_packs()` —— 所有行业包的工具都注入 agent
-- `_aggregate_skill_paths()`：所有行业包的 skill 都挂载
-- `_build_combined_prompt()`：所有行业包的实体/关系/Action 都合并进系统提示
+- `_aggregate_pack_tools()`：`for pack in all_workspace_dirs()` —— 所有工作目录的工具都注入 agent
+- `_aggregate_skill_paths()`：所有工作目录的 skill 都挂载
+- `_build_combined_prompt()`：所有工作目录的实体/关系/Action 都合并进系统提示
 
-实测：agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(equipment_repair)，本体 prompt 同时含 `NearExpiryProduct` + `RepairTicket`。`bootstrap_workspace()` 返回的独立 `WorkspaceAgentInstance` 只被 dashboard API 消费，**agent 本身没消费它**。
+实测：agent 同时含 `query_near_expiry`(retail) + `query_repair_tickets`(customerA)，本体 prompt 同时含 `NearExpiryProduct` + `RepairTicket`。`bootstrap_workspace()` 返回的独立 `WorkspaceAgentInstance` 只被 dashboard API 消费，**agent 本身没消费它**。
 
-**影响**：即使切到 equipment_repair 的 workspace，LLM 仍能看到 retail 的工具/skill/本体。当前因只有一个有效 workspace(customer_default→retail)未暴露问题，但多 workspace 共存时工具/skill/本体会互相干扰。
+**影响**：即使切到 customerA 的 workspace，LLM 仍能看到 retail 的工具/skill/本体。当前因只有一个有效 workspace(jjy→retail)未暴露问题，但多 workspace 共存时工具/skill/本体会互相干扰。
 
 **🔜 目标（未实现）**：agent 按 workspace 动态构建（per-request 或 per-workspace 缓存），工具/skill/本体 prompt 只含该 workspace `source_pack` 的内容。这是架构级改造（agent 从全局单例 → per-workspace），需独立 spec。
 
@@ -117,13 +117,13 @@
 
 | 阶段 | 目标 | 状态 |
 |------|------|------|
-| **已实现（内核 + retail + equipment_repair）** | 内核多行业包架构 + Repository 多 workspace 隔离/锁/原子写/edits-only + 声明式 ActionExecutor（locator_field 数据驱动）+ per-process 状态机 + preview→confirm 闭环 + 折扣单一事实源 + Action YAML 契约 + CRUD 降级 + clearance 8 Action + equipment_repair 6 Action + tenant 上下文注入 | ✅ |
+| **已实现（内核 + retail + customerA）** | 内核多工作目录架构 + Repository 多 workspace 隔离/锁/原子写/edits-only + 声明式 ActionExecutor（locator_field 数据驱动）+ per-process 状态机 + preview→confirm 闭环 + 折扣单一事实源 + Action YAML 契约 + CRUD 降级 + clearance 8 Action + customerA 6 Action + tenant 上下文注入 | ✅ |
 | **✅ v2-tenant动态（数据层）** | route.ts 静态 header → 前端 headers prop 动态注入 + 工具 _tc_ctx 从 contextvar 读 + Repository 按 workspace+org_unit 过滤 | ✅ 完成（156 测试，playwright 验证数据隔离） |
-| 🔜 v2-agent 隔离 | 工具/skill/本体 prompt 按 workspace 隔离（agent per-workspace 构建） | 未开始（见 §9） |
+| ✅ v2-agent 隔离 | 工具/skill/本体 prompt 按 workspace 隔离（agent per-workspace 构建） | ✅ 完成 |
 | 🔜 v2-存储 | JSON → PostgreSQL+JSONB | 未开始 |
 | 🔜 v2-权限 | submission_criteria → 完整 RBAC×ABAC（三维 scope、6 层 cascade、快照冻结、操作符全集） | 接口预留 |
-| 🔜 v2-本体 | 零售行业包深化（组织5级/品类5级/DC/职能域）；transfer/restock 契约 | 未开始 |
+| 🔜 v2-本体 | 零售工作目录深化（组织5级/品类5级/DC/职能域）；transfer/restock 契约 | 未开始 |
 | 🔜 v2-自动化 | 真实 POS/审批对接 + 定时器 LLM 唤醒 | webhook 模拟 + 计算式报损已实现 |
 | 🔜 v2-Agent | 单 Agent → subagent/多 Agent | 架构预留 |
-| 🔜 v2-UI | 手写 renderToolCalls → A2UI + 多行业包切换 + 图表 + 审计 UI | 未开始 |
+| 🔜 v2-UI | 手写 renderToolCalls → A2UI + 多工作目录切换 + 图表 + 审计 UI | 未开始 |
 | 🔜 v2-长流程 | 后端自动化 → 可选 BPM 引擎增强 | 未开始 |

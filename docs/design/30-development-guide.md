@@ -1,6 +1,6 @@
 # 平台开发规范
 
-> **状态**：✅ 当前（已实现）。本规范回答"怎么开发内核/行业包代码"：Tool/Skill 开发、错误处理、多 workspace、代码规范、测试。
+> **状态**：✅ 当前（已实现）。本规范回答"怎么开发内核/工作目录代码"：Tool/Skill 开发、错误处理、多 workspace、代码规范、测试。
 > **配套**：架构总览见 [`00-architecture.md`](./00-architecture.md)；建模硬规范见 [`40-ontology-modeling-spec.md`](./40-ontology-modeling-spec.md)；**新增 Object/Link/Action 的操作步骤见 [`manual/01-onboarding.md`](./manual/01-onboarding.md)**（Phase A-F）。
 
 ---
@@ -57,8 +57,8 @@
 
 | 类别 | 适用场景 | 现状 | 示例 |
 |------|---------|------|------|
-| **内核工具（固定）** | 通用原子操作，所有行业包共享 | ✅ 8 个 | `query_entity`/`create_entity`/`update_entity`/`traverse_relation`/`execute_action`/`confirm_action`/`query_task`/`update_task` |
-| **行业包工具（聚合）** | 行业包专属读操作 | ✅ 按行业包聚合 | retail: `query_near_expiry`；equipment_repair: `query_repair_tickets` |
+| **内核工具（固定）** | 通用原子操作，所有工作目录共享 | ✅ 8 个 | `query_entity`/`create_entity`/`update_entity`/`traverse_relation`/`execute_action`/`confirm_action`/`query_task`/`update_task` |
+| **工作目录工具（聚合）** | 工作目录专属读操作 | ✅ 按工作目录聚合 | retail: `query_near_expiry`；customerA: `query_repair_tickets` |
 | **OS 原子工具** | 操作系统级底层操作 | 🔜 预留，未实现 | `http_call`/`db_query` |
 
 > **通用 CRUD 降级**：`create_entity`/`update_entity` 被 `edits_only_via_actions` 拦截——对核心实体的写操作会被 Repository 拒绝（抛 `ActionRequiredError`）。详见架构 §2.3。
@@ -73,7 +73,7 @@ import agent.tools.shared as shared
 def new_tool_name(
     required_param: str,                            # 必填，有类型注解
     optional_param: str = None,                     # 可选，有默认值
-    workspace_name: str = "customer_default",       # 内核工具标配：workspace 隔离
+    workspace_name: str = "jjy",       # 内核工具标配：workspace 隔离
     org_unit_id: str = "*",                         # 内核工具标配：org 范围
 ) -> str:                                           # 返回必须是 str
     """工具的一句话描述（注入 LLM prompt）。
@@ -111,7 +111,7 @@ def my_tool(...) -> str:
 ### 2.3 Tool 注册流程
 
 1. **内核工具**：写在 `agent/tools/{query,crud,action}_tools.py`，已自动加入 `main.tools` 列表。
-2. **行业包工具**：写在行业包的 `tools_module`（如 `workspace/retail/skills/clearance_workflow/tools.py`），导出 `TOOLS` 列表；`main._aggregate_pack_tools()` 自动聚合。
+2. **工作目录工具**：写在工作目录的 `tools_module`（如 `workspace/retail/skills/clearance_workflow/tools.py`），导出 `TOOLS` 列表；`main._aggregate_pack_tools()` 自动聚合。
 3. **SKILL.md**：新 Tool 改变 LLM 可用操作时，更新相关 Skill 的 `allowed_tools` 与工具使用策略。
 
 ---
@@ -228,7 +228,7 @@ class TenantContext:
 
 ### 6.3 Repository 过滤实现
 
-`Repository.read(entity_type, tc, filters)` 按 `tc.matches(record)` 过滤（list comprehension）。旧数据（只有 `customer_id` 无 `workspace_name`）视为 `customer_default` + 通配 org（向后兼容）。
+`Repository.read(entity_type, tc, filters)` 按 `tc.matches(record)` 过滤（list comprehension）。旧数据（只有 `customer_id` 无 `workspace_name`）视为 `jjy` + 通配 org（向后兼容）。
 
 ---
 
@@ -239,7 +239,7 @@ class TenantContext:
 | 类别 | 规范 | 示例 |
 |------|------|------|
 | Python 文件 | snake_case | `state_machine.py`, `discount_rules.json` |
-| Python 类 | PascalCase | `ObjectType`, `IndustryPack`, `ValueChainProcess` |
+| Python 类 | PascalCase | `ObjectType`, `工作目录（WorkspaceDef）`, `ValueChainProcess` |
 | Python 函数 | snake_case | `build_ontology_prompt`, `calculate_discount` |
 | Python 常量 | UPPER_SNAKE_CASE | `TASK_TRANSITIONS`, `TERMINAL_STATES` |
 | Tool 函数名 | snake_case | `query_entity`, `execute_action` |
@@ -260,20 +260,20 @@ class TenantContext:
 ```
 agent/                          # 后端
 ├── main.py                     # 入口：FastAPI + Agent + 端点 + webhook
-├── engine/                     # 核心引擎（内核，不依赖任何行业包符号）
+├── engine/                     # 核心引擎（内核，不依赖任何工作目录符号）
 │   ├── parser.py / repository.py / executor.py / action_loader.py
-│   ├── state_machine.py / preview_cache.py / pack.py
+│   ├── state_machine.py / preview_cache.py / workspace.py
 │   ├── workspace.py / workspace_bootstrap.py / tenant.py / bootstrap.py
 │   ├── scheduler.py / schemas.py / errors.py
 ├── tools/                      # 系统原子 Tool（query/crud/action + shared）
 └── skills/                     # 系统 Skill（platform-help）
-workspace/                      # workspace 层（行业包 + 客户实例）
-├── customer_default/config.yaml
-├── retail/{pack.py, ontology/domains/<域>/, data/, skills/}
-└── equipment_repair/{pack.py, ontology/domains/, data/, skills/}
+workspace/                      # workspace 层（工作目录 + 客户实例）
+├── jjy/config.yaml
+├── retail/{workspace.py, ontology/domains/<域>/, data/, skills/}
+└── customerA/{workspace.py, ontology/domains/, data/, skills/}
 ```
 
-**导入规则**：`engine/` 不 import 任何 `workspace/` 符号（内核不依赖行业包）。行业包通过注册表（`register_pack`）在 import 时自报家门，`bootstrap()` 统一发现。
+**导入规则**：`engine/` 不 import 任何 `workspace/` 符号（内核不依赖工作目录）。工作目录通过注册表（`register_workspace_dir`）在 import 时自报家门，`bootstrap()` 统一发现。
 
 ---
 

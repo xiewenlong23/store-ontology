@@ -68,6 +68,6 @@ def test_tenant_isolation(tmp_data_dir):
     tc_a = TenantContext(workspace_name="customer_a", org_unit_id="*")
     tc_b = TenantContext(workspace_name="customer_b", org_unit_id="*")
     repo.write("Store", tc_b, {"id": "store_002"}, create=True)
-    # 默认数据（无 customer_id）属于 customer_default，不属 a/b
+    # 默认数据（无 customer_id）属于 jjy，不属 a/b
     assert len(repo.read("Store", tc_a)) == 0
     assert len(repo.read("Store", tc_b)) == 1

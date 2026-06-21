@@ -331,7 +331,7 @@ async def workspace_middleware(request, call_next):
     """解析 X-Workspace header，注入 request.state.workspace_name（架构 spec §3.4）。
 
     前端通过 X-Workspace header 告诉后端运行在哪个 workspace 上。
-    未传时默认 customer_default（保持向后兼容）。
+    未传时默认 jjy（保持向后兼容）。
     具体 workspace 运行时上下文的构建（bootstrap_workspace）在各路由内按需调用，
     通过 _resolve_workspace_name(request) 统一取值（header 优先，URL {cid} 回退）。
     """
@@ -343,7 +343,7 @@ async def workspace_middleware(request, call_next):
 def _resolve_workspace_name(request, url_cid: str = None) -> str:
     """统一解析当前请求的 workspace 标识（架构 spec §3.4）。
 
-    优先级：X-Workspace header > URL {cid} 参数 > 默认 customer_default。
+    优先级：X-Workspace header > URL {cid} 参数 > 默认 jjy。
     URL {cid} 回退保证旧前端调用（admin/dashboard 路由）仍可用。
     """
     ws = getattr(request.state, "workspace_name", None)

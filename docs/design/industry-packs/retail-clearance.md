@@ -1,17 +1,17 @@
-# 零售临期行业包（retail）
+# 零售临期工作目录（retail）
 
-> **状态**：✅ 当前（已实现）。本包是第一个行业包，作为内核能力的验证场景与首个落地 demo。
+> **状态**：✅ 当前（已实现）。本包是第一个工作目录，作为内核能力的验证场景与首个落地 demo。
 > **单一事实源**：本文件的字段/Action 列表是**速览**；权威定义以 TTL/YAML 为准（路径见下）。
 
 ---
 
-## 1. 行业包声明
+## 1. 工作目录声明
 
-声明文件：`workspace/retail/pack.py`。`bootstrap()` 自动发现 `workspace/*/pack.py`。
+声明文件：`workspace/retail/workspace.py`。`bootstrap()` 自动发现 `workspace/*/workspace.py`。
 
 ```python
-RETAIL_PACK = IndustryPack(
-    name="retail", display_name="零售行业包",
+RETAIL_PACK = 工作目录（WorkspaceDef）(
+    name="retail", display_name="零售工作目录",
     domains=[MARKETING, ORGANIZATION, FINANCE],   # 3 能力域
     processes=[CLEARANCE],                         # 1 价值链流程
     data_dir=.../"workspace/retail/data")

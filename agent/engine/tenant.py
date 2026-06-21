@@ -20,7 +20,7 @@ class TenantContext:
         规则：
         - workspace_name 必须匹配（硬隔离）
         - org_unit_id：上下文通配 '*' 则看所有；否则必须精确匹配
-        - 旧数据（只有 customer_id 无 workspace_name）视为 customer_default + 通配 org（向后兼容）
+        - 旧数据（只有 customer_id 无 workspace_name）视为 jjy + 通配 org（向后兼容）
         """
         # 兼容：新格式读 workspace_name，旧格式读 customer_id（数据迁移期）
         rec_workspace = record.get("workspace_name")

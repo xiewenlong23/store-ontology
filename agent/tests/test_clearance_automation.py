@@ -126,7 +126,7 @@ def test_register_clearance_automation_adds_jobs():
 
 def test_automation_closure_resolves_clearance_process():
     """回归 C2：scheduler 闭包 _get_executor 必须解析到 clearance 价值链流程的 executor，
-    而非靠 customer_default→retail→processes[0] 的隐式巧合。
+    而非靠 jjy→retail→processes[0] 的隐式巧合。
 
     判据：闭包返回的 executor.config 是 clearance 流程（workflow_object_type=Task）。
     若闭包仍传 vertical=（已忽略）或依赖 processes[0] 顺序，此测试会暴露。

@@ -25,7 +25,7 @@ def test_query_entity_accepts_customer_and_org_unit(clearance_data_dir, monkeypa
 
 
 def test_query_entity_defaults_to_customer_default(clearance_data_dir, monkeypatch):
-    """不传 customer_id 时默认 customer_default。"""
+    """不传 customer_id 时默认 jjy。"""
     _setup(monkeypatch, clearance_data_dir)
     out = query_entity.invoke({"entity_type": "Store"})
     assert "store_001" in out  # 旧数据（无 workspace_name）兼容可见
@@ -38,7 +38,7 @@ def test_query_entity_isolates_by_customer(clearance_data_dir, monkeypatch):
         "entity_type": "Store",
         "workspace_name": "customer_other",
     })
-    assert "store_001" not in out  # 属于 customer_default，不属于 customer_other
+    assert "store_001" not in out  # 属于 jjy，不属于 customer_other
 
 
 def test_query_entity_isolates_by_contextvar(clearance_data_dir, monkeypatch):

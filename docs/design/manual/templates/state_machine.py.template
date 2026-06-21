@@ -5,7 +5,7 @@ pack.py 会 import 这两个符号填入 ValueChainProcess.state_transitions / t
 executor 的 state_transition 副作用自动查这张表校验（per-process，与其它流程互不干扰）。
 
 填写：画状态图，把 {{...}} 替换为实际状态名。参照：
-- workspace/equipment_repair/skills/repair_workflow/state_machine.py（REPAIR_TICKET_TRANSITIONS）
+- workspace/customerA/skills/repair_workflow/state_machine.py（REPAIR_TICKET_TRANSITIONS）
 - agent/engine/state_machine.py（TASK_TRANSITIONS，clearance）
 """
 

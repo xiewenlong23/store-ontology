@@ -15,7 +15,7 @@ import agent.tools.shared as shared
 @tool
 def {{query_tool_name}}(
     {{filter_param}}: Optional[str] = None,
-    workspace_name: str = "customer_default",
+    workspace_name: str = "jjy",
     org_unit_id: str = "*",
 ) -> str:
     """{{一句话工具描述，注入 LLM prompt}}。

@@ -72,7 +72,7 @@ def test_write_stamps_customer_and_org(tmp_path):
 
 
 def test_backward_compat_legacy_tenant_id_string(tmp_path):
-    """旧调用传字符串 tenant_id 时兼容（视为 customer_default + 通配）。"""
+    """旧调用传字符串 tenant_id 时兼容（视为 jjy + 通配）。"""
     _seed(str(tmp_path), [
         {"id": "s1", "tenant_id": "jjy", "name": "A"},
     ])

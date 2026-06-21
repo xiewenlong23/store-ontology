@@ -143,5 +143,5 @@ def test_resolve_workspace_name_priority(client):
     assert main._resolve_workspace_name(_FakeRequest("ws_from_header"), "url_cid") == "ws_from_header"
     # header 缺失、url cid 存在 → 用 url cid
     assert main._resolve_workspace_name(_FakeRequest(None), "url_cid") == "url_cid"
-    # 都缺失 → 默认 customer_default
+    # 都缺失 → 默认 jjy
     assert main._resolve_workspace_name(_FakeRequest(None), None) == "jjy"

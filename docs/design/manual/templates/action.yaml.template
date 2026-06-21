@@ -4,7 +4,7 @@
 # 流程专属 Action 放：workspace/{{pack_name}}/skills/{{process}}/actions/{{api_name}}.yaml
 # 完整规范见 docs/design/40-ontology-modeling-spec.md §5、docs/design/20-api-data-contract.md §3。
 
-api_name: {{api_name}}                       # snake_case，建议加流程前缀避免跨行业包冲突
+api_name: {{api_name}}                       # snake_case，建议加流程前缀避免跨工作目录冲突
 display_name: "{{操作中文名}}"
 description: "{{业务语义描述}}"
 status: active                              # active | experimental | deprecated

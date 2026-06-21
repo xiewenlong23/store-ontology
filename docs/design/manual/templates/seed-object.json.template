@@ -2,7 +2,7 @@
   {
     "id": "{{entity}}_001",
     "name": "{{实例名称}}",
-    "workspace_name": "customer_default",
+    "workspace_name": "jjy",
     "_comment_org_unit_id": "可选；需 org 隔离时加。'*' 或具体 org_unit_id。默认对该 workspace 全可见",
     "org_unit_id": "*",
 

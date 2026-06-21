@@ -37,7 +37,7 @@ def _warn_deprecated_vertical(vertical):
 
 
 def _workspace_name_from_ctx() -> str:
-    """从 main.tenant_ctx contextvar 取当前请求的 workspace_name（默认 customer_default）。
+    """从 main.tenant_ctx contextvar 取当前请求的 workspace_name（默认 jjy）。
 
     request 中间件在处理请求时设置 tenant_ctx（TenantContext）。@tool 函数运行在请求
     线程内，故能读到。无 ctx（离线/测试）时回退 customer_default。

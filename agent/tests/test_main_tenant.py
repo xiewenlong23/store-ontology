@@ -23,7 +23,7 @@ def test_tenant_contextvar_set_from_headers():
 
 
 def test_tenant_contextvar_defaults():
-    """缺 header 时 TenantContext 默认 customer_default + 通配。"""
+    """缺 header 时 TenantContext 默认 jjy + 通配。"""
     from engine.tenant import TenantContext
     tc = TenantContext.from_headers({})
     assert tc.workspace_name == "jjy"

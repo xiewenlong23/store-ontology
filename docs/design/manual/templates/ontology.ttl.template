@@ -1,4 +1,4 @@
-# {{pack_name}} 行业包 / {{domain}} 能力域 本体定义（TTL）
+# {{pack_name}} 工作目录 / {{domain}} 能力域 本体定义（TTL）
 #
 # 放在：workspace/{{pack_name}}/ontology/domains/{{domain}}/domain.ttl
 # parser 从 @prefix 行动态读取前缀（不硬编码）。
