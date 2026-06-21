@@ -1,25 +1,25 @@
 """测试 pack 注册表（行业包装配模型，spec §5.3）。
 
-原 test_vertical.py 迁移而来：vertical registry 已移除，本文件测 IndustryPack 装配。
+原 test_vertical.py 迁移而来：vertical registry 已移除，本文件测 WorkspaceDef 装配。
 """
 import os
 import pytest
-from engine.pack import (IndustryPack, CapabilityDomain, ValueChainProcess,
-                          register_pack, get_pack, all_packs, clear_packs, pack_to_registry)
+from engine.pack import (WorkspaceDef, CapabilityDomain, ValueChainProcess,
+                          register_workspace_dir, get_workspace_dir, all_workspace_dirs, clear_workspace_dirs, domains_to_registry)
 
 
 @pytest.fixture(autouse=True)
 def _clean_registry():
-    clear_packs()
+    clear_workspace_dirs()
     yield
-    clear_packs()
+    clear_workspace_dirs()
 
 
 def test_register_and_get():
-    pack = IndustryPack(name="demo", display_name="测试")
-    register_pack(pack)
-    assert get_pack("demo") is pack
-    assert len(all_packs()) == 1
+    ws = WorkspaceDef(name="demo", display_name="测试")
+    register_workspace_dir(ws)
+    assert get_workspace_dir("demo") is ws
+    assert len(all_workspace_dirs()) == 1
 
 
 def test_get_ontology_parser_default_uses_pack():
@@ -39,30 +39,30 @@ def test_get_ontology_parser_default_uses_pack():
 
 def test_config_aware_parser_loads_ttl_and_actions():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cfg = IndustryPack(
-        name="test_pack", display_name="测试",
+    cfg = WorkspaceDef(
+        name="test_ws", display_name="测试",
         domains=[CapabilityDomain(
             name="marketing", display_name="营销",
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
             actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
-    register_pack(cfg)
-    p = pack_to_registry(cfg)
+    register_workspace_dir(cfg)
+    p = domains_to_registry(cfg)
     assert len(p.object_types) >= 2  # Product + NearExpiryProduct
     assert "create_clearance_task" in p.action_types
 
 
-def test_pack_to_registry_deterministic():
-    """pack_to_registry 多次构建结果一致（vertical 缓存已移除，无缓存依赖）。"""
+def test_ws_to_registry_deterministic():
+    """domains_to_registry 多次构建结果一致（vertical 缓存已移除，无缓存依赖）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cfg = IndustryPack(
-        name="test_pack", display_name="测试",
+    cfg = WorkspaceDef(
+        name="test_ws", display_name="测试",
         domains=[CapabilityDomain(
             name="marketing", display_name="营销",
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
             actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
-    register_pack(cfg)
-    p1 = pack_to_registry(cfg)
-    p2 = pack_to_registry(cfg)
+    register_workspace_dir(cfg)
+    p1 = domains_to_registry(cfg)
+    p2 = domains_to_registry(cfg)
     assert len(p1.object_types) == len(p2.object_types)
 
 

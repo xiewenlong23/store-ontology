@@ -4,31 +4,31 @@ import pytest
 
 def test_retail_pack_registered_after_bootstrap():
     from engine.bootstrap import bootstrap
-    from engine.pack import get_pack
+    from engine.pack import get_workspace_dir
     bootstrap()
-    assert get_pack("retail") is not None
+    assert get_workspace_dir("retail") is not None
 
 
 def test_clearance_process_has_tools():
     """clearance process 的 tools_module 能 import 且有 TOOLS。"""
     from engine.bootstrap import bootstrap
-    from engine.pack import get_pack
+    from engine.pack import get_workspace_dir
     bootstrap()
-    pack = get_pack("retail")
-    clearance = next(p for p in pack.processes if p.name == "clearance")
+    ws = get_workspace_dir("retail")
+    clearance = next(p for p in ws.processes if p.name == "clearance")
     import importlib
     mod = importlib.import_module(clearance.tools_module)
     assert hasattr(mod, "TOOLS")
     assert len(mod.TOOLS) >= 1
 
 
-def test_pack_to_registry_all_objects():
-    """pack_to_registry 合并后含全部 7 Object。"""
+def test_ws_to_registry_all_objects():
+    """domains_to_registry 合并后含全部 7 Object。"""
     from engine.bootstrap import bootstrap
-    from engine.pack import get_pack, pack_to_registry
+    from engine.pack import get_workspace_dir, domains_to_registry
     bootstrap()
-    pack = get_pack("retail")
-    reg = pack_to_registry(pack, data_dir="../data")
+    ws = get_workspace_dir("retail")
+    reg = domains_to_registry(ws, data_dir="../data")
     assert len(reg.object_types) == 7
 
 

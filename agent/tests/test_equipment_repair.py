@@ -6,7 +6,7 @@ import os
 import pytest
 
 from engine.bootstrap import bootstrap
-from engine.pack import all_packs, pack_to_registry, ValueChainProcess
+from engine.pack import all_workspace_dirs, domains_to_registry, ValueChainProcess
 from engine.parser import OntologyParser
 from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
@@ -35,9 +35,9 @@ def _boot():
 
 def _exec(data_dir):
     """构造指向 data_dir 的 executor（从 pack 合并 registry）。"""
-    from engine.pack import get_pack
-    pack = get_pack("equipment_repair")
-    registry = pack_to_registry(pack, data_dir=data_dir)
+    from engine.pack import get_workspace_dir
+    ws = get_workspace_dir("equipment_repair")
+    registry = domains_to_registry(ws, data_dir=data_dir)
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
     ex = ActionExecutor(repository=repo, actions=registry.action_types,
                         registry=registry, config=_REPAIR_PROCESS)
@@ -45,14 +45,14 @@ def _exec(data_dir):
 
 
 def test_equipment_repair_registered():
-    names = [p.name for p in all_packs()]
+    names = [p.name for p in all_workspace_dirs()]
     assert "equipment_repair" in names
 
 
 def test_repair_ttl_and_actions_parse():
-    from engine.pack import get_pack
-    pack = get_pack("equipment_repair")
-    registry = pack_to_registry(pack, data_dir=os.path.join(_BASE, "..", "workspace", "equipment_repair", "data"))
+    from engine.pack import get_workspace_dir
+    ws = get_workspace_dir("equipment_repair")
+    registry = domains_to_registry(ws, data_dir=os.path.join(_BASE, "..", "workspace", "equipment_repair", "data"))
     assert {"Equipment", "RepairTicket", "Technician", "Vendor"} == set(registry.object_types)
     assert len(registry.link_types) == 4
     assert {"create_repair_ticket", "diagnose_ticket", "assign_technician",
@@ -112,11 +112,11 @@ def test_cancel_from_any_nonterminal(repair_data_dir):
 
 def test_retail_pack_still_works_alongside():
     """retail pack 仍注册且可解析（pack + vertical 共存）。"""
-    from engine.pack import get_pack, pack_to_registry
+    from engine.pack import get_workspace_dir, domains_to_registry
     bootstrap()
-    pack = get_pack("retail")
-    assert pack is not None
-    reg = pack_to_registry(pack, data_dir="../data")
+    ws = get_workspace_dir("retail")
+    assert ws is not None
+    reg = domains_to_registry(ws, data_dir="../data")
     assert "create_clearance_task" in reg.action_types
 
 

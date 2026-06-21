@@ -60,7 +60,7 @@ class OntologyParser:
     def __init__(self, ttl_path: str, data_dir: str, config=None):
         self.ttl_path = Path(ttl_path)
         self.data_dir = Path(data_dir)
-        self.config = config  # Optional[IndustryPack/ValueChainProcess 上下文]（行业包侧传入）
+        self.config = config  # Optional[WorkspaceDef/ValueChainProcess 上下文]（工作目录侧传入）
         self.PREFIX = self._read_prefix()
         self.registry = EntityRegistry()
         self._parse()
@@ -159,10 +159,10 @@ def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> "Ontology
 
     两种调用方式：
     1. get_ontology_parser(ttl_path=..., data_dir=...)  —— 显式路径（测试用）
-    2. get_ontology_parser()                            —— 默认（all_packs()[0]，回退空 registry）
+    2. get_ontology_parser()                            —— 默认（all_workspace_dirs()[0]，回退空 registry）
 
     按 vertical name 取 parser 的旧方式已删除（vertical registry 已移除）。
-    生产装配经 bootstrap_workspace / pack_to_registry，不经此函数。
+    生产装配经 bootstrap_workspace / domains_to_registry，不经此函数。
     """
     # 方式 1：显式路径（不缓存，测试每次新建）
     if ttl_path is not None or data_dir is not None:
@@ -177,18 +177,18 @@ def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> "Ontology
             p.registry.action_types = load_actions(actions_dir)
         return p
 
-    # 方式 2：默认 pack（all_packs()[0]，回退空 registry）
-    from engine.pack import all_packs, pack_to_registry
+    # 方式 2：默认工作目录（all_workspace_dirs()[0]，回退空 registry）
+    from engine.pack import all_workspace_dirs, domains_to_registry
     from engine.bootstrap import bootstrap
     bootstrap()
-    packs = all_packs()
-    if packs:
-        pack = packs[0]
-        registry = pack_to_registry(pack, data_dir=pack.data_dir or ".")
-        p = type('P', (), {'registry': registry, 'data_dir': __import__('pathlib').Path(pack.data_dir or "."),
+    ws_dirs = all_workspace_dirs()
+    if ws_dirs:
+        ws = ws_dirs[0]
+        registry = domains_to_registry(ws, data_dir=ws.data_dir or ".")
+        p = type('P', (), {'registry': registry, 'data_dir': __import__('pathlib').Path(ws.data_dir or "."),
                            'config': None})()
         return p
-    # 无 pack 时返回空 registry
+    # 无工作目录时返回空 registry
     registry = EntityRegistry()
     return type('P', (), {'registry': registry, 'data_dir': __import__('pathlib').Path("."),
                           'config': None})()

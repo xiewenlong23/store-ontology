@@ -3,26 +3,26 @@ import importlib
 import pytest
 
 from engine import bootstrap as bootstrap_mod
-from engine.pack import all_packs, clear_packs, register_pack, IndustryPack, CapabilityDomain
+from engine.pack import all_workspace_dirs, clear_workspace_dirs, register_workspace_dir, WorkspaceDef, CapabilityDomain
 
 
 def test_bootstrap_registers_equipment_repair():
     bootstrap_mod.bootstrap()
-    names = [p.name for p in all_packs()]
+    names = [p.name for p in all_workspace_dirs()]
     assert "equipment_repair" in names
 
 
 def test_bootstrap_registers_retail():
     bootstrap_mod.bootstrap()
-    names = [p.name for p in all_packs()]
+    names = [p.name for p in all_workspace_dirs()]
     assert "retail" in names
 
 
 def test_bootstrap_is_idempotent():
     bootstrap_mod.bootstrap()
-    n1 = len(all_packs())
+    n1 = len(all_workspace_dirs())
     bootstrap_mod.bootstrap()
-    n2 = len(all_packs())
+    n2 = len(all_workspace_dirs())
     assert n1 == n2
 
 
@@ -49,8 +49,8 @@ def test_aggregate_skill_paths_filters_non_skill_dirs(tmp_path):
     proc = ValueChainProcess(name="t_proc", display_name="t",
                              workflow_object_type="X",
                              skills_dir=str(skills))
-    pack = IndustryPack(name="t_pack", display_name="t", processes=[proc])
-    register_pack(pack)
+    ws = WorkspaceDef(name="t_ws", display_name="t", processes=[proc])
+    register_workspace_dir(ws)
     try:
         main_mod = importlib.import_module("main")
         paths = main_mod._aggregate_skill_paths()
@@ -58,8 +58,8 @@ def test_aggregate_skill_paths_filters_non_skill_dirs(tmp_path):
         assert "/tmp/" not in paths
         assert "/__pycache__/" not in paths
     finally:
-        from engine.pack import _packs
-        _packs.pop("t_pack", None)
+        from engine.pack import _workspace_dirs
+        _workspace_dirs.pop("t_ws", None)
 
 
 def test_build_combined_prompt_includes_packs():

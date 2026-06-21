@@ -91,7 +91,7 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
     # 接通 executor：config 取该 workspace source_pack 的（第一个）价值链流程（spec §5.3）。
-    # 解析链：WorkspaceConfig.source_pack → get_pack → ws.processes → processes[0]。
+    # 解析链：WorkspaceConfig.source_pack → get_workspace_dir → ws.processes → processes[0]。
     # 多 process 按 process_name 精确选择留 v2（_get_executor(workspace, process)）。
     from engine.executor import ActionExecutor
     from engine.pack import get_workspace_dir

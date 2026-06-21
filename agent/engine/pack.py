@@ -1,6 +1,6 @@
 """工作目录定义：CapabilityDomain + ValueChainProcess + WorkspaceDef。
 
-去掉 IndustryPack 中间层：每个工作目录直接是一组能力域 + 价值链流程的扁平集合。
+工作目录模型：每个工作目录直接是一组能力域 + 价值链流程的扁平集合。
 工作目录经 workspace/*/workspace.py 的 register_workspace_dir 注册。
 """
 import os
@@ -40,7 +40,7 @@ class ValueChainProcess:
 
 @dataclass
 class WorkspaceDef:
-    """工作目录定义：一组能力域 + 价值链流程（取代原 IndustryPack 容器）。"""
+    """工作目录定义：一组能力域 + 价值链流程（工作目录定义）。"""
     name: str
     display_name: str
     domains: List[CapabilityDomain] = field(default_factory=list)
@@ -72,7 +72,7 @@ def clear_workspace_dirs() -> None:
 def domains_to_registry(ws_def: WorkspaceDef, data_dir: str = ".") -> EntityRegistry:
     """合并工作目录下所有 domain + process 的定义为一个 EntityRegistry。
 
-    取代原 pack_to_registry。入参从 IndustryPack 改为 WorkspaceDef（结构相同）。
+    合并工作目录的 domain + process 定义为 EntityRegistry。
     """
     registry = EntityRegistry()
 
@@ -91,32 +91,3 @@ def domains_to_registry(ws_def: WorkspaceDef, data_dir: str = ".") -> EntityRegi
             registry.action_types.update(load_actions(proc.actions_dir))
 
     return registry
-
-
-# ============ 向后兼容别名（迁移期，WP1 完成后可逐步移除）============
-# 旧代码 import IndustryPack/register_pack/all_packs/pack_to_registry 的临时桥接。
-# 这些在 WP1 测试改完后应无调用者；若 grep 确认零引用，可在后续清理。
-
-_packs = _workspace_dirs  # deprecated 别名（内部注册表，部分测试直接 import）
-
-IndustryPack = WorkspaceDef  # type: ignore[misc,assignment]
-
-def register_pack(ws_def) -> None:
-    """deprecated: 用 register_workspace_dir。"""
-    register_workspace_dir(ws_def)
-
-def get_pack(name: str):
-    """deprecated: 用 get_workspace_dir。"""
-    return get_workspace_dir(name)
-
-def all_packs() -> List[WorkspaceDef]:
-    """deprecated: 用 all_workspace_dirs。"""
-    return all_workspace_dirs()
-
-def clear_packs() -> None:
-    """deprecated: 用 clear_workspace_dirs。"""
-    clear_workspace_dirs()
-
-def pack_to_registry(ws_def, data_dir: str = ".") -> EntityRegistry:
-    """deprecated: 用 domains_to_registry。"""
-    return domains_to_registry(ws_def, data_dir)

@@ -1,7 +1,7 @@
 """测试 bootstrap 扫 packs + 兼容 verticals（P2）。"""
 import pytest
 from engine.bootstrap import bootstrap
-from engine.pack import all_packs, clear_packs
+from engine.pack import all_workspace_dirs, clear_workspace_dirs
 
 
 
@@ -10,34 +10,34 @@ def test_bootstrap_discovers_equipment_repair_pack():
     # 显式补注册防被其它测试 clear 掉
     import workspace.equipment_repair.workspace  # noqa: F401
     from workspace.equipment_repair.workspace import EQUIPMENT_REPAIR_WS
-    from engine.pack import register_pack
-    register_pack(EQUIPMENT_REPAIR_WS)
+    from engine.pack import register_workspace_dir
+    register_workspace_dir(EQUIPMENT_REPAIR_WS)
 
     bootstrap()
-    pack_names = [p.name for p in all_packs()]
+    pack_names = [p.name for p in all_workspace_dirs()]
     assert "equipment_repair" in pack_names
 
 
 def test_bootstrap_idempotent():
     bootstrap()
-    n1 = len(all_packs())
+    n1 = len(all_workspace_dirs())
     bootstrap()
-    n2 = len(all_packs())
+    n2 = len(all_workspace_dirs())
     assert n1 == n2
 
 
 def test_bootstrap_discovers_retail_pack():
     """bootstrap 后 retail pack 被发现注册。
 
-    pack.py 的 register_pack 在 import 时执行；若其它测试 clear_packs() 清空了
+    pack.py 的 register_workspace_dir 在 import 时执行；若其它测试 clear_workspace_dirs() 清空了
     全局注册表，模块缓存使 bootstrap 的 import 不重跑 register。故此处显式重新注册。
     """
     # 确保模块已加载（首次 import 会 register），再显式补注册防 clear 残留
     import workspace.retail.workspace  # noqa: F401（触发 import + register）
     from workspace.retail.workspace import RETAIL_WS
-    from engine.pack import register_pack
-    register_pack(RETAIL_WS)  # 幂等补注册（防被其它测试 clear 掉）
+    from engine.pack import register_workspace_dir
+    register_workspace_dir(RETAIL_WS)  # 幂等补注册（防被其它测试 clear 掉）
 
     bootstrap()
-    pack_names = [p.name for p in all_packs()]
+    pack_names = [p.name for p in all_workspace_dirs()]
     assert "retail" in pack_names

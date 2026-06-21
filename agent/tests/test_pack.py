@@ -1,8 +1,8 @@
-"""测试三级结构 IndustryPack/CapabilityDomain/ValueChainProcess（P2）。"""
+"""测试三级结构 WorkspaceDef/CapabilityDomain/ValueChainProcess（P2）。"""
 import pytest
 from engine.pack import (
-    IndustryPack, CapabilityDomain, ValueChainProcess,
-    register_pack, get_pack, all_packs, clear_packs, pack_to_registry,
+    WorkspaceDef, CapabilityDomain, ValueChainProcess,
+    register_workspace_dir, get_workspace_dir, all_workspace_dirs, clear_workspace_dirs, domains_to_registry,
 )
 
 
@@ -26,25 +26,25 @@ def test_industry_pack_aggregates():
                          ttl_path="/tmp/m.ttl", actions_dir="/tmp/m/a")
     p = ValueChainProcess(name="clearance", display_name="出清",
                           workflow_object_type="Task")
-    pack = IndustryPack(name="retail", display_name="零售行业包",
+    ws = WorkspaceDef(name="retail", display_name="零售行业包",
                         domains=[d], processes=[p])
-    assert len(pack.domains) == 1
-    assert len(pack.processes) == 1
-    assert pack.domains[0].name == "marketing"
-    assert pack.processes[0].name == "clearance"
+    assert len(ws.domains) == 1
+    assert len(ws.processes) == 1
+    assert ws.domains[0].name == "marketing"
+    assert ws.processes[0].name == "clearance"
 
 
-def test_pack_registry():
-    clear_packs()
-    pack = IndustryPack(name="retail", display_name="零售")
-    register_pack(pack)
-    assert get_pack("retail") is pack
-    assert len(all_packs()) == 1
-    clear_packs()
+def test_ws_registry():
+    clear_workspace_dirs()
+    ws = WorkspaceDef(name="retail", display_name="零售")
+    register_workspace_dir(ws)
+    assert get_workspace_dir("retail") is ws
+    assert len(all_workspace_dirs()) == 1
+    clear_workspace_dirs()
 
 
-def test_pack_to_registry_merges_domains(tmp_path):
-    """pack_to_registry 合并 pack 下所有 domain 的 TTL + action。"""
+def test_ws_to_registry_merges_domains(tmp_path):
+    """domains_to_registry 合并 pack 下所有 domain 的 TTL + action。"""
     import os
     # 构造两个域，各一个 TTL + 一个 action（格式对齐 parser：用 rdfs: prefix + 行尾 ' .'）
     d1_dir = tmp_path / "marketing"
@@ -79,9 +79,9 @@ def test_pack_to_registry_merges_domains(tmp_path):
     d2 = CapabilityDomain(name="organization", display_name="组织",
                           ttl_path=str(d2_dir / "domain.ttl"),
                           actions_dir=str(d2_dir / "actions"))  # 无 action
-    pack = IndustryPack(name="retail", display_name="零售", domains=[d1, d2])
+    ws = WorkspaceDef(name="retail", display_name="零售", domains=[d1, d2])
 
-    registry = pack_to_registry(pack)
+    registry = domains_to_registry(ws)
     assert "Product" in registry.object_types
     assert "Store" in registry.object_types
     assert "test_action" in registry.action_types

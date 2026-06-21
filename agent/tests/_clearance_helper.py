@@ -2,7 +2,7 @@
 
 P2+I-4 后 clearance 本体拆在 3 个 domain TTL + process actions 里，
 不能再从单个 CLEARANCE_CONFIG.ttl_path 构建完整 registry。
-此 helper 用 pack_to_registry 合并全 pack 定义。
+此 helper 用 domains_to_registry 合并全 pack 定义。
 """
 import os
 
@@ -10,7 +10,7 @@ from engine.parser import OntologyParser
 from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
-from engine.pack import pack_to_registry, ValueChainProcess
+from engine.pack import domains_to_registry, ValueChainProcess
 from engine.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
 from engine.bootstrap import bootstrap
 
@@ -20,18 +20,18 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def build_clearance_registry(data_dir: str):
     """从 retail-pack 构建完整 EntityRegistry（含所有 domain TTL + process actions）。"""
-    from engine.pack import get_pack, register_pack
+    from engine.pack import get_workspace_dir, register_workspace_dir
     bootstrap()
-    pack = get_pack("retail")
-    if pack is None:
+    ws = get_workspace_dir("retail")
+    if ws is None:
         # bootstrap 可能因模块缓存未重新注册——直接 import + 注册
         import workspace.retail.workspace  # noqa: F401
         from workspace.retail.workspace import RETAIL_WS
-        register_pack(RETAIL_WS)
-        pack = get_pack("retail")
-    if pack is None:
-        raise RuntimeError("retail pack 未注册")
-    return pack_to_registry(pack, data_dir=data_dir)
+        register_workspace_dir(RETAIL_WS)
+        ws = get_workspace_dir("retail")
+    if ws is None:
+        raise RuntimeError("retail 工作目录未注册")
+    return domains_to_registry(ws, data_dir=data_dir)
 
 
 CLEARANCE_TEST_PROCESS = ValueChainProcess(
