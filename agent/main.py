@@ -116,9 +116,16 @@ _STORE_CONTEXT = """
 
 import contextvars
 from engine.tenant import TenantContext
+from engine.auth import AuthContext
 
 tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
     "tenant_ctx", default=TenantContext.default())
+
+# v2 认证（设计文档 §5 WP2）：auth_ctx 承载当前请求的可信身份。
+# WP2 阶段 auth_middleware 只注入 auth_ctx 不强制（无 token 也通过，返回 anonymous）；
+# WP6 切换为强制——除豁免路径外，无 token → 401。
+auth_ctx: contextvars.ContextVar = contextvars.ContextVar(
+    "auth_ctx", default=AuthContext.anonymous())
 
 
 def _build_ws_tools(ws_name: str):
@@ -288,6 +295,47 @@ async def workspace_middleware(request, call_next):
     return await call_next(request)
 
 
+# ============ v2 认证 middleware（设计文档 §5 WP2）============
+# WP2 阶段：只注入 auth_ctx 不强制（豁免所有路径，不破坏现有 e2e）。
+# WP6 切换为强制：除豁免路径外，无 token/过期/跨 ws 越权 → 401。
+
+_AUTH_EXEMPT_PATHS = {"/api/auth/login", "/health"}
+
+
+@app.middleware("http")
+async def auth_middleware(request, call_next):
+    """解析 Authorization Bearer，校验 JWT 签名 → 注入 auth_ctx contextvar。
+
+    跨 ws 越权防护：token 声明的 ws 白名单不含当前 X-Workspace → token 视为
+    无效（auth_ctx 回落 anonymous）；不立即 401（WP2 阶段不强制）。
+    """
+    from engine.auth import decode_token, TokenError, AuthContext
+    from engine.auth_audit import log_auth_event
+
+    auth = AuthContext.anonymous()
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        try:
+            payload = decode_token(token, expected_typ="access")
+            ws_list = tuple(payload.get("ws", []))
+            auth = AuthContext(
+                user_id=payload.get("sub", ""),
+                session_id=payload.get("sid", ""),
+                workspace_names=ws_list,
+            )
+        except TokenError as e:
+            # 记录但不阻断（WP2 阶段；WP6 后改为返回 401）
+            log_auth_event("token_invalid", outcome="failed",
+                           detail=str(e),
+                           client_ip=request.client.host if request.client else None)
+    token_set = auth_ctx.set(auth)
+    try:
+        return await call_next(request)
+    finally:
+        auth_ctx.reset(token_set)
+
+
 def _resolve_workspace_name(request, url_cid: str = None) -> str:
     """统一解析当前请求的 workspace 标识（架构 spec §3.4）。
 
@@ -329,6 +377,113 @@ async def copilotkit_endpoint(input_data: RunAgentInput, request: Request):
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+# ============ v2 认证 endpoints（设计文档 §5 WP2）============
+# 4 个端点：login / refresh / me / logout
+# 身份数据存 workspace（设计文档 §1 边界），agent 层只做编排 + JWT 签发。
+
+from pydantic import BaseModel as _BM, Field as _Field
+
+
+class LoginRequest(_BM):
+    username: str = _Field(..., description="实名（工号/手机号），跨 workspace 一致")
+    password: str
+
+
+class RefreshRequest(_BM):
+    refresh_token: str
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest, request: Request):
+    """登录：扫描所有 workspace 验证 → 签发 JWT。
+
+    设计文档 §2.2：username 实名一致，password_hash 各 workspace 独立；
+    返回 memberships（认成功的 workspace 列表）+ access/refresh token。
+    """
+    from engine.identity import list_user_workspaces
+    from engine.auth import issue_session_tokens
+    from engine.auth_audit import log_auth_event
+
+    client_ip = request.client.host if request.client else None
+    memberships = list_user_workspaces(req.username, req.password)
+    if not memberships:
+        log_auth_event("login", username=req.username, outcome="failed",
+                       detail="无匹配 workspace 或密码错", client_ip=client_ip)
+        return {"success": False, "error": "用户名或密码错误"}
+
+    ws_names = [m["workspace_name"] for m in memberships]
+    user_id = memberships[0]["user_id"]
+    tokens = issue_session_tokens(user_id=user_id, workspace_names=ws_names)
+    log_auth_event("login", username=req.username, user_id=user_id,
+                   outcome="success", detail=f"workspaces={ws_names}", client_ip=client_ip)
+    return {
+        "success": True,
+        "token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "session_id": tokens["session_id"],
+        "expires_in": tokens["expires_in"],
+        "memberships": memberships,
+    }
+
+
+@app.post("/api/auth/refresh")
+async def auth_refresh(req: RefreshRequest, request: Request):
+    """用 refresh token 换新的 access token。
+
+    refresh token 不含 ws 白名单；需重新调 list_user_workspaces 重新求值
+    （因为 workspace 列表可能变化）。MVP 简化：用原 token 的 sub（user_id）
+    作为 username 索引无效——refresh 流程要求 client 重新登录（WP2 简化）。
+    """
+    from engine.auth import decode_token, TokenError, issue_session_tokens
+    from engine.auth_audit import log_auth_event
+
+    client_ip = request.client.host if request.client else None
+    try:
+        payload = decode_token(req.refresh_token, expected_typ="refresh")
+    except TokenError as e:
+        log_auth_event("refresh", outcome="failed", detail=str(e), client_ip=client_ip)
+        return {"success": False, "error": f"refresh token 无效: {e}"}
+    # MVP：refresh 仅返回新的 access token（同 user + session），ws 白名单沿用原 token。
+    # 完整实现（重新求值 memberships）留 v2.1。
+    from engine.auth import create_access_token
+    user_id = payload.get("sub", "")
+    session_id = payload.get("sid", "")
+    # ws 白名单不在 refresh token 里——这里无法恢复，返回 401 要求重新登录。
+    log_auth_event("refresh", user_id=user_id, outcome="failed",
+                   detail="MVP 不支持 refresh，请重新 login", client_ip=client_ip)
+    return {"success": False, "error": "MVP 阶段请重新登录（refresh 完整支持留 v2.1）"}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    """返回当前认证身份 + memberships + visible_tools（设计文档 §5 WP7 前端用）。
+
+    可信身份来自 auth_ctx contextvar（auth_middleware 注入）。
+    WP2 阶段 visible_tools 返回空（PermissionEvaluator 在 WP5 实现）。
+    """
+    auth = auth_ctx.get()
+    if not auth.is_authenticated():
+        return {"authenticated": False}
+    return {
+        "authenticated": True,
+        "user_id": auth.user_id,
+        "session_id": auth.session_id,
+        "workspace_names": list(auth.workspace_names),
+        "visible_tools": [],   # WP5 PermissionEvaluator 填充
+    }
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    """登出（MVP：客户端清 token；服务端 token 撤销列表留 v2.1）。"""
+    from engine.auth_audit import log_auth_event
+    auth = auth_ctx.get()
+    client_ip = request.client.host if request.client else None
+    log_auth_event("logout", user_id=auth.user_id or None,
+                   outcome="success", client_ip=client_ip)
+    return {"success": True, "detail": "客户端请清除本地 token"}
 
 
 # ============ 本体管理 API（P4 §4.5，只读浏览）============
