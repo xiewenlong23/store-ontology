@@ -1,7 +1,7 @@
 """内核自动化调度器 —— 封装 APScheduler BackgroundScheduler。
 
-承载后端自动化的定时触发（架构 spec §1.5）：盘点完成、到期报损等无 LLM 在环的步骤。
-vertical 通过 register 函数把自己的 job 加进来（见 verticals/<name>/automation.py）。
+承载后端自动化的定时触发（架构文档 §2.4）：盘点完成、到期报损等无 LLM 在环的步骤。
+行业包通过 register 函数把自己的 job 加进来（见 workspace/<pack>/skills/<process>/automation.py）。
 
 设计：
 - job 函数签名统一：def job() —— 执行所需 executor/tenant 由 job 闭包捕获

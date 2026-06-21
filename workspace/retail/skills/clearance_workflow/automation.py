@@ -1,4 +1,4 @@
-"""clearance vertical 的后端自动化（架构 spec §1.4 步骤 9/12/13/14）。
+"""clearance 价值链流程的后端自动化（架构文档 §2.4 步骤 9/12/13/14）。
 
 无 LLM 在环，直接调 ActionExecutor.execute（headless 路径）。
 - expiry_check_job: 到期未售罄 → create_loss_report（计算式，无 LLM）

@@ -22,14 +22,17 @@ def test_register_and_get():
     assert len(all_packs()) == 1
 
 
-def test_unknown_vertical_raises():
-    """vertical registry 已移除；get_ontology_parser 不再接受 name（spec §5.3 决策1）。
+def test_get_ontology_parser_default_uses_pack():
+    """vertical registry 已移除；get_ontology_parser 默认路径走 pack（spec §5.3 决策1）。
 
-    按显式 ttl_path 调用是合法的；此处验证旧 name 调用方式已无意义，
-    改为验证 get_ontology_parser 的默认路径（pack）可工作。
+    验证默认调用（不传 name）返回带 registry 的对象，且签名不再接受 positional name。
     """
     from engine.parser import get_ontology_parser
-    p = get_ontology_parser()  # 默认 pack 路径，不传 name
+    import inspect
+    # 方式1（按 name）已删除：vertical 参数应不在签名里
+    params = inspect.signature(get_ontology_parser).parameters
+    assert "vertical" not in params, "get_ontology_parser 不应再接受 vertical 参数"
+    p = get_ontology_parser()  # 默认 pack 路径
     assert p is not None
     assert hasattr(p, "registry")
 
@@ -48,8 +51,8 @@ def test_config_aware_parser_loads_ttl_and_actions():
     assert "create_clearance_task" in p.action_types
 
 
-def test_parser_cached_per_vertical():
-    """vertical 缓存已移除；验证 pack_to_registry 多次构建结果一致（无缓存依赖）。"""
+def test_pack_to_registry_deterministic():
+    """pack_to_registry 多次构建结果一致（vertical 缓存已移除，无缓存依赖）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cfg = IndustryPack(
         name="test_pack", display_name="测试",

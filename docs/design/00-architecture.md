@@ -269,17 +269,19 @@ clearance 拆为 8 个细粒度 Action，走 `execute_action`（Preview）→ HI
 计算逻辑不作为本体元素，是行业包私有 Python 模块，被多个 Tool/Action 复用。**关键**：计算模块属于行业包不属于内核——内核不 import 任何行业包符号。
 
 ```python
-# workspace/retail/ontology/domains/marketing/rules/discount.py —— retail 行业包私有
+# workspace/retail/skills/clearance_workflow/discount.py —— retail 行业包私有
 def calculate_discount(discount_tier: str) -> int:
     """返回减扣百分比（0-100 int）。读 discount_rules.json。"""
     ...
 ```
 
+> 折扣数据源 `discount_rules.json` 在 `workspace/retail/ontology/domains/marketing/rules/`；`calculate_discount()` 经 `engine.discount_stub.get_discount_source()` 按优先级链解析（注入源 → workspace rules → workspace data 副本 → 全局兜底）。
+
 equipment_repair 行业包无折扣概念 → 无计算模块 → 证明内核不依赖折扣计算。
 
 ### 4.6 折扣单一事实源
 
-全系统折扣为**减扣百分比（0-100 int）**。单一事实源 = `discount_rules.json`（`discount_percent` 字段，T1=50/T2=30/T3=10）+ `calculate_discount()`（读它）。详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md)。
+全系统折扣为**减扣百分比（0-100 int）**。单一事实源 = `workspace/retail/ontology/domains/marketing/rules/discount_rules.json`（`discount_percent` 字段，T1=50/T2=30/T3=10）+ `calculate_discount()`（读它）。详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md)。
 
 ---
 
@@ -333,6 +335,8 @@ store-ontology/
 │   │   ├── tenant.py             # TenantContext（workspace_name + org_unit_id 双层）
 │   │   ├── bootstrap.py          # 自动发现 workspace/*/pack.py
 │   │   ├── scheduler.py          # AutomationScheduler（APScheduler 封装）
+│   │   ├── discount_stub.py      # 折扣数据源优先级链（注入源→workspace rules→data 副本→全局）
+│   │   ├── onboarding.py         # workspace 实例化（ontocopy/ontoseed 自动化）
 │   │   ├── schemas.py            # Pydantic 模型
 │   │   └── errors.py             # 通用异常
 │   ├── tools/                    # 系统原子 Tool（query/crud/action，依赖 shared 装配）

@@ -33,18 +33,18 @@ RETAIL_PACK = IndustryPack(
 | Employee | organization | — | 员工（role: clerk/manager/admin） |
 | Product | marketing | — | 商品（扁平 category 字符串；5 级品类树留 v2） |
 | NearExpiryProduct | marketing | ✅ | 临期商品（含 batch_no/production_date/expiry_date/stock_quantity/days_left/discount_tier/status） |
-| Task | finance | ✅ | 出清工作流主对象（状态机载体） |
+| Task | organization | ✅ | 出清工作流主对象（状态机载体） |
 | LossReport | finance | ✅ | 报损记录 |
 
 ## 3. Link Types
 
 以 TTL 为准（`manages` 方向已修正为 Store→Employee）。建模规范 §4.3 的 via 归属原则是关键约束。
 
-## 4. Action Types（8 个，clearance 价值链流程）
+## 4. Action Types（clearance 价值链流程 8 个 + 内核辅助 1 个）
 
-> 权威定义：`workspace/retail/skills/clearance_workflow/actions/*.yaml`。每个 Action 含完整 YAML 契约（parameters + submission_criteria + side_effects + locator_field），详见 [`20-api-data-contract.md`](./20-api-data-contract.md) §3。
+> 权威定义：流程 Action 在 `workspace/retail/skills/clearance_workflow/actions/*.yaml`；`update_task_notes` 在 `workspace/retail/ontology/domains/finance/actions/`。每个 Action 含完整 YAML 契约（parameters + submission_criteria + side_effects + locator_field），详见 [`20-api-data-contract.md`](./20-api-data-contract.md) §3。
 
-clearance 单体已拆为 8 个细粒度 Action，对应 Task 状态机的每一步迁移：
+clearance 单体已拆为 8 个细粒度流程 Action，对应 Task 状态机的每一步迁移：
 
 | Action | 触发的状态迁移 | locator_field |
 |--------|---------------|---------------|

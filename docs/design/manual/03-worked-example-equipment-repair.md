@@ -26,15 +26,16 @@ workspace/equipment_repair/
 │   └── domains/
 │       └── maintenance/                        # 1 能力域：维修域
 │           ├── domain.ttl                      # 4 Object + 4 Link
-│           └── actions/                        # 域内 Action
+│           └── actions/                        # 全部 6 个 Action（含状态迁移类）
 ├── data/                                       # 种子数据（equipment/repair_tickets/...）
 └── skills/
     └── repair_workflow/                        # 价值链流程：repair
         ├── SKILL.md                            # 流程编排 Skill
         ├── tools.py                            # 专属工具（query_repair_tickets）
-        ├── state_machine.py                    # REPAIR_TICKET_TRANSITIONS + TERMINAL_STATES
-        └── actions/                            # 流程专属 Action（状态迁移类）
+        └── state_machine.py                    # REPAIR_TICKET_TRANSITIONS + TERMINAL_STATES
 ```
+
+> 注：equipment_repair 把所有 Action 放在能力域 `maintenance/actions/`（`pack.py` 的 `REPAIR.actions_dir` 指向此处）。流程专属 Action 也可放 `skills/<process>/actions/`（由 `ValueChainProcess.actions_dir` 决定）——两种位置都合法，看是否需要把 Action 与 Skill 场景单元打包。retail 的 clearance 流程用的是后者。
 
 ---
 
@@ -76,7 +77,7 @@ EQUIPMENT_REPAIR_PACK = IndustryPack(
 
 ### 4.1 `locator_field: ticket_id`（数据驱动定位）
 
-每个流程专属 Action（diagnose/assign/start/complete/cancel）在 YAML 里声明 `locator_field: ticket_id`。executor 据此定位 RepairTicket 记录，取代旧的 `target_type == "Task"` 硬编码。
+每个流程专属 Action（`diagnose_ticket`/`assign_technician`/`start_repair`/`complete_repair`/`cancel_ticket`）在 YAML 里声明 `locator_field: ticket_id`。executor 据此定位 RepairTicket 记录，取代旧的 `target_type == "Task"` 硬编码。
 
 ### 4.2 ValueChainProcess 的工作流字段
 
@@ -124,9 +125,9 @@ query_entity(entity_type="Equipment", workspace_name="customer_default")
 # 建维修工单 → 诊断 → 分配 → 维修 → 完成
 execute_action(action_type="create_repair_ticket", params={...}, workspace_name="customer_default")
 # → confirm_action(preview_id)
-execute_action(action_type="diagnose", params={"ticket_id": "...", "diagnosis": "..."})
+execute_action(action_type="diagnose_ticket", params={"ticket_id": "...", "diagnosis": "..."})
 # → confirm
-# ... assign → start → complete
+# ... assign_technician → start_repair → complete_repair
 ```
 
 测试见 `agent/tests/test_equipment_repair.py`。
