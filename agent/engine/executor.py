@@ -36,7 +36,7 @@ class ActionExecutor:
         self.repo = repository
         self.actions = actions
         self.registry = registry
-        self.config = config  # Optional[VerticalConfig]：提供状态机表与工作流对象类型
+        self.config = config  # 价值链流程上下文（提供状态机表与工作流对象类型）
 
     # ---------- 公共入口 ----------
     def validate(self, action_type: str, params: dict) -> dict:
@@ -121,7 +121,7 @@ class ActionExecutor:
         if root == "target":
             return target
         # 工作流对象别名：旧 YAML 用 "task.xxx"，现按 config.workflow_object_type 通用化。
-        # 如 vertical 的工作流对象是 RepairTicket，条件写 "repair_ticket.status" 即可。
+        # 如价值链流程的工作流对象是 RepairTicket，条件写 "repair_ticket.status" 即可。
         # 注意：工作流对象的定位键是 config.workflow_object_id_field（如 task_id/ticket_id），
         # 与 action.locator_field（定位 target 用的）是两个不同的概念。
         wf_type = (self.config.workflow_object_type if self.config else "Task") or "Task"
@@ -171,7 +171,7 @@ class ActionExecutor:
                 rec = self.repo.read_one(obj_type, tenant_id, match.get("id"))
                 if not rec:
                     raise EntityNotFoundError(f"未找到 {obj_type}: {match}")
-                # 状态迁移表从 config 取（per-vertical）；未配 config 则用 clearance 默认
+                # 状态迁移表从 config 取（per-process 价值链流程）；未配 config 则用 clearance 默认
                 trans = (self.config.state_transitions if self.config
                          and self.config.state_transitions else None)
                 terms = (self.config.terminal_states if self.config

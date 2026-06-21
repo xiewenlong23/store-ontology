@@ -13,7 +13,6 @@
 """
 import json
 
-from engine.parser import get_ontology_parser
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
 from engine.preview_cache import PreviewCache

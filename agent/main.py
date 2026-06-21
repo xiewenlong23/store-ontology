@@ -28,7 +28,7 @@ from deepagents import create_deep_agent
 from deepagents.backends.filesystem import FilesystemBackend
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
-# ===== 内核通用工具（与 vertical 无关）=====
+# ===== 内核通用工具（与行业包无关）=====
 from agent.tools import (
     query_entity, create_entity, update_entity, traverse_relation,
     execute_action, confirm_action, query_task, update_task,
@@ -136,7 +136,7 @@ llm = ChatOpenAI(
 )
 
 
-# ============ 工具清单（内核固定 + vertical 聚合）===========
+# ============ 工具清单（内核固定 + 行业包聚合）===========
 _all_tools = [
     query_entity,
     create_entity,
@@ -148,7 +148,7 @@ _all_tools = [
     update_task,
 ] + _aggregate_pack_tools()
 
-# 去重：同名工具只保留第一个（vertical 与 pack 共存期避免冲突）
+# 去重：同名工具只保留第一个（行业包工具聚合去重）
 _seen = set()
 tools = []
 for _t in _all_tools:
@@ -296,7 +296,7 @@ add_langgraph_fastapi_endpoint(
     app=app,
     agent=LangGraphAgent(
         name="default",
-        description="本体驱动业务助手（多 vertical + Deep Agents）",
+        description="本体驱动业务助手（多行业包 + Deep Agents）",
         graph=deep_agent_graph,
     ),
     path="/api/copilotkit",
@@ -404,7 +404,7 @@ _automation_scheduler = AutomationScheduler()
 
 @app.on_event("startup")
 async def _start_automation():
-    """启动时注册各 vertical 的定时 job 并启动 scheduler。"""
+    """启动时注册各行业包的定时 job 并启动 scheduler。"""
     try:
         from workspace.retail.skills.clearance_workflow.automation import register_clearance_automation
         register_clearance_automation(_automation_scheduler, interval_seconds=1800)

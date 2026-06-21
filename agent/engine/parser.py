@@ -54,13 +54,13 @@ class OntologyParser:
     """解析 TTL 格式的本体定义文件（Object / Link Type）。
 
     prefix 从 TTL 文件的 @prefix 行动态读取（不再硬编码 "store:"），
-    从而支持多个 vertical 各用自己的命名空间。
+    从而支持多个行业包/能力域各用自己的命名空间。
     """
 
     def __init__(self, ttl_path: str, data_dir: str, config=None):
         self.ttl_path = Path(ttl_path)
         self.data_dir = Path(data_dir)
-        self.config = config  # Optional[VerticalConfig]
+        self.config = config  # Optional[IndustryPack/ValueChainProcess 上下文]（行业包侧传入）
         self.PREFIX = self._read_prefix()
         self.registry = EntityRegistry()
         self._parse()
@@ -138,7 +138,7 @@ class OntologyParser:
     def build_system_prompt(self, intro: str = "") -> str:
         """从本体定义生成精简系统提示。
 
-        intro：开场白（来自 VerticalConfig.system_prompt_intro），领域无关的通用表述，
+        intro：开场白（来自 ValueChainProcess.system_prompt_intro），领域无关的通用表述，
         如 "你是门店运营助手。" 不传则用中性默认。
         """
         intro = intro or "你是业务运营助手。"
@@ -154,38 +154,19 @@ class OntologyParser:
         return "\n".join(lines)
 
 
-# ============ 单例缓存（按 vertical name 缓存）============
-_parser_cache: Dict[str, "OntologyParser"] = {}
+def get_ontology_parser(ttl_path: str = None, data_dir: str = None) -> "OntologyParser":
+    """获取 OntologyParser（行业包/workspace 装配版，spec §5.3 决策1）。
 
+    两种调用方式：
+    1. get_ontology_parser(ttl_path=..., data_dir=...)  —— 显式路径（测试用）
+    2. get_ontology_parser()                            —— 默认（all_packs()[0]，回退空 registry）
 
-def get_ontology_parser(vertical: str = None, ttl_path: str = None,
-                        data_dir: str = None) -> "OntologyParser":
-    """获取 OntologyParser。
-
-    三种调用方式（优先级递减）：
-    1. get_ontology_parser("clearance")     —— 从 vertical 注册表取 config（推荐）
-    2. get_ontology_parser(ttl_path=..., data_dir=...)  —— 显式路径（测试用）
-    3. get_ontology_parser()                —— 默认 vertical（注册表第一个，或兜底 store.ttl）
+    按 vertical name 取 parser 的旧方式已删除（vertical registry 已移除）。
+    生产装配经 bootstrap_workspace / pack_to_registry，不经此函数。
     """
-    global _parser_cache
-
-    # 方式 1：vertical name
-    if vertical is not None:
-        from engine.vertical import get_vertical
-        cfg = get_vertical(vertical)
-        if cfg is None:
-            raise KeyError(f"未注册的 vertical: {vertical}")
-        if vertical in _parser_cache:
-            return _parser_cache[vertical]
-        p = OntologyParser(cfg.ttl_path, cfg.data_dir, config=cfg)
-        from engine.action_loader import load_actions
-        p.registry.action_types = load_actions(cfg.actions_dir)
-        _parser_cache[vertical] = p
-        return p
-
-    # 方式 2：显式路径（不缓存，测试每次新建）
+    # 方式 1：显式路径（不缓存，测试每次新建）
     if ttl_path is not None or data_dir is not None:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # backend/
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # agent/
         root = os.path.dirname(base)                                          # 项目根
         ttl_path = ttl_path or os.path.join(base, "engine", "store.ttl")
         data_dir = data_dir or os.path.join(root, "data")
@@ -196,7 +177,7 @@ def get_ontology_parser(vertical: str = None, ttl_path: str = None,
             p.registry.action_types = load_actions(actions_dir)
         return p
 
-    # 方式 3：默认 pack
+    # 方式 2：默认 pack（all_packs()[0]，回退空 registry）
     from engine.pack import all_packs, pack_to_registry
     from engine.bootstrap import bootstrap
     bootstrap()
@@ -214,5 +195,5 @@ def get_ontology_parser(vertical: str = None, ttl_path: str = None,
 
 
 def reset_parser_cache() -> None:
-    """测试用：清空 parser 缓存（vertical 配置变更后重载）。"""
-    _parser_cache.clear()
+    """空操作（保留仅为向后兼容；vertical 缓存已移除，spec §5.3 决策1）。"""
+    return None
