@@ -1,0 +1,44 @@
+# Action Type 定义（YAML）
+#
+# 域内 Action 放：workspace/{{pack_name}}/ontology/domains/{{domain}}/actions/{{api_name}}.yaml
+# 流程专属 Action 放：workspace/{{pack_name}}/skills/{{process}}/actions/{{api_name}}.yaml
+# 完整规范见 docs/design/40-ontology-modeling-spec.md §5、docs/design/20-api-data-contract.md §3。
+
+api_name: {{api_name}}                       # snake_case，建议加流程前缀避免跨行业包冲突
+display_name: "{{操作中文名}}"
+description: "{{业务语义描述}}"
+status: active                              # active | experimental | deprecated
+target_object_type: {{TargetObject}}        # 目标 Object Type（PascalCase）
+edits_object_types: [{{TargetObject}}, {{OtherTouchedObject}}]   # provenance：本 Action 会改哪些 Object
+locator_field: {{locator}}                  # 定位 target 的参数名（数据驱动）：
+                                            #   target 是工作流对象 → 其 id 参数（task_id/ticket_id）
+                                            #   target 是标的物 → target_id
+
+parameters:
+  - name: {{param1}}
+    type: {{type}}                          # string / integer / float / boolean
+    required: {{true|false}}
+    constraint: "{{constraint}}"            # 如 "0..100"、">0"；可省略
+    description: "{{参数说明}}"
+  - name: {{param2}}
+    type: string
+    required: false
+    description: "..."
+
+submission_criteria:                        # 细粒度门控（独立于粗粒度 RBAC）
+  roles: [{{role1}}, {{role2}}]             # 允许提交的角色白名单
+  conditions:
+    - field: {{workflow_object}}.status     # 如 task.status / repair_ticket.status / target.status
+      operator: {{is|is_not}}               # MVP：is / is_not；🔜 v2 加 gte/matches/includes/value_ref
+      value: {{expected_value}}
+      fail_msg: "{{失败消息}}"
+
+side_effects:                               # 副作用声明（executor 数据驱动执行，不需改代码）
+  - type: {{create_object|update_object|state_transition|notification|external_call}}
+    # create_object: { object_type, fields: {...} }
+    # update_object: { object_type, match: {id: ${{locator}}}, fields: {...} }
+    # state_transition: { target: {{WorkflowObject}}, from: {{state_a}}, to: {{state_b}} }
+    # notification: { template, recipients: [...] }
+    object_type: {{AffectedObject}}
+    fields:
+      {{field}}: {{value}}

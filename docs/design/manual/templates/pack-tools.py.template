@@ -1,0 +1,39 @@
+"""{{pack_name}}/{{process}} 价值链流程的专属工具。
+
+导出 TOOLS = [...] 列表。main._aggregate_pack_tools() 自动聚合进 agent。
+工具经 agent.tools.shared 的 helper 装配（_get_repo/_get_executor/_tc/_wrap）。
+
+填写：把 {{...}} 替换为实际值。参照 workspace/retail/skills/clearance_workflow/tools.py。
+"""
+from typing import Optional
+
+from langchain_core.tools import tool
+
+import agent.tools.shared as shared
+
+
+@tool
+def {{query_tool_name}}(
+    {{filter_param}}: Optional[str] = None,
+    workspace_name: str = "customer_default",
+    org_unit_id: str = "*",
+) -> str:
+    """{{一句话工具描述，注入 LLM prompt}}。
+
+    Args:
+        {{filter_param}}: {{过滤参数说明}}
+        workspace_name + org_unit_id: 决定可见范围
+    """
+    tc = shared._tc(workspace_name, org_unit_id)
+    repo = shared._get_repo(tc)
+    rows = repo.read("{{ObjectType}}", tc)
+    if {{filter_param}}:
+        rows = [r for r in rows if r.get("{{filter_param}}") == {{filter_param}}]
+    if not rows:
+        return shared._wrap({"type": "{{json_type}}", "total": 0, "items": []}, "未找到记录。")
+    # 关联计算、格式化等业务逻辑...
+    return shared._wrap({"type": "{{json_type}}", "total": len(rows), "items": rows[:20]},
+                        f"查询到 {len(rows)} 条记录。")
+
+
+TOOLS = [{{query_tool_name}}]

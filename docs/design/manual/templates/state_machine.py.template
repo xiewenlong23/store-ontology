@@ -1,0 +1,21 @@
+"""{{WorkflowObject}} 状态机（价值链流程 {{process}} 的状态迁移表）。
+
+放在：workspace/{{pack_name}}/skills/{{process}}/state_machine.py
+pack.py 会 import 这两个符号填入 ValueChainProcess.state_transitions / terminal_states。
+executor 的 state_transition 副作用自动查这张表校验（per-process，与其它流程互不干扰）。
+
+填写：画状态图，把 {{...}} 替换为实际状态名。参照：
+- workspace/equipment_repair/skills/repair_workflow/state_machine.py（REPAIR_TICKET_TRANSITIONS）
+- agent/engine/state_machine.py（TASK_TRANSITIONS，clearance）
+"""
+
+# 键 = 当前状态；值 = 允许的下一状态列表
+{{WORKFLOW_OBJECT}}_TRANSITIONS = {
+    "{{state_initial}}": ["{{state_next1}}", "{{state_cancel}}"],
+    "{{state_next1}}": ["{{state_next2}}", "{{state_cancel}}"],
+    "{{state_next2}}": ["{{state_final}}"],
+    # ... 覆盖所有业务状态
+}
+
+# 终态集合：不可再迁移（如 completed / cancelled / rejected / scrapped）
+TERMINAL_STATES = {"{{state_final}}", "{{state_cancel}}"}

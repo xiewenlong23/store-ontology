@@ -1,0 +1,40 @@
+---
+name: {{process}}-workflow
+description: {{一句话流程描述，如"设备维修工单的跨步骤编排"}}
+type: workflow
+allowed_tools: query_entity, execute_action, confirm_action, {{query_tool_name}}
+license: MIT
+---
+
+# {{流程标题，如"设备维修工作流"}}
+
+## 何时使用
+{{触发条件描述：用户提到什么场景、什么意图时启用本流程。}}
+
+## 步骤
+
+### Step 1：{{建单/查询}}
+- 调用 `{{query_tool_name}}({{filter_param}}={{value}})` 查询 {{ ObjectType }}
+- 或 `query_entity(entity_type="{{ObjectType}}")`
+- 判断是否需要建新 {{ WorkflowObject }}
+
+### Step 2：{{创建}}
+- 调用 `execute_action(action_type="{{create_action}}", params={...})` 获取预览
+- 展示预览，询问用户确认
+- 用户确认后 `confirm_action(preview_id=...)`
+
+### Step 3：{{状态迁移}}
+- 调用 `execute_action(action_type="{{transition_action}}", params={{"workflow_object}}_id": "..."})`
+- `confirm_action(preview_id=...)`
+- 重复至终态
+
+## 状态机
+{{简述合法迁移路径，引用真实状态名。例：reported → diagnosed → assigned → repairing → resolved；旁路 → cancelled}}
+
+## 禁止事项
+- **禁止** 跳过 preview 直接 confirm（必须先 execute_action）
+- **禁止** 直接调 `update_entity` 改 {{ WorkflowObject }} 字段（受治理实体，必须走 Action）
+- **禁止** 触发非法状态迁移（只允许状态机相邻迁移）
+
+## 关键约束
+- {{业务规则，如数值范围、角色要求等。引用本体数据文件，不在文档里重复写数值。}}

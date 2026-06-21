@@ -1,0 +1,33 @@
+---
+name: {{topic}}-knowledge
+description: {{一句话领域知识描述，如"设备维修领域的实体关系与工具策略"}}
+type: domain_knowledge
+allowed_tools: query_entity, traverse_relation, {{query_tool_name}}
+license: MIT
+---
+
+# {{领域知识标题，如"设备维修领域知识"}}
+
+## 实体（Object Types）
+{{列出本领域核心实体及其业务含义。引用 Object Type 的 TTL 定义名（PascalCase）。}}
+
+- **{{ObjectType1}}**：{{业务含义}}。字段：{{关键字段列表}}。
+- **{{ObjectType2}}**：{{业务含义}}。字段：{{关键字段列表}}。
+
+## 关系（Link Types）
+{{列出实体间关系。引用 Link Type 的 TTL 定义名。}}
+
+- `{{link_type1}}`：{{domain}} → {{range}}（via `{{via_field}}`）。{{语义}}。
+
+## 工具使用策略
+{{何时用哪个工具。}}
+
+- 查 {{ ObjectType }} → `query_entity(entity_type="{{ObjectType}}")`
+- 查关联实体 → `traverse_relation(source_type=..., source_id=..., relation="{{link_type}}")`
+- 领域专属查询 → `{{query_tool_name}}(...)`
+
+## 关键约束
+{{本领域的不变量与规则。引用本体数据文件，不在文档里重复写数值。}}
+
+- {{约束1}}
+- {{约束2}}

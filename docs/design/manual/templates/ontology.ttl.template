@@ -1,0 +1,38 @@
+# {{pack_name}} 行业包 / {{domain}} 能力域 本体定义（TTL）
+#
+# 放在：workspace/{{pack_name}}/ontology/domains/{{domain}}/domain.ttl
+# parser 从 @prefix 行动态读取前缀（不硬编码）。
+# 完整规范见 docs/design/40-ontology-modeling-spec.md。
+
+@prefix {{prefix}}: <http://example.org/{{pack_name}}#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# ============ Object Types ============
+
+###  {{prefix}}:{{NewObject}}
+{{prefix}}:{{NewObject}} a rdfs:Class ;
+    rdfs:label "{{New Object}}"@en ;
+    rdfs:comment "新实体的业务描述" ;
+    {{prefix}}:storage "{{new_objects}}.json" ;          # 对应 data/{{new_objects}}.json
+    {{prefix}}:labelZH "{{新实体}}"@zh ;
+    {{prefix}}:propertyList "id:string, name:string, status:string" ;
+    {{prefix}}:edits_only_via_actions "true" .           # 受治理实体加此标记（架构 §2.3）
+
+###  {{prefix}}:{{AnotherObject}}
+{{prefix}}:{{AnotherObject}} a rdfs:Class ;
+    rdfs:label "{{Another Object}}"@en ;
+    rdfs:comment "..." ;
+    {{prefix}}:storage "{{another_objects}}.json" ;
+    {{prefix}}:labelZH "{{另一实体}}"@zh ;
+    {{prefix}}:propertyList "id:string, {{new_object}}_id:string" .
+
+# ============ Link Types ============
+# via 归属原则（建模规范 §4.3，最易错）：via 字段必须属于 range 对象。
+
+###  {{prefix}}:has_{{thing}}
+{{prefix}}:has_{{thing}} a rdfs:Property ;
+    rdfs:label "has {{thing}}"@en ;
+    {{prefix}}:domain {{prefix}}:{{ParentObject}} ;      # 起点
+    {{prefix}}:range {{prefix}}:{{ChildObject}} ;        # 终点
+    {{prefix}}:via "{{parent_object}}_id" ;              # 必须是 ChildObject 的属性
+    {{prefix}}:labelZH "拥有{{事物}}"@zh .

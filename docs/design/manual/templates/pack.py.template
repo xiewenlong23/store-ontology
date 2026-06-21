@@ -1,0 +1,61 @@
+"""{{pack_name}} 行业包的配置注册（pack 模型）。
+
+这是接入新行业包的唯一"接线"动作：本文件 import 时调用 register_pack。
+agent/main.py 启动时 bootstrap() 自动发现 workspace/{{pack_name}}/pack.py 并注册。
+**无需改任何内核文件。**
+
+填写：把 {{...}} 替换为本行业包的实际值。参照 workspace/equipment_repair/pack.py。
+"""
+import os
+
+from engine.pack import IndustryPack, CapabilityDomain, ValueChainProcess, register_pack
+
+_BASE = os.path.dirname(os.path.abspath(__file__))  # workspace/{{pack_name}}/
+
+# ============ 能力域（CapabilityDomain）：原子 Object/Link/Action ============
+# 每个能力域一个 TTL + 一个 actions 目录（+ 可选 rules 目录）
+
+{{DOMAIN_A_NAME}} = CapabilityDomain(
+    name="{{domain_a}}",                       # snake_case，如 maintenance
+    display_name="{{域A中文名}}",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "{{domain_a}}", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "{{domain_a}}", "actions"),
+    # rules_dir=os.path.join(_BASE, "ontology", "domains", "{{domain_a}}", "rules"),  # 可选：数值规则 JSON
+)
+
+# 如有第二个能力域，复制上面块改名。无工作流的行业包到此为止（processes=[]）。
+
+# ============ 价值链流程（ValueChainProcess）：跨域编排，带状态机+Skill+工具 ============
+# 若本行业包有工作流，import state_machine.py 的迁移表
+try:
+    from workspace.{{pack_name}}.skills.{{process}}.state_machine import (
+        {{WORKFLOW_OBJECT}}_TRANSITIONS, TERMINAL_STATES)
+    _TRANSITIONS = {{WORKFLOW_OBJECT}}_TRANSITIONS
+    _TERMINALS = list(TERMINAL_STATES)
+except ImportError:
+    _TRANSITIONS = {}
+    _TERMINALS = []
+
+{{PROCESS_NAME}} = ValueChainProcess(
+    name="{{process}}",                        # snake_case，如 repair
+    display_name="{{流程中文名}}",
+    workflow_object_type="{{WorkflowObject}}", # PascalCase，如 RepairTicket（无工作流留空）
+    workflow_object_id_field="{{workflow_object}}_id",  # Action 参数里定位它的键，如 ticket_id
+    state_transitions=_TRANSITIONS,
+    terminal_states=_TERMINALS,
+    skills_dir=os.path.join(_BASE, "skills"),
+    tools_module="workspace.{{pack_name}}.skills.{{process}}.tools",  # 若有专属工具
+    actions_dir=os.path.join(_BASE, "skills", "{{process}}", "actions"),  # 流程专属 Action
+    system_prompt_intro="你是{{业务领域}}助手。",
+)
+
+# ============ 行业包（IndustryPack） ============
+{{PACK_NAME}} = IndustryPack(
+    name="{{pack_name}}",                      # snake_case，如 equipment_repair
+    display_name="{{行业包中文名}}",
+    domains=[{{DOMAIN_A_NAME}}],               # 列出所有能力域
+    processes=[{{PROCESS_NAME}}],              # 列出所有价值链流程（无则 []）
+    data_dir=os.path.join(_BASE, "data"),
+)
+
+register_pack({{PACK_NAME}})
