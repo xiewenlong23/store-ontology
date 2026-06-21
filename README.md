@@ -16,8 +16,8 @@ AI 门店大脑 — 临期商品管理系统。基于 FastAPI + Deep Agents + Co
 
 ```bash
 conda activate store-ontology
-cd backend
-# 首次启动需要填入 QWEN_API_KEY（见 backend/.env）
+cd agent
+# 首次启动需要填入 QWEN_API_KEY（见项目根 .env）
 python main.py
 ```
 
@@ -37,20 +37,26 @@ npm run dev
 
 ```
 store-ontology/
-├── backend/              # FastAPI + Deep Agents
+├── agent/                # FastAPI + Deep Agents（Agent 平台层）
 │   ├── main.py           # 入口（端口 8123）
-│   ├── ontology/         # 本体定义 + 通用工具
-│   ├── models/           # Pydantic schemas
-│   └── skills/           # Deep Agents Skills（Progressive Disclosure）
+│   ├── engine/           # 核心引擎（parser/executor/repository/bootstrap）
+│   ├── tools/            # 系统原子 Tool（占位，迁移留后续 plan）
+│   └── skills/           # 系统 Skill（占位）
+├── workspace/            # Workspace 层（行业包 + 客户实例）
+│   ├── retail/           # 零售行业基础包（只读模板）
+│   │   ├── ontology/domains/   # 本体声明（domain.ttl + actions/*.yaml）
+│   │   ├── data/              # 种子数据
+│   │   └── skills/            # 自包含场景单元（SKILL.md + tools.py + state_machine.py）
+│   ├── equipment_repair/ # 设备维修行业包
+│   └── customer_default/ # 默认客户实例
 ├── frontend/             # Next.js 15 + CopilotKit 1.57
-│   └── app/api/copilotkit/   # AG-UI 代理
-├── data/                 # 门店/商品/任务 JSON 数据
+│   └── app/api/copilotkit/   # AG-UI 代理（注入 X-Workspace header）
 └── docs/                 # 设计文档
 ```
 
 ## 环境配置
 
-`backend/.env`（已在 .gitignore，提交时不会泄露）：
+项目根目录 `.env`（已在 .gitignore，提交时不会泄露）：
 
 ```env
 QWEN_API_KEY=<your_key>
@@ -69,6 +75,6 @@ QWEN_MODEL=MiniMax-M2.7-highspeed
 
 ## 常见问题
 
-- **缺 `QWEN_API_KEY`**：启动后端会报 `RuntimeError`，去 `backend/.env` 填入。
+- **缺 `QWEN_API_KEY`**：启动后端会报 `RuntimeError`，去项目根 `.env` 填入。
 - **端口被占用**：`lsof -nP -iTCP:8123 -sTCP:LISTEN` 查 PID，杀掉或改 `PORT` 环境变量。
 - **前端 CopilotKit 404**：检查前端 `app/api/copilotkit/route.ts` 是否代理到 `http://localhost:8123/api/copilotkit`。

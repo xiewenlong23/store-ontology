@@ -53,9 +53,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const cid = 'customer_default'
+    const workspace = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE || 'customer_default'
     Promise.all([
-      fetch(`${API_BASE}/api/dashboard/${cid}/metrics`).then(r => r.json()),
-      fetch(`${API_BASE}/api/dashboard/${cid}/todos`).then(r => r.json()),
+      fetch(`${API_BASE}/api/dashboard/${cid}/metrics`, { headers: { 'X-Workspace': workspace } }).then(r => r.json()),
+      fetch(`${API_BASE}/api/dashboard/${cid}/todos`, { headers: { 'X-Workspace': workspace } }).then(r => r.json()),
     ]).then(([m, t]) => {
       setMetrics(m)
       setTodos(t.todos || [])
