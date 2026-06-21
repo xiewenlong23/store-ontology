@@ -43,6 +43,11 @@ from engine.bootstrap import bootstrap as _bootstrap
 
 _bootstrap()
 
+# ===== v2 认证：首次启动种入各 workspace 的初始 admin（幂等，设计文档 §5 WP1）=====
+from engine.identity import seed_all_workspaces
+
+seed_all_workspaces()
+
 
 def _list_system_skill_dirs():
     """扫描 agent/skills/ 下的系统级 Skill 目录（含 SKILL.md）。

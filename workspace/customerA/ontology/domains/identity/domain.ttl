@@ -1,0 +1,61 @@
+@prefix repair: <http://example.org/equipment-repair#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# identity domain —— 用户/角色/权限授予（v2 认证/权限，设计文档 §3.1）
+# customerA 工作目录。权限元数据（:read_roles 等）由 WP3 parser 解析
+# ============================================================
+
+repair:User a rdfs:Class ;
+    rdfs:label "用户"@zh , "User"@en ;
+    rdfs:comment "登录账号。username 实名（工号/手机号），跨 workspace 一致；password_hash 各 workspace 独立"@zh ;
+    repair:properties "id:string,username:string,password_hash:string,display_name:string,status:UserStatus,created_at:datetime" ;
+    repair:storage "users.json" ;
+    repair:status "active" ;
+    repair:edits_only_via_actions "true" ;
+    repair:read_roles "system_admin" ;
+    repair:property [
+        repair:name "password_hash" ;
+        repair:read_roles ""
+    ] .
+
+repair:Role a rdfs:Class ;
+    rdfs:label "角色"@zh , "Role"@en ;
+    rdfs:comment "角色定义（业务角色词汇表，如 store_manager/technician/system_admin）"@zh ;
+    repair:properties "id:string,name:string,display_name:string,description:string" ;
+    repair:storage "roles.json" ;
+    repair:status "active" ;
+    repair:read_roles "*" .
+
+repair:PermissionGrant a rdfs:Class ;
+    rdfs:label "权限授予"@zh , "PermissionGrant"@en ;
+    rdfs:comment "运行时权限授予。覆盖 TTL 元数据默认（设计文档 §2.5 runtime override）"@zh ;
+    repair:properties "id:string,role_id:string,resource_type:ResourceType,resource_id:string,action:PermissionAction,effect:PermissionEffect,scope_json:dict" ;
+    repair:storage "permission_grants.json" ;
+    repair:status "active" ;
+    repair:edits_only_via_actions "true" ;
+    repair:read_roles "system_admin" .
+
+repair:Session a rdfs:Class ;
+    rdfs:label "会话"@zh , "Session"@en ;
+    rdfs:comment "刷新令牌管理（可选，refresh token 撤销留 v2.1）"@zh ;
+    repair:properties "id:string,user_id:string,refresh_token_hash:string,expires_at:datetime" ;
+    repair:storage "sessions.json" ;
+    repair:status "experimental" ;
+    repair:edits_only_via_actions "true" ;
+    repair:read_roles "system_admin" .
+
+# ============================================================
+# Link Types
+# ============================================================
+
+repair:has_role a rdfs:Property ;
+    rdfs:label "拥有角色"@zh , "has role"@en ;
+    rdfs:comment "User 通过 role_id 关联 Role（User 多角色能力留 v2.1）"@zh ;
+    rdfs:domain repair:User ; rdfs:range repair:Role ; repair:via "role_id" .
+
+repair:grants_to a rdfs:Property ;
+    rdfs:label "授予给"@zh , "grants to"@en ;
+    rdfs:comment "PermissionGrant 通过 role_id 关联 Role"@zh ;
+    rdfs:domain repair:PermissionGrant ; rdfs:range repair:Role ; repair:via "role_id" .

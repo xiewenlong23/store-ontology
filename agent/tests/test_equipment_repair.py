@@ -53,8 +53,12 @@ def test_repair_ttl_and_actions_parse():
     from engine.pack import get_workspace_dir
     ws = get_workspace_dir("customerA")
     registry = domains_to_registry(ws, data_dir=os.path.join(_BASE, "..", "workspace", "customerA", "data"))
-    assert {"Equipment", "RepairTicket", "Technician", "Vendor"} == set(registry.object_types)
-    assert len(registry.link_types) == 4
+    # 业务实体（maintenance domain）应完整存在；identity domain（User/Role/...）可能并存
+    business_objects = {"Equipment", "RepairTicket", "Technician", "Vendor"}
+    assert business_objects.issubset(set(registry.object_types))
+    # maintenance domain 的 4 个 Link 完整存在（identity domain 的 link 不计入此数）
+    maintenance_links = {"uses_equipment", "assigned_to", "supplied_by", "has_ticket"}
+    assert maintenance_links.issubset(set(registry.link_types))
     assert {"create_repair_ticket", "diagnose_ticket", "assign_technician",
             "start_repair", "complete_repair", "cancel_ticket"} == set(registry.action_types)
 

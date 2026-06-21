@@ -34,6 +34,11 @@ htmlcov/
 .env.local
 .env
 
+# v2 认证：users.json 含 password_hash，运行时由 seed_workspace_identity 种入，
+# 不应提交（roles.json / permission_grants.json 是声明性数据，可提交）
+workspace/*/data/users.json
+workspace/*/data/sessions.json
+
 # LangChain / LangGraph
 checkpoints/
 *.lock

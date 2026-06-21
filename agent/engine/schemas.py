@@ -9,9 +9,50 @@ from pydantic import BaseModel, Field
 # ============ Enums ============
 
 class EmployeeRole(str, Enum):
+    """员工角色（旧版，向后兼容；WP4 与 submission_criteria.roles 词汇表对齐后扩展）。
+
+    注：当前是 Employee 实体的 role 属性枚举；submission_criteria 用的
+    store_manager/region_cat_mgr 等字符串尚未对齐（WP4 统一）。
+    """
     CLERK = "clerk"
     MANAGER = "manager"
     ADMIN = "admin"
+
+
+# ============ 身份与权限 Enums（v2 认证/权限，WP1 引入）============
+
+class UserStatus(str, Enum):
+    """用户账号状态。"""
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    PENDING = "pending"
+
+
+class ResourceType(str, Enum):
+    """PermissionGrant 的资源类型（设计文档 §3.1）。
+
+    覆盖 5 类本体资源：Object/属性/Action/Link/Tool。
+    """
+    OBJECT_TYPE = "object_type"
+    PROPERTY = "property"
+    ACTION = "action"
+    LINK = "link"
+    TOOL = "tool"
+
+
+class PermissionAction(str, Enum):
+    """权限动作（与资源类型正交）。"""
+    READ = "read"
+    WRITE = "write"
+    EXECUTE = "execute"
+    TRAVERSE = "traverse"
+    USE = "use"
+
+
+class PermissionEffect(str, Enum):
+    """权限授予效果。deny 永远赢过 allow（设计文档 §2.5）。"""
+    ALLOW = "allow"
+    DENY = "deny"
 
 
 class DiscountTier(str, Enum):

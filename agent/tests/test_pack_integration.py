@@ -23,10 +23,15 @@ def test_clearance_process_has_tools():
 
 
 def test_ws_to_registry_all_objects():
-    """domains_to_registry 合并后含全部 7 Object。"""
+    """domains_to_registry 合并后含 retail 的 7 个业务 Object + identity domain 的 4 个。"""
     from engine.bootstrap import bootstrap
     from engine.pack import get_workspace_dir, domains_to_registry
     bootstrap()
     ws = get_workspace_dir("retail")
     reg = domains_to_registry(ws, data_dir="../data")
-    assert len(reg.object_types) == 7
+    # 业务 7 Object（marketing/organization/finance）
+    business = {"Product", "NearExpiryProduct", "Region", "Store", "Employee", "Task", "LossReport"}
+    assert business.issubset(set(reg.object_types))
+    # identity domain 4 Object（WP1 新增）
+    identity = {"User", "Role", "PermissionGrant", "Session"}
+    assert identity.issubset(set(reg.object_types))

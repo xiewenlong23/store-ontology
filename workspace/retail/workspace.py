@@ -25,6 +25,11 @@ FINANCE = CapabilityDomain(
     ttl_path=os.path.join(_BASE, "ontology", "domains", "finance", "domain.ttl"),
     actions_dir=os.path.join(_BASE, "ontology", "domains", "finance", "actions"))
 
+IDENTITY = CapabilityDomain(
+    name="identity", display_name="身份域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "identity", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "identity", "actions"))
+
 CLEARANCE = ValueChainProcess(
     name="clearance", display_name="出清",
     workflow_object_type="Task",
@@ -38,7 +43,7 @@ CLEARANCE = ValueChainProcess(
 
 RETAIL_WS = WorkspaceDef(
     name="retail", display_name="零售（示例）",
-    domains=[MARKETING, ORGANIZATION, FINANCE],
+    domains=[MARKETING, ORGANIZATION, FINANCE, IDENTITY],
     processes=[CLEARANCE],
     data_dir=os.path.join(_BASE, "data"))
 
