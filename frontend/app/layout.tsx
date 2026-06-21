@@ -399,7 +399,9 @@ function AppWithWorkspace({
           {children}
         </div>
         <div className="golden-right">
-          <CopilotChat />
+          {/* key={selectedWorkspace}：切换 workspace 时完全重建 CopilotChat，
+              清空聊天历史，确保不同 workspace 对话隔离 */}
+          <CopilotChat key={selectedWorkspace} />
         </div>
       </div>
     </CopilotKit>
