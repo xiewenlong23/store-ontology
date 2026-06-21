@@ -1,9 +1,11 @@
-"""测试 pack 注册表（原 vertical 测试迁移为 pack 测试）。"""
+"""测试 pack 注册表（行业包装配模型，spec §5.3）。
+
+原 test_vertical.py 迁移而来：vertical registry 已移除，本文件测 IndustryPack 装配。
+"""
 import os
 import pytest
-from engine.vertical import VerticalConfig  # 类仍保留（ValueChainProcess 的兼容基类）
 from engine.pack import (IndustryPack, CapabilityDomain, ValueChainProcess,
-                          register_pack, get_pack, all_packs, clear_packs)
+                          register_pack, get_pack, all_packs, clear_packs, pack_to_registry)
 
 
 @pytest.fixture(autouse=True)
@@ -21,10 +23,15 @@ def test_register_and_get():
 
 
 def test_unknown_vertical_raises():
-    from engine.parser import get_ontology_parser, reset_parser_cache
-    reset_parser_cache()
-    with pytest.raises(KeyError):
-        get_ontology_parser("nonexistent")
+    """vertical registry 已移除；get_ontology_parser 不再接受 name（spec §5.3 决策1）。
+
+    按显式 ttl_path 调用是合法的；此处验证旧 name 调用方式已无意义，
+    改为验证 get_ontology_parser 的默认路径（pack）可工作。
+    """
+    from engine.parser import get_ontology_parser
+    p = get_ontology_parser()  # 默认 pack 路径，不传 name
+    assert p is not None
+    assert hasattr(p, "registry")
 
 
 def test_config_aware_parser_loads_ttl_and_actions():
@@ -36,13 +43,13 @@ def test_config_aware_parser_loads_ttl_and_actions():
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
             actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
     register_pack(cfg)
-    from engine.pack import pack_to_registry
     p = pack_to_registry(cfg)
     assert len(p.object_types) >= 2  # Product + NearExpiryProduct
     assert "create_clearance_task" in p.action_types
 
 
 def test_parser_cached_per_vertical():
+    """vertical 缓存已移除；验证 pack_to_registry 多次构建结果一致（无缓存依赖）。"""
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cfg = IndustryPack(
         name="test_pack", display_name="测试",
@@ -51,7 +58,6 @@ def test_parser_cached_per_vertical():
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
             actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
     register_pack(cfg)
-    from engine.pack import pack_to_registry
     p1 = pack_to_registry(cfg)
     p2 = pack_to_registry(cfg)
     assert len(p1.object_types) == len(p2.object_types)

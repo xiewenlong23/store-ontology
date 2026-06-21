@@ -150,7 +150,7 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
 
     用 pack helper 构建完整 registry（3 domain TTL 合并），指向临时数据。
     """
-    from tests._clearance_helper import build_clearance_executor, CLEARANCE_TEST_CONFIG
+    from tests._clearance_helper import build_clearance_executor, CLEARANCE_TEST_PROCESS
     ex, repo = build_clearance_executor(e2e_data_dir)
     reg = repo.registry
 
@@ -158,14 +158,14 @@ def e2e_agent(e2e_data_dir, scripted_llm, monkeypatch):
     import agent.tools.shared as T
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant=None, vertical=None: repo)
-    monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
+    monkeypatch.setattr(T, "_get_executor", lambda vertical=None, process_name=None: ex)
 
     # 构造 agent（用 deepagents create_deep_agent + ScriptedLLM）
     from langgraph.checkpoint.memory import MemorySaver
     from deepagents import create_deep_agent
     from deepagents.backends.filesystem import FilesystemBackend
 
-    prompt_intro = CLEARANCE_TEST_CONFIG.system_prompt_intro
+    prompt_intro = CLEARANCE_TEST_PROCESS.system_prompt_intro
     # 从 registry 构建提示词
     lines = [f"{prompt_intro}\n"]
     lines.append("可用实体: " + ", ".join(ot.label_zh for ot in reg.object_types.values()))

@@ -10,9 +10,8 @@ from engine.parser import OntologyParser
 from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
-from engine.pack import pack_to_registry
+from engine.pack import pack_to_registry, ValueChainProcess
 from engine.state_machine import TASK_TRANSITIONS, TERMINAL_STATES
-from engine.vertical import VerticalConfig
 from engine.bootstrap import bootstrap
 
 
@@ -35,16 +34,14 @@ def build_clearance_registry(data_dir: str):
     return pack_to_registry(pack, data_dir=data_dir)
 
 
-CLEARANCE_TEST_CONFIG = VerticalConfig(
+CLEARANCE_TEST_PROCESS = ValueChainProcess(
     name="clearance",
-    ttl_path="",  # 不再用单 TTL
-    actions_dir="",  # 不再用单 actions dir
-    data_dir="",
-    system_prompt_intro="你是门店临期商品管理助手。",
+    display_name="出清",
     workflow_object_type="Task",
     workflow_object_id_field="task_id",
     state_transitions=TASK_TRANSITIONS,
     terminal_states=list(TERMINAL_STATES),
+    system_prompt_intro="你是门店临期商品管理助手。",
 )
 
 
@@ -56,5 +53,5 @@ def build_clearance_executor(data_dir: str):
     registry = build_clearance_registry(data_dir)
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
     ex = ActionExecutor(repository=repo, actions=registry.action_types,
-                        registry=registry, config=CLEARANCE_TEST_CONFIG)
+                        registry=registry, config=CLEARANCE_TEST_PROCESS)
     return ex, repo

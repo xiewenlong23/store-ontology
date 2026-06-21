@@ -6,19 +6,18 @@ import os
 import pytest
 
 from engine.bootstrap import bootstrap
-from engine.pack import all_packs, pack_to_registry
+from engine.pack import all_packs, pack_to_registry, ValueChainProcess
 from engine.parser import OntologyParser
 from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
 from engine.errors import ValidationError
-from engine.vertical import VerticalConfig
 from workspace.equipment_repair.skills.repair_workflow.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
 
-_REPAIR_CFG = VerticalConfig(
-    name="equipment_repair",
-    ttl_path="", actions_dir="", data_dir="",
+_REPAIR_PROCESS = ValueChainProcess(
+    name="repair",
+    display_name="设备维修",
     workflow_object_type="RepairTicket",
     workflow_object_id_field="ticket_id",
     state_transitions=REPAIR_TICKET_TRANSITIONS,
@@ -41,7 +40,7 @@ def _exec(data_dir):
     registry = pack_to_registry(pack, data_dir=data_dir)
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
     ex = ActionExecutor(repository=repo, actions=registry.action_types,
-                        registry=registry, config=_REPAIR_CFG)
+                        registry=registry, config=_REPAIR_PROCESS)
     return ex, repo
 
 
