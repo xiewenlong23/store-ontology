@@ -90,3 +90,58 @@ def test_dashboard_todos_only_pending(client):
     for todo in r.json()["todos"]:
         assert todo["status"] in ("created", "pending_approval", "approved",
                                   "accepted", "in_progress")
+
+
+# ============ T4: X-Workspace header 路由（架构 spec §3.4）===========
+
+def test_x_workspace_header_drives_workspace_resolution(client):
+    """X-Workspace header 决定运行的 workspace（优先于 URL {cid}）。
+
+    架构 spec §3.4：前端通过 X-Workspace 告诉后端运行在哪个 workspace。
+    发不同 X-Workspace 值应路由到不同 workspace（这里用 customer_default 验证
+    header 能解析；未来多 workspace 时可验证 header 切换不同本体）。
+    """
+    # 不带 header：用 URL cid（customer_default），应正常返回
+    r_no_header = client.get("/api/dashboard/customer_default/metrics")
+    assert r_no_header.status_code == 200
+    assert "tasks" in r_no_header.json()
+
+    # 带 X-Workspace header（值与 cid 相同）：仍正常，证明 header 被解析且兼容
+    r_with_header = client.get(
+        "/api/dashboard/customer_default/metrics",
+        headers={"X-Workspace": "customer_default"})
+    assert r_with_header.status_code == 200
+    assert "tasks" in r_with_header.json()
+    # 结果与不带 header 一致（同一 workspace）
+    assert r_with_header.json() == r_no_header.json()
+
+
+def test_x_workspace_header_overrides_url_cid(client):
+    """X-Workspace header 优先级高于 URL {cid}（架构 spec §3.4）。
+
+    发 X-Workspace: customer_default 但 URL cid 用一个不存在的值，
+    应仍按 header 指向的 workspace 工作（URL cid 被忽略）。
+    """
+    r = client.get(
+        "/api/dashboard/bogus_cid/metrics",
+        headers={"X-Workspace": "customer_default"})
+    assert r.status_code == 200
+    assert "tasks" in r.json()
+
+
+def test_resolve_workspace_name_priority(client):
+    """_resolve_workspace_name 优先级：header > URL cid > 默认。"""
+    import main
+    from fastapi import Request
+
+    # 模拟 request 对象（TestClient 实际请求会经 middleware 设置 state）
+    class _FakeRequest:
+        def __init__(self, workspace_name=None):
+            self.state = type('s', (), {'workspace_name': workspace_name})()
+
+    # header 存在 → 用 header
+    assert main._resolve_workspace_name(_FakeRequest("ws_from_header"), "url_cid") == "ws_from_header"
+    # header 缺失、url cid 存在 → 用 url cid
+    assert main._resolve_workspace_name(_FakeRequest(None), "url_cid") == "url_cid"
+    # 都缺失 → 默认 customer_default
+    assert main._resolve_workspace_name(_FakeRequest(None), None) == "customer_default"

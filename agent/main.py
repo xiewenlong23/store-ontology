@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
@@ -260,6 +260,34 @@ async def tenant_middleware(request, call_next):
         tenant_ctx.reset(token)
 
 
+@app.middleware("http")
+async def workspace_middleware(request, call_next):
+    """解析 X-Workspace header，注入 request.state.workspace_name（架构 spec §3.4）。
+
+    前端通过 X-Workspace header 告诉后端运行在哪个 workspace 上。
+    未传时默认 customer_default（保持向后兼容）。
+    具体 workspace 运行时上下文的构建（bootstrap_customer）在各路由内按需调用，
+    通过 _resolve_workspace_name(request) 统一取值（header 优先，URL {cid} 回退）。
+    """
+    ws = request.headers.get("X-Workspace") or "customer_default"
+    request.state.workspace_name = ws
+    return await call_next(request)
+
+
+def _resolve_workspace_name(request, url_cid: str = None) -> str:
+    """统一解析当前请求的 workspace 标识（架构 spec §3.4）。
+
+    优先级：X-Workspace header > URL {cid} 参数 > 默认 customer_default。
+    URL {cid} 回退保证旧前端调用（admin/dashboard 路由）仍可用。
+    """
+    ws = getattr(request.state, "workspace_name", None)
+    if ws:
+        return ws
+    if url_cid:
+        return url_cid
+    return "customer_default"
+
+
 add_langgraph_fastapi_endpoint(
     app=app,
     agent=LangGraphAgent(
@@ -282,9 +310,9 @@ from engine.customer_bootstrap import bootstrap_customer
 
 
 @app.get("/api/admin/customers/{cid}/ontology/objects")
-async def admin_ontology_objects(cid: str):
+async def admin_ontology_objects(request: Request, cid: str):
     """该客户所有 Object Type 定义（只读浏览）。"""
-    inst = bootstrap_customer(cid)
+    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
     objects = []
     for ot in inst.registry.object_types.values():
         objects.append({
@@ -297,9 +325,9 @@ async def admin_ontology_objects(cid: str):
 
 
 @app.get("/api/admin/customers/{cid}/ontology/actions")
-async def admin_ontology_actions(cid: str):
+async def admin_ontology_actions(request: Request, cid: str):
     """该客户所有 Action Type 定义。"""
-    inst = bootstrap_customer(cid)
+    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
     actions = []
     for at in inst.registry.action_types.values():
         actions.append({
@@ -312,9 +340,9 @@ async def admin_ontology_actions(cid: str):
 
 
 @app.get("/api/admin/customers/{cid}/ontology/links")
-async def admin_ontology_links(cid: str):
+async def admin_ontology_links(request: Request, cid: str):
     """该客户所有 Link Type 定义。"""
-    inst = bootstrap_customer(cid)
+    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
     links = []
     for lt in inst.registry.link_types.values():
         links.append({
@@ -327,9 +355,9 @@ async def admin_ontology_links(cid: str):
 # ============ 运营看板 API（P4 §4.4）============
 
 @app.get("/api/dashboard/{cid}/metrics")
-async def dashboard_metrics(cid: str):
+async def dashboard_metrics(request: Request, cid: str):
     """跨域 KPI 指标卡。"""
-    inst = bootstrap_customer(cid)
+    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
     tc = inst.tenant_context
 
     # Task 按 status 分组计数
@@ -353,9 +381,9 @@ async def dashboard_metrics(cid: str):
 
 
 @app.get("/api/dashboard/{cid}/todos")
-async def dashboard_todos(cid: str):
+async def dashboard_todos(request: Request, cid: str):
     """待办列表：非终态的 Task（需人介入）。"""
-    inst = bootstrap_customer(cid)
+    inst = bootstrap_customer(_resolve_workspace_name(request, cid))
     tc = inst.tenant_context
     tasks = inst.repository.read("Task", tc)
     active_statuses = {"created", "pending_approval", "approved", "accepted", "in_progress"}
