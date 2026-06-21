@@ -5,11 +5,14 @@ import { NextRequest } from "next/server";
 /**
  * 动态 workspace 注入（roadmap v2-tenant动态）。
  *
- * 前端经 CopilotKit headers prop 注入 X-Workspace + X-Org-Unit-ID（随选中门店变化）。
- * 本 route 用 AgentsFactory（CopilotKit 官方多租户机制）per-request 从进来的 request
- * header 读这两个值，透传给后端 LangGraphHttpAgent。
+ * CopilotKit runtime 自动把前端 headers prop 注入的 incoming request header
+ * （X-Workspace + X-Org-Unit-ID）透传给后端 agent，**本 route 无需任何 header 逻辑**。
  *
- * 后端 middleware 读 X-Workspace → contextvar，Repository 按 workspace_name + org_unit_id 过滤。
+ * 前端（layout.tsx）的 CopilotKit headers 函数注入：
+ *   X-Workspace: customer_default（固定）
+ *   X-Org-Unit-ID: 选中门店 id（随切换变化）
+ * 经 runtime 透传 → 后端 middleware 读 header → contextvar → Repository 按 org_unit 过滤。
+ *
  * 详见 docs/superpowers/specs/2026-06-21-v2-tenant-dynamic-design.md。
  */
 const BACKEND_URL = process.env.LANGGRAPH_DEPLOYMENT_URL || "http://localhost:8123/api/copilotkit";
@@ -17,15 +20,10 @@ const BACKEND_URL = process.env.LANGGRAPH_DEPLOYMENT_URL || "http://localhost:81
 const serviceAdapter = new ExperimentalEmptyAdapter();
 
 const runtime = new CopilotRuntime({
-    agents: ({ request }) => {
-        const workspace = request.headers.get("x-workspace") || "customer_default";
-        const orgUnit = request.headers.get("x-org-unit-id") || "*";
-        return {
-            default: new LangGraphHttpAgent({
-                url: BACKEND_URL,
-                headers: { "X-Workspace": workspace, "X-Org-Unit-ID": orgUnit },
-            }),
-        };
+    agents: {
+        default: new LangGraphHttpAgent({
+            url: BACKEND_URL,
+        }),
     },
 });
 
