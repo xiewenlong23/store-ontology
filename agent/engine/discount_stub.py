@@ -2,8 +2,8 @@
 
 查找顺序：
 1. 进程内注入源（测试用 set_discount_source）
-2. 客户级规则文件（customers/<cid>/data/discount_rules.json 或 ontology 参数指定）
-3. pack 默认（packs/retail/domains/marketing/rules/discount_rules.json）
+2. 客户级规则文件（workspace/<cid>/data/discount_rules.json 或 ontology 参数指定）
+3. workspace 默认（workspace/retail/ontology/domains/marketing/rules/discount_rules.json）
 4. 全局回退（data/discount_rules.json）
 """
 import json

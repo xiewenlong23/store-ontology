@@ -115,7 +115,7 @@ def query_task(status: Optional[str] = None, store_id: Optional[str] = None,
                  f"查询到 {len(rows)} 条任务。")
 
 
-# clearance 专属工具在 packs/retail/processes/clearance/tools.py，
+# clearance 专属工具在 workspace/retail/skills/clearance_workflow/tools.py，
 # 由 main.py 的 _aggregate_pack_tools 聚合加载。引擎不再直接 import workspace 代码。
 query_near_expiry = None  # 占位（向后兼容引用）
 
