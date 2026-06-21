@@ -461,7 +461,7 @@ execute_action(...)              confirm_action(preview_id)
 
 ## 附录 B：Palantir 参考关键收获
 
-精读 `docs/palantir-ontology-docs/`（现位于 [`reference/palantir/`](./reference/palantir/)）后的收获：
+精读 `docs/palantir-ontology-docs/`（现位于 [`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/)）后的收获：
 1. **Action Type 结构 = parameters + rules + submission criteria + side effects**。本设计 MVP 补全 submission_criteria + side_effects。
 2. **submission criteria 独立于粗粒度权限**——细粒度门控。本设计采纳。
 3. **Function 是独立、有类型、版本化、沙箱化的计算单元**——但这是为"应用"消费者设计。agent 时代消费者是 LLM，计算通过 Tool 暴露，故**不引入 Function 本体元素**（§2.1）。

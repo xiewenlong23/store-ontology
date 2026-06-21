@@ -21,7 +21,7 @@
 
 ### 1.1 建模对象的边界
 
-**本体的定位是组织的运营层（operational layer）/ 数字孪生**——它位于原始数据之上、应用之下，把数字资产连接到现实世界实体（门店、商品、任务）。它不是数据库 schema 的镜像，而是用业务语言描述"这个组织在运营什么、能做什么"。这与 Palantir Foundry Ontology 的定位一致（详见 `reference/palantir/palantir-ontology-docs/summary.md` §一）。
+**本体的定位是组织的运营层（operational layer）/ 数字孪生**——它位于原始数据之上、应用之下，把数字资产连接到现实世界实体（门店、商品、任务）。它不是数据库 schema 的镜像，而是用业务语言描述"这个组织在运营什么、能做什么"。这与 Palantir Foundry Ontology 的定位一致（详见 `reference/palantir-ontology-docs/summary.md` §一）。
 
 OntologyAgent 的本体承载两类元素：
 

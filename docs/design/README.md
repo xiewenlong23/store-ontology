@@ -48,7 +48,7 @@
 
 | 资料 | 路径 | 说明 |
 |------|------|------|
-| **Palantir Foundry Ontology 精读** | [`reference/palantir/`](./reference/palantir/) | 本平台本体设计的主要参考来源（只读） |
+| **Palantir Foundry Ontology 精读** | [`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/) | 本平台本体设计的主要参考来源（只读） |
 
 ### 归档（🗄 历史）
 

@@ -1,3 +1,11 @@
+> **🗄 归档说明**：本文档为「AI 门店大脑-临期商品管理」原始设计，**已被取代**。
+> - 架构/平台部分 → [`00-architecture.md`](../00-architecture.md)
+> - 零售临期行业包 as-built → [`industry-packs/retail-clearance.md`](../industry-packs/retail-clearance.md)
+>
+> 保留作历史追溯。**请勿据此文档实施**（路径与术语均已过时）。
+
+---
+
 # AI门店大脑 - 临期商品管理
 
 ## 1. 项目概述
