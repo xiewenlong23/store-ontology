@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useWorkspace } from '../workspace-context'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8123'
 
@@ -46,17 +48,18 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function DashboardPage() {
+  const { selectedWorkspace, setSelectedWorkspace, availableWorkspaces } = useWorkspace()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const cid = 'customer_default'
-    const workspace = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE || 'customer_default'
+    setLoading(true)
+    setError('')
     Promise.all([
-      fetch(`${API_BASE}/api/dashboard/${cid}/metrics`, { headers: { 'X-Workspace': workspace } }).then(r => r.json()),
-      fetch(`${API_BASE}/api/dashboard/${cid}/todos`, { headers: { 'X-Workspace': workspace } }).then(r => r.json()),
+      fetch(`${API_BASE}/api/dashboard/${selectedWorkspace}/metrics`, { headers: { 'X-Workspace': selectedWorkspace } }).then(r => r.json()),
+      fetch(`${API_BASE}/api/dashboard/${selectedWorkspace}/todos`, { headers: { 'X-Workspace': selectedWorkspace } }).then(r => r.json()),
     ]).then(([m, t]) => {
       setMetrics(m)
       setTodos(t.todos || [])
@@ -65,16 +68,40 @@ export default function DashboardPage() {
       setError(e.message)
       setLoading(false)
     })
-  }, [])
+  }, [selectedWorkspace])
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>加载中...</div>
   if (error) return <div style={{ padding: 40, color: '#ef4444' }}>加载失败: {error}</div>
 
   return (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: 24, fontFamily: 'system-ui' }}>
-      <header style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, margin: 0 }}>📊 运营看板</h1>
-        <p style={{ color: '#666', marginTop: 8 }}>跨域 KPI 指标 + 待办事项</p>
+      <header style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <Link href="/" style={{ color: '#3b82f6', textDecoration: 'none', fontSize: 13 }}>← 返回首页</Link>
+          </div>
+          <h1 style={{ fontSize: 28, margin: 0 }}>📊 运营看板</h1>
+          <p style={{ color: '#666', marginTop: 8 }}>跨域 KPI 指标 + 待办事项</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label htmlFor="dashboard-workspace-switcher" style={{ fontSize: 13, color: '#6b7280' }}>Workspace:</label>
+          <select
+            id="dashboard-workspace-switcher"
+            value={selectedWorkspace}
+            onChange={(e) => setSelectedWorkspace(e.target.value as typeof selectedWorkspace)}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid #d1d5db',
+              background: '#fff',
+              fontSize: 14,
+            }}
+          >
+            {availableWorkspaces.map((ws) => (
+              <option key={ws} value={ws}>{ws}</option>
+            ))}
+          </select>
+        </div>
       </header>
 
       {/* 指标卡 */}

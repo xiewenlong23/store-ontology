@@ -1,6 +1,7 @@
 'use client'
 
 import { useCoAgent } from '@copilotkit/react-core'
+import Link from 'next/link'
 import { useWorkspace } from './workspace-context'
 
 /**
@@ -16,7 +17,7 @@ const STORES = [
 ]
 
 export default function HomePage() {
-  const { selectedStore, setSelectedStore } = useWorkspace()
+  const { selectedStore, setSelectedStore, selectedWorkspace, setSelectedWorkspace, availableWorkspaces } = useWorkspace()
   const { setState: setAgentState } = useCoAgent<{
     selected_store: string
   }>({
@@ -29,8 +30,26 @@ export default function HomePage() {
   return (
     <main className="main">
       <header className="header">
-        <h1>🏪 门店临期商品管理</h1>
-        <p className="subtitle">基于AI的智能门店临期商品管理系统</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1>🏪 门店临期商品管理</h1>
+            <p className="subtitle">基于AI的智能门店临期商品管理系统</p>
+          </div>
+          <Link
+            href="/dashboard"
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              background: '#3b82f6',
+              color: '#fff',
+              textDecoration: 'none',
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
+            📊 运营看板
+          </Link>
+        </div>
       </header>
       <div className="content">
         <section className="section">
@@ -46,6 +65,24 @@ export default function HomePage() {
             <li>查看门店摘要</li>
             <li>了解折扣规则</li>
           </ul>
+        </section>
+        <section className="section">
+          <h2>🗂️ 切换工作空间</h2>
+          <div className="button-group">
+            {availableWorkspaces.map(ws => (
+              <button
+                key={ws}
+                className="btn"
+                disabled={selectedWorkspace === ws}
+                onClick={() => setSelectedWorkspace(ws)}
+              >
+                {ws}
+              </button>
+            ))}
+          </div>
+          <p style={{ marginTop: 8, fontSize: 14, color: '#666' }}>
+            💡 不同工作空间对应不同后端业务包(本体/工具/skill 隔离)
+          </p>
         </section>
         <section className="section">
           <h2>🎯 切换门店</h2>

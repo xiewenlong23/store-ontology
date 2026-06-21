@@ -38,7 +38,7 @@ function AppWithWorkspace({
 }: {
   children: React.ReactNode
 }) {
-  const { selectedStore } = useWorkspace()
+  const { selectedWorkspace, selectedStore } = useWorkspace()
   // 通用：从工具返回文本中提取 JSON 数据
   const extractData = (result: any) => {
     const str = typeof result === 'string' ? result : JSON.stringify(result);
@@ -389,7 +389,7 @@ function AppWithWorkspace({
       runtimeUrl="/api/copilotkit"
       agent="default"
       headers={() => ({
-        'X-Workspace': 'customer_default',
+        'X-Workspace': selectedWorkspace,
         'X-Org-Unit-ID': selectedStore || '*',
       })}
       renderToolCalls={renderToolCalls as any}
