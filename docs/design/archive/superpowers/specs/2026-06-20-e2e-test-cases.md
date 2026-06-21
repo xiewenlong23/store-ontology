@@ -1,3 +1,7 @@
+> **🗄 归档说明**：brainstorming 产出（spec（设计决策）），过程历史。其结论/产物已并入 [`docs/design/`](../) 权威文档。保留作决策追溯。
+
+---
+
 # 用户 E2E 测试用例设计（驱动开发）
 
 > **依据**：`docs/superpowers/specs/2026-06-20-ontologyagent-target-architecture-design.md`（目标架构）+ TDD skill（test-first）

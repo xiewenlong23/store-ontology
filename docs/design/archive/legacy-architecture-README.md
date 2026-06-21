@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/architecture/README.md`（架构目录导航）。已被 [`README.md`](../README.md)（全 design 导航）取代。保留作历史追溯。
+
+---
+
 # OntologyAgent 平台架构与规范文档
 
 > **版本**：0.1.0（MVP）

@@ -1,3 +1,7 @@
+> **🗄 归档说明**：brainstorming 产出（spec（设计决策）），过程历史。其结论/产物已并入 [`docs/design/`](../) 权威文档。保留作决策追溯。
+
+---
+
 # OntologyAgent APaaS 平台总体架构设计
 
 > **状态**：已与用户逐节确认，待 review

@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/architecture/development-guide.md`。已被 [`30-development-guide.md`](../30-development-guide.md) 取代（治愈路径 + 本体开发引用 manual）。保留作历史追溯。
+
+---
+
 # 平台开发规范
 
 > **版本**：0.1.0（MVP）

@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/业务本体建模规范.md`。已被 [`40-ontology-modeling-spec.md`](../40-ontology-modeling-spec.md) 取代（治愈路径/术语 + 模板引用改指 manual/）。保留作历史追溯。
+
+---
+
 # 业务本体建模规范
 
 > **状态**：生效中（随 OntologyAgent 内核演进同步更新）

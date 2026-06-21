@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/architecture/system-architecture.md`。已被 [`00-architecture.md`](../00-architecture.md)（合并 target-spec ⊕ 本文档的单一权威）取代。保留作历史追溯。
+
+---
+
 # 系统架构文档
 
 > **版本**：0.1.0（MVP）

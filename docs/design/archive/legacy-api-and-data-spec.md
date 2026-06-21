@@ -1,3 +1,7 @@
+> **🗄 归档说明**：原 `docs/architecture/api-and-data-spec.md`。已被 [`20-api-data-contract.md`](../20-api-data-contract.md) 取代（治愈路径/术语 + 对齐 X-Workspace）。保留作历史追溯。
+
+---
+
 # API 与数据契约规范
 
 > **版本**：0.1.0（MVP）

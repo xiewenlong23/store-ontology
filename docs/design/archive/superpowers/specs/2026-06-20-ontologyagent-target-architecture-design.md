@@ -1,3 +1,7 @@
+> **🗄 归档说明**：brainstorming 产出（spec（设计决策）），过程历史。其结论/产物已并入 [`docs/design/`](../) 权威文档。保留作决策追溯。
+
+---
+
 # OntologyAgent 目标架构设计（三文档合一）
 
 > **状态**：已实现内核多 vertical 架构 + 临期出清 vertical + 设备维修 vertical（worked example）。本文档随实现滚动更新。

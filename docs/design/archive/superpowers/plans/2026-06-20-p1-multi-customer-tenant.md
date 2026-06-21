@@ -1,3 +1,7 @@
+> **🗄 归档说明**：brainstorming 产出（plan（实施计划）），过程历史。其结论/产物已并入 [`docs/design/`](../) 权威文档。保留作决策追溯。
+
+---
+
 # P1 多客户租户地基 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
