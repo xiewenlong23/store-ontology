@@ -1,7 +1,7 @@
-"""行业包三级结构（P2）：IndustryPack > CapabilityDomain + ValueChainProcess。
+"""工作目录定义：CapabilityDomain + ValueChainProcess + WorkspaceDef。
 
-CapabilityDomain 提供原子 Object/Link/Action；ValueChainProcess 跨域编排。
-pack_to_registry 合并 pack 下所有 domain 的定义为一个 EntityRegistry。
+去掉 IndustryPack 中间层：每个工作目录直接是一组能力域 + 价值链流程的扁平集合。
+工作目录经 workspace/*/workspace.py 的 register_workspace_dir 注册。
 """
 import os
 from dataclasses import dataclass, field
@@ -33,14 +33,14 @@ class ValueChainProcess:
     terminal_states: List[str] = field(default_factory=list)
     skills_dir: Optional[str] = None
     tools_module: Optional[str] = None
-    actions_dir: Optional[str] = None  # 流程专属 Action（如 submit/approve/accept）
+    actions_dir: Optional[str] = None
     system_prompt_intro: str = ""
     description: str = ""
 
 
 @dataclass
-class IndustryPack:
-    """行业包：聚合多个 CapabilityDomain + 多个 ValueChainProcess。"""
+class WorkspaceDef:
+    """工作目录定义：一组能力域 + 价值链流程（取代原 IndustryPack 容器）。"""
     name: str
     display_name: str
     domains: List[CapabilityDomain] = field(default_factory=list)
@@ -48,50 +48,75 @@ class IndustryPack:
     data_dir: str = ""
 
 
-# ============ pack 注册表 ============
+# ============ 工作目录注册表 ============
 
-_packs: Dict[str, IndustryPack] = {}
-
-
-def register_pack(pack: IndustryPack) -> None:
-    _packs[pack.name] = pack
+_workspace_dirs: Dict[str, WorkspaceDef] = {}
 
 
-def get_pack(name: str) -> Optional[IndustryPack]:
-    return _packs.get(name)
+def register_workspace_dir(ws_def: WorkspaceDef) -> None:
+    _workspace_dirs[ws_def.name] = ws_def
 
 
-def all_packs() -> List[IndustryPack]:
-    return list(_packs.values())
+def get_workspace_dir(name: str) -> Optional[WorkspaceDef]:
+    return _workspace_dirs.get(name)
 
 
-def clear_packs() -> None:
-    _packs.clear()
+def all_workspace_dirs() -> List[WorkspaceDef]:
+    return list(_workspace_dirs.values())
 
 
-def pack_to_registry(pack: IndustryPack, data_dir: str = ".") -> EntityRegistry:
-    """合并 pack 下所有 domain + process 的定义为一个 EntityRegistry。
+def clear_workspace_dirs() -> None:
+    _workspace_dirs.clear()
 
-    - 每个 domain 的 TTL 解析出 Object/Link
-    - 每个 domain + process 的 actions_dir 加载 Action
-    - executor/tools 不关心 Action 来自哪里，按名路由
+
+def domains_to_registry(ws_def: WorkspaceDef, data_dir: str = ".") -> EntityRegistry:
+    """合并工作目录下所有 domain + process 的定义为一个 EntityRegistry。
+
+    取代原 pack_to_registry。入参从 IndustryPack 改为 WorkspaceDef（结构相同）。
     """
     registry = EntityRegistry()
 
-    # 解析所有 domain TTL（各自独立 parser，合并 object/link_types）
-    for domain in pack.domains:
+    for domain in ws_def.domains:
         if not os.path.exists(domain.ttl_path):
             continue
         p = OntologyParser(ttl_path=domain.ttl_path, data_dir=data_dir)
         registry.object_types.update(p.registry.object_types)
         registry.link_types.update(p.registry.link_types)
 
-    # 加载所有 domain + process 的 Action
-    for domain in pack.domains:
+    for domain in ws_def.domains:
         if domain.actions_dir and os.path.isdir(domain.actions_dir):
             registry.action_types.update(load_actions(domain.actions_dir))
-    for proc in pack.processes:
+    for proc in ws_def.processes:
         if proc.actions_dir and os.path.isdir(proc.actions_dir):
             registry.action_types.update(load_actions(proc.actions_dir))
 
     return registry
+
+
+# ============ 向后兼容别名（迁移期，WP1 完成后可逐步移除）============
+# 旧代码 import IndustryPack/register_pack/all_packs/pack_to_registry 的临时桥接。
+# 这些在 WP1 测试改完后应无调用者；若 grep 确认零引用，可在后续清理。
+
+_packs = _workspace_dirs  # deprecated 别名（内部注册表，部分测试直接 import）
+
+IndustryPack = WorkspaceDef  # type: ignore[misc,assignment]
+
+def register_pack(ws_def) -> None:
+    """deprecated: 用 register_workspace_dir。"""
+    register_workspace_dir(ws_def)
+
+def get_pack(name: str):
+    """deprecated: 用 get_workspace_dir。"""
+    return get_workspace_dir(name)
+
+def all_packs() -> List[WorkspaceDef]:
+    """deprecated: 用 all_workspace_dirs。"""
+    return all_workspace_dirs()
+
+def clear_packs() -> None:
+    """deprecated: 用 clear_workspace_dirs。"""
+    clear_workspace_dirs()
+
+def pack_to_registry(ws_def, data_dir: str = ".") -> EntityRegistry:
+    """deprecated: 用 domains_to_registry。"""
+    return domains_to_registry(ws_def, data_dir)
