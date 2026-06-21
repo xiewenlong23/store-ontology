@@ -1,4 +1,4 @@
-"""equipment_repair pack 回归测试。
+"""customerA pack 回归测试。
 
 证明：多 pack 并存 + 无折扣概念也能跑。
 """
@@ -12,7 +12,7 @@ from engine.action_loader import load_actions
 from engine.repository import JSONFileRepository
 from engine.executor import ActionExecutor
 from engine.errors import ValidationError
-from workspace.equipment_repair.skills.repair_workflow.state_machine import (
+from workspace.customerA.skills.repair_workflow.state_machine import (
     REPAIR_TICKET_TRANSITIONS, TERMINAL_STATES)
 
 _REPAIR_PROCESS = ValueChainProcess(
@@ -36,7 +36,7 @@ def _boot():
 def _exec(data_dir):
     """构造指向 data_dir 的 executor（从 pack 合并 registry）。"""
     from engine.pack import get_workspace_dir
-    ws = get_workspace_dir("equipment_repair")
+    ws = get_workspace_dir("customerA")
     registry = domains_to_registry(ws, data_dir=data_dir)
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
     ex = ActionExecutor(repository=repo, actions=registry.action_types,
@@ -44,15 +44,15 @@ def _exec(data_dir):
     return ex, repo
 
 
-def test_equipment_repair_registered():
+def test_customerA_registered():
     names = [p.name for p in all_workspace_dirs()]
-    assert "equipment_repair" in names
+    assert "customerA" in names
 
 
 def test_repair_ttl_and_actions_parse():
     from engine.pack import get_workspace_dir
-    ws = get_workspace_dir("equipment_repair")
-    registry = domains_to_registry(ws, data_dir=os.path.join(_BASE, "..", "workspace", "equipment_repair", "data"))
+    ws = get_workspace_dir("customerA")
+    registry = domains_to_registry(ws, data_dir=os.path.join(_BASE, "..", "workspace", "customerA", "data"))
     assert {"Equipment", "RepairTicket", "Technician", "Vendor"} == set(registry.object_types)
     assert len(registry.link_types) == 4
     assert {"create_repair_ticket", "diagnose_ticket", "assign_technician",
@@ -126,7 +126,7 @@ def test_query_repair_tickets_tool_invokes_without_error(repair_data_dir, monkey
     工具经 shared._get_repo(tc) 装配；此处 monkeypatch 指向 repair_data_dir 的 repo，
     验证工具签名（workspace_name/org_unit_id + TenantContext）与调用链正确。
     """
-    from workspace.equipment_repair.skills.repair_workflow.tools import query_repair_tickets
+    from workspace.customerA.skills.repair_workflow.tools import query_repair_tickets
     _, repo = _exec(repair_data_dir)
     import agent.tools.shared as T
     monkeypatch.setattr(T, "_get_repo", lambda tc=None, vertical=None: repo)
@@ -136,7 +136,7 @@ def test_query_repair_tickets_tool_invokes_without_error(repair_data_dir, monkey
 
 
 def test_state_machine_table_loaded():
-    """equipment_repair 的状态迁移表正确（独立于 clearance）。"""
+    """customerA 的状态迁移表正确（独立于 clearance）。"""
     assert "repairing" in REPAIR_TICKET_TRANSITIONS
     assert "resolved" in TERMINAL_STATES
     from engine.state_machine import is_valid_transition

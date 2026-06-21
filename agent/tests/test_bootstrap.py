@@ -6,10 +6,10 @@ from engine import bootstrap as bootstrap_mod
 from engine.pack import all_workspace_dirs, clear_workspace_dirs, register_workspace_dir, WorkspaceDef, CapabilityDomain
 
 
-def test_bootstrap_registers_equipment_repair():
+def test_bootstrap_registers_customerA():
     bootstrap_mod.bootstrap()
     names = [p.name for p in all_workspace_dirs()]
-    assert "equipment_repair" in names
+    assert "customerA" in names
 
 
 def test_bootstrap_registers_retail():

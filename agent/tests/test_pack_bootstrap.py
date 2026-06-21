@@ -5,17 +5,17 @@ from engine.pack import all_workspace_dirs, clear_workspace_dirs
 
 
 
-def test_bootstrap_discovers_equipment_repair_pack():
-    """bootstrap 后 equipment_repair pack 被发现注册。"""
+def test_bootstrap_discovers_customerA_pack():
+    """bootstrap 后 customerA pack 被发现注册。"""
     # 显式补注册防被其它测试 clear 掉
-    import workspace.equipment_repair.workspace  # noqa: F401
-    from workspace.equipment_repair.workspace import EQUIPMENT_REPAIR_WS
+    import workspace.customerA.workspace  # noqa: F401
+    from workspace.customerA.workspace import CUSTOMERA_WS
     from engine.pack import register_workspace_dir
-    register_workspace_dir(EQUIPMENT_REPAIR_WS)
+    register_workspace_dir(CUSTOMERA_WS)
 
     bootstrap()
     pack_names = [p.name for p in all_workspace_dirs()]
-    assert "equipment_repair" in pack_names
+    assert "customerA" in pack_names
 
 
 def test_bootstrap_idempotent():
