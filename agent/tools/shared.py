@@ -93,20 +93,20 @@ def _get_executor(vertical: str = None, process_name: str = None) -> ActionExecu
     if process_name is None:
         return inst.executor
     # 精确匹配 process：从 source_pack 的 processes 取
-    from engine.pack import get_pack
-    pack = get_pack(inst.config.source_pack) if inst.config and inst.config.source_pack else None
-    if pack is None:
+    from engine.pack import get_workspace_dir
+    ws = get_workspace_dir(inst.config.source_pack) if inst.config and inst.config.source_pack else None
+    if ws is None:
         warnings.warn(f"workspace '{workspace_name}' 无 source_pack，忽略 process_name='{process_name}'",
                       stacklevel=2)
         return inst.executor
-    for proc in pack.processes:
+    for proc in ws.processes:
         if proc.name == process_name:
             return ActionExecutor(
                 repository=inst.repository, actions=inst.registry.action_types,
                 registry=inst.registry, config=proc)
     warnings.warn(
-        f"process_name='{process_name}' 在 pack '{pack.name}' 的 processes "
-        f"{[p.name for p in pack.processes]} 中未找到，回退默认 executor。",
+        f"process_name='{process_name}' 在工作目录 '{ws.name}' 的 processes "
+        f"{[p.name for p in ws.processes]} 中未找到，回退默认 executor。",
         stacklevel=2)
     return inst.executor
 
@@ -116,11 +116,11 @@ def build_ontology_prompt(vertical: str = None) -> str:
     _warn_deprecated_vertical(vertical)
     p = _parser()
     intro = ""
-    from engine.pack import get_pack
+    from engine.pack import get_workspace_dir
     inst = bootstrap_workspace(_workspace_name_from_ctx())
-    pack = get_pack(inst.config.source_pack) if inst.config and inst.config.source_pack else None
-    if pack and pack.processes:
-        intro = pack.processes[0].system_prompt_intro
+    ws = get_workspace_dir(inst.config.source_pack) if inst.config and inst.config.source_pack else None
+    if ws and ws.processes:
+        intro = ws.processes[0].system_prompt_intro
     return p.build_system_prompt(intro)
 
 

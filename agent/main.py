@@ -47,26 +47,26 @@ _bootstrap()
 def _aggregate_pack_tools():
     """从各 pack 的 process.tools_module 聚合专属工具。"""
     import importlib
-    from engine.pack import all_packs
+    from engine.pack import all_workspace_dirs
     collected = []
-    for pack in all_packs():
-        for proc in pack.processes:
+    for ws in all_workspace_dirs():
+        for proc in ws.processes:
             if not proc.tools_module:
                 continue
             try:
                 mod = importlib.import_module(proc.tools_module)
                 collected.extend(getattr(mod, "TOOLS", []))
             except Exception as e:  # noqa: BLE001
-                print(f"[main] 加载 pack '{pack.name}' process '{proc.name}' 工具失败: {e}")
+                print(f"[main] 加载 pack '{ws.name}' process '{proc.name}' 工具失败: {e}")
     return collected
 
 
 def _aggregate_skill_paths():
     """聚合各 pack process 的 skill 挂载路径。只收录含 SKILL.md 的目录。"""
     paths = []
-    from engine.pack import all_packs
-    for pack in all_packs():
-        for proc in pack.processes:
+    from engine.pack import all_workspace_dirs
+    for ws in all_workspace_dirs():
+        for proc in ws.processes:
             if not proc.skills_dir or not os.path.isdir(proc.skills_dir):
                 continue
             for name in os.listdir(proc.skills_dir):
@@ -99,14 +99,14 @@ def _list_system_skill_dirs():
 
 
 def _build_combined_prompt() -> str:
-    """合并所有 pack 的本体提示。"""
-    from engine.pack import all_packs, pack_to_registry
+    """合并所有工作目录的本体提示。"""
+    from engine.pack import all_workspace_dirs, domains_to_registry
     from engine.parser import OntologyParser
     parts = []
-    for pack in all_packs():
-        for proc in pack.processes:
-            intro = proc.system_prompt_intro or pack.display_name
-            registry = pack_to_registry(pack, data_dir=pack.data_dir or ".")
+    for ws in all_workspace_dirs():
+        for proc in ws.processes:
+            intro = proc.system_prompt_intro or ws.display_name
+            registry = domains_to_registry(ws, data_dir=ws.data_dir or ".")
             # 用 parser 的 build_system_prompt 格式化
             p = type('P', (), {'registry': registry})()
             lines = [f"{intro}\n"]
@@ -233,7 +233,7 @@ deep_agent_graph = create_deep_agent(
 
 # ============ FastAPI 应用 ============
 
-_pack_names = ", ".join(p.name for p in __import__('engine.pack', fromlist=['all_packs']).all_packs()) or "无"
+_pack_names = ", ".join(p.name for p in __import__('engine.pack', fromlist=['all_workspace_dirs']).all_workspace_dirs()) or "无"
 app = FastAPI(
     title="OntologyAgent APaaS - 本体驱动 Agent",
     description=f"基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手（已加载 pack: {_pack_names}）",

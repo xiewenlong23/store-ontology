@@ -77,12 +77,12 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
         registry = _build_registry_from_workspace_ontology(ontology_dir, data_dir)
     else:
         # 无 workspace ontology 目录时，从 pack registry 构建（customer_default 走此路径）
-        from engine.pack import get_pack, pack_to_registry
+        from engine.pack import get_workspace_dir, domains_to_registry
         from engine.bootstrap import bootstrap
         bootstrap()
-        pack = get_pack(cfg.source_pack or "retail")
-        if pack:
-            registry = pack_to_registry(pack, data_dir=data_dir)
+        ws = get_workspace_dir(cfg.source_pack or "retail")
+        if ws:
+            registry = domains_to_registry(ws, data_dir=data_dir)
         else:
             from engine.parser import EntityRegistry
             registry = EntityRegistry()
@@ -91,15 +91,15 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
     # 接通 executor：config 取该 workspace source_pack 的（第一个）价值链流程（spec §5.3）。
-    # 解析链：WorkspaceConfig.source_pack → get_pack → pack.processes → processes[0]。
+    # 解析链：WorkspaceConfig.source_pack → get_pack → ws.processes → processes[0]。
     # 多 process 按 process_name 精确选择留 v2（_get_executor(workspace, process)）。
     from engine.executor import ActionExecutor
-    from engine.pack import get_pack
+    from engine.pack import get_workspace_dir
     process_config = None
     if cfg.source_pack:
-        pack = get_pack(cfg.source_pack)
-        if pack and pack.processes:
-            process_config = pack.processes[0]
+        ws = get_workspace_dir(cfg.source_pack)
+        if ws and ws.processes:
+            process_config = ws.processes[0]
     executor = ActionExecutor(
         repository=repo, actions=registry.action_types,
         registry=registry, config=process_config)
