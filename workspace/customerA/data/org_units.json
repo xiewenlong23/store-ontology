@@ -1,0 +1,62 @@
+[
+  {
+    "id": "brand_customera",
+    "parent_id": null,
+    "level": "brand",
+    "name": "客户A品牌",
+    "code": "BRAND_A",
+    "company_code": "CO_A001",
+    "profit_center_code": "PC_A001",
+    "cost_center_code": "CC_A001",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  },
+  {
+    "id": "region_north_a",
+    "parent_id": "brand_customera",
+    "level": "region",
+    "name": "北方区",
+    "code": "REG_N_A",
+    "company_code": "CO_A001",
+    "profit_center_code": "PC_A001",
+    "cost_center_code": "CC_A001",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  },
+  {
+    "id": "region_south_a",
+    "parent_id": "brand_customera",
+    "level": "region",
+    "name": "南方区",
+    "code": "REG_S_A",
+    "company_code": "CO_A001",
+    "profit_center_code": "PC_A001",
+    "cost_center_code": "CC_A001",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  },
+  {
+    "id": "store_001",
+    "parent_id": "region_north_a",
+    "level": "store",
+    "name": "北京朝阳店",
+    "code": "STORE_001_A",
+    "company_code": "CO_A001",
+    "profit_center_code": "PC_A001",
+    "cost_center_code": "CC_A001_S1",
+    "workspace_name": "customerA",
+    "org_unit_id": "store_001"
+  },
+  {
+    "id": "store_002",
+    "parent_id": "region_south_a",
+    "level": "store",
+    "name": "上海浦东店",
+    "code": "STORE_002_A",
+    "company_code": "CO_A001",
+    "profit_center_code": "PC_A001",
+    "cost_center_code": "CC_A001_S2",
+    "workspace_name": "customerA",
+    "org_unit_id": "store_002"
+  }
+]

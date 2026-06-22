@@ -1,0 +1,61 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# identity domain —— 用户/角色/权限授予（v2 认证/权限，设计文档 §3.1）
+# 权限元数据（:read_roles / :read_except 等）由 WP3 parser 解析
+# ============================================================
+
+store:User a rdfs:Class ;
+    rdfs:label "用户"@zh , "User"@en ;
+    rdfs:comment "登录账号。username 实名（工号/手机号），跨 workspace 一致；password_hash 各 workspace 独立"@zh ;
+    store:properties "id:string,username:string,password_hash:string,display_name:string,status:UserStatus,created_at:datetime" ;
+    store:storage "users.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" ;
+    store:read_roles "system_admin" ;
+    store:property [
+        store:name "password_hash" ;
+        store:read_except "*"
+    ] .
+
+store:Role a rdfs:Class ;
+    rdfs:label "角色"@zh , "Role"@en ;
+    rdfs:comment "角色定义（业务角色词汇表，如 store_manager/region_cat_mgr/system_admin）"@zh ;
+    store:properties "id:string,name:string,display_name:string,description:string" ;
+    store:storage "roles.json" ;
+    store:status "active" ;
+    store:read_roles "*" .
+
+store:PermissionGrant a rdfs:Class ;
+    rdfs:label "权限授予"@zh , "PermissionGrant"@en ;
+    rdfs:comment "运行时权限授予。覆盖 TTL 元数据默认（设计文档 §2.5 runtime override）"@zh ;
+    store:properties "id:string,role_id:string,resource_type:ResourceType,resource_id:string,action:PermissionAction,effect:PermissionEffect,scope_json:dict" ;
+    store:storage "permission_grants.json" ;
+    store:status "active" ;
+    store:edits_only_via_actions "true" ;
+    store:read_roles "system_admin" .
+
+store:Session a rdfs:Class ;
+    rdfs:label "会话"@zh , "Session"@en ;
+    rdfs:comment "刷新令牌管理（可选，refresh token 撤销留 v2.1）"@zh ;
+    store:properties "id:string,user_id:string,refresh_token_hash:string,expires_at:datetime" ;
+    store:storage "sessions.json" ;
+    store:status "experimental" ;
+    store:edits_only_via_actions "true" ;
+    store:read_roles "system_admin" .
+
+# ============================================================
+# Link Types
+# ============================================================
+
+store:has_role a rdfs:Property ;
+    rdfs:label "拥有角色"@zh , "has role"@en ;
+    rdfs:comment "User 通过 role_id 关联 Role（User 多角色能力留 v2.1）"@zh ;
+    rdfs:domain store:User ; rdfs:range store:Role ; store:via "role_id" .
+
+store:grants_to a rdfs:Property ;
+    rdfs:label "授予给"@zh , "grants to"@en ;
+    rdfs:comment "PermissionGrant 通过 role_id 关联 Role"@zh ;
+    rdfs:domain store:PermissionGrant ; rdfs:range store:Role ; store:via "role_id" .

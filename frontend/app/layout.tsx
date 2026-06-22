@@ -5,8 +5,10 @@ import { CopilotKit } from '@copilotkit/react-core'
 import { CopilotChat } from '@copilotkit/react-ui'
 import '@copilotkit/react-ui/styles.css'
 import './globals.css'
-import { Fragment, ReactNode, useMemo } from 'react'
+import { Fragment, ReactNode, useMemo, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { WorkspaceProvider, useWorkspace } from './workspace-context'
+import { AuthProvider, useAuth } from './auth-context'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -39,6 +41,22 @@ function AppWithWorkspace({
   children: React.ReactNode
 }) {
   const { selectedWorkspace, selectedStore } = useWorkspace()
+  const { token, isAuthenticated } = useAuth()
+  const router = useRouter()
+  // v2（WP7）：未登录跳 /login（login 页本身豁免此规则——它直接渲染表单）
+  // 用 useEffect + router.replace 避免在 hydration 期间触发整页刷新
+  // （window.location.replace 会让 React state 丢失，影响表单 submit）
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setHydrated(true) }, [])
+  useEffect(() => {
+    if (!hydrated) return  // 等 hydration 完成
+    if (typeof window === 'undefined') return
+    const path = window.location.pathname
+    // login 页（含子路径）豁免
+    if (!isAuthenticated && !path.startsWith('/login')) {
+      router.replace('/login')
+    }
+  }, [isAuthenticated, hydrated, router])
   // 通用：从工具返回文本中提取 JSON 数据
   const extractData = (result: any) => {
     const str = typeof result === 'string' ? result : JSON.stringify(result);
@@ -388,10 +406,15 @@ function AppWithWorkspace({
     <CopilotKit
       runtimeUrl="/api/copilotkit"
       agent="default"
-      headers={() => ({
-        'X-Workspace': selectedWorkspace,
-        'X-Org-Unit-ID': selectedStore || '*',
-      })}
+      headers={() => {
+        const h: Record<string, string> = {
+          'X-Workspace': selectedWorkspace,
+          'X-Org-Unit-ID': selectedStore || '*',
+        }
+        // v2（WP7）：Authorization Bearer token 透传给后端 auth_middleware
+        if (token) h['Authorization'] = `Bearer ${token}`
+        return h
+      }}
       renderToolCalls={renderToolCalls as any}
     >
       <div className="golden-layout">
@@ -416,9 +439,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
-        <WorkspaceProvider>
-          <AppWithWorkspace>{children}</AppWithWorkspace>
-        </WorkspaceProvider>
+        <AuthProvider>
+          <WorkspaceProvider>
+            <AppWithWorkspace>{children}</AppWithWorkspace>
+          </WorkspaceProvider>
+        </AuthProvider>
       </body>
     </html>
   )

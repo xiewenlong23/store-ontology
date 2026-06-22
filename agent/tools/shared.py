@@ -12,6 +12,7 @@
 系统 Tool（query/crud/action）与 workspace 业务 Tool 都依赖这些 helper。
 """
 import json
+import os
 import warnings
 
 from engine.repository import JSONFileRepository
@@ -149,3 +150,89 @@ def _tc_ctx(workspace_name: str = None, org_unit_id: str = None) -> TenantContex
         workspace_name=workspace_name if workspace_name is not None else base.workspace_name,
         org_unit_id=org_unit_id if org_unit_id is not None else base.org_unit_id,
     )
+
+
+# ============ v2 信任修复（WP6）============
+
+# 兜底角色：未认证或 Employee 关联缺失时用此 role（PermissionEvaluator 会按此
+# 求值，多数业务资源的 read_roles 不含它 → 自动拒绝）。
+_ANONYMOUS_ROLE = "anonymous"
+
+
+def _get_actor(tenant=None) -> dict:
+    """从 auth_ctx contextvar 派生可信 actor（设计文档 §5 WP6）。
+
+    流程：auth_ctx.user_id → 查 workspace 的 Employee.user_id → 取 role。
+    - 已登录且 Employee 关联存在 → actor={"role": <role>, "user_id": <uid>}
+    - 已登录但无 Employee 关联 → actor={"role": "system_admin", "user_id": <uid>}
+      （user 存在但无 employee 视为系统账号，至少能 query；具体资源由 TTL 再校验）
+    - 未登录（auth_ctx anonymous）+ AUTH_REQUIRED=false → 兜底 system_admin
+      （开发/测试模式：保留旧测试行为，全 allow；生产强制 auth 时此分支不可达）
+    - 未登录 + AUTH_REQUIRED=true → actor={"role": "anonymous"}
+    - 无 contextvar（离线）→ 兜底 actor={"role": "system_admin"}
+
+    tenant: 显式 TenantContext（默认从 tenant_ctx contextvar 取）。
+    """
+    try:
+        import main
+        auth = main.auth_ctx.get()
+    except (ImportError, LookupError, AttributeError):
+        auth = None
+
+    # 无 contextvar（测试环境）兜底——保持旧测试行为（全 allow）
+    if auth is None:
+        return {"role": "system_admin"}
+
+    if not auth.is_authenticated():
+        # AUTH_REQUIRED=false（开发/测试）→ 兜底 admin；生产强制 auth 不可达此分支
+        if os.getenv("AUTH_REQUIRED", "true").lower() in ("false", "0", "no", "off"):
+            return {"role": "system_admin"}
+        return {"role": _ANONYMOUS_ROLE}
+
+    # 已登录：查 Employee 关联推导 role
+    ws_name = _workspace_name_from_ctx()
+    try:
+        from engine.identity import get_employee_by_user
+        emp = get_employee_by_user(ws_name, auth.user_id)
+        if emp and emp.get("role"):
+            return {"role": emp["role"], "user_id": auth.user_id}
+    except Exception:  # noqa: BLE001
+        pass
+    # Employee 无关联但已认证 → 系统账号（如 admin）
+    return {"role": "system_admin", "user_id": auth.user_id}
+
+
+# ============ v2 权限求值接入（WP5 完成收尾）============
+
+def _get_evaluator():
+    """取当前 workspace 的 PermissionEvaluator（按 workspace 缓存）。
+
+    从 contextvar 解析 workspace_name → build_evaluator_from_workspace。
+    失败（workspace 未注册、import 错）返回空 evaluator（全 allow-by-default），
+    让 tool 链路不中断。
+
+    缓存：per-process dict，key=workspace_name。workspace 数据运行时不变，无需 TTL。
+    测试用 monkeypatch 替换本函数。
+    """
+    global _evaluator_cache
+    if '_evaluator_cache' not in globals():
+        _evaluator_cache = {}
+    ws_name = _workspace_name_from_ctx()
+    if ws_name in _evaluator_cache:
+        return _evaluator_cache[ws_name]
+    try:
+        from engine.permission import build_evaluator_from_workspace
+        ev = build_evaluator_from_workspace(ws_name)
+    except Exception as e:  # noqa: BLE001
+        # 任何装配失败 → 空 evaluator（全 allow-by-default，不阻断 tool）
+        from engine.permission import PermissionEvaluator, _EmptyRegistry
+        ev = PermissionEvaluator(registry=_EmptyRegistry(), grants=[], tool_manifest={})
+    _evaluator_cache[ws_name] = ev
+    return ev
+
+
+def _reset_evaluator_cache():
+    """测试用：清空 evaluator 缓存（数据/权限变更后或 fixture 重置时调）。"""
+    global _evaluator_cache
+    _evaluator_cache = {}
+

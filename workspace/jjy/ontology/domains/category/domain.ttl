@@ -1,0 +1,29 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 品类域（Category）—— 5 级品类树
+# v2（WP4）：Department→CategoryGroup→Category→SubCategory→Variety
+# Product.category_id 引用 Category.id（取代旧 category 扁平字符串，旧字段保留做兼容）
+# ============================================================
+
+store:Category a rdfs:Class ;
+    rdfs:label "品类"@zh , "Category"@en ;
+    rdfs:comment "5 级品类树节点。parent_id 自引用构成树"@zh ;
+    store:properties "id:string,parent_id:string,level:CategoryLevel,name:string,code:string" ;
+    store:storage "categories.json" ;
+    store:status "active" ;
+    store:read_roles "*" .
+
+# Link Types
+
+store:parent_of a rdfs:Property ;
+    rdfs:label "父级"@zh , "parent of"@en ;
+    rdfs:comment "Category 自引用，通过 parent_id 构成 5 级品类树"@zh ;
+    rdfs:domain store:Category ; rdfs:range store:Category ; store:via "parent_id" .
+
+store:classified_as a rdfs:Property ;
+    rdfs:label "归类为"@zh , "classified as"@en ;
+    rdfs:comment "Product 通过 category_id（domain 侧）归属到 Category"@zh ;
+    rdfs:domain store:Product ; rdfs:range store:Category ; store:via "category_id" .

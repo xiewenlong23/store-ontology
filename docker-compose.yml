@@ -1,0 +1,34 @@
+# v2-存储：PostgreSQL + pgvector 实例（roadmap §1 落地）。
+#
+# 启动：docker compose up -d
+# 停止：docker compose down（保留数据）
+# 重置：docker compose down -v（删 volume）
+#
+# 镜像：pgvector/pgvector:pg16（含 PG16 + pgvector 扩展，本轮 CRUD 不用 vector
+# 但扩展就绪为未来 RAG 铺路）。
+#
+# 连接（注意端口 5433 避开本机已起的 PG 5432）：
+#   postgresql://ontology:ontology@localhost:5433/ontology
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: store-ontology-pg
+    environment:
+      POSTGRES_USER: ontology
+      POSTGRES_PASSWORD: ontology
+      POSTGRES_DB: ontology
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ontology -d ontology"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+    driver: local

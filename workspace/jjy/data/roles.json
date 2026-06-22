@@ -1,0 +1,44 @@
+[
+  {
+    "id": "role_system_admin",
+    "name": "system_admin",
+    "display_name": "系统管理员",
+    "description": "超级角色，绕过所有权限检查（设计文档 §2.5 system_admin 短路）"
+  },
+  {
+    "id": "role_region_cat_mgr",
+    "name": "region_cat_mgr",
+    "display_name": "区域品类经理",
+    "description": "区域级品类管理，可审批 clearance 等"
+  },
+  {
+    "id": "role_store_manager",
+    "name": "store_manager",
+    "display_name": "门店店长",
+    "description": "门店级管理，可创建 clearance task、报损等"
+  },
+  {
+    "id": "role_store_clerk",
+    "name": "store_clerk",
+    "display_name": "门店店员",
+    "description": "门店级执行，可更新 task notes 等"
+  },
+  {
+    "id": "role_system_scheduler",
+    "name": "system_scheduler",
+    "display_name": "定时器系统账号",
+    "description": "AutomationScheduler 调用 action 的系统角色"
+  },
+  {
+    "id": "role_system_pos",
+    "name": "system_pos",
+    "display_name": "POS 系统账号",
+    "description": "POS 扫码 webhook 调用 action 的系统角色"
+  },
+  {
+    "id": "role_system_inventory",
+    "name": "system_inventory",
+    "display_name": "库存系统账号",
+    "description": "库存检查 webhook 调用 action 的系统角色"
+  }
+]

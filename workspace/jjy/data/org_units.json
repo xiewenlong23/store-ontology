@@ -1,0 +1,110 @@
+[
+  {
+    "id": "brand_default",
+    "parent_id": null,
+    "level": "brand",
+    "name": "演示零售品牌",
+    "code": "BRAND",
+    "company_code": "CO001",
+    "profit_center_code": "PC001",
+    "cost_center_code": "CC001",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "og_north",
+    "parent_id": "brand_default",
+    "level": "org_group",
+    "name": "北方事业群",
+    "code": "OG_N",
+    "company_code": "CO001",
+    "profit_center_code": "PC002",
+    "cost_center_code": "CC002",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "og_south",
+    "parent_id": "brand_default",
+    "level": "org_group",
+    "name": "南方事业群",
+    "code": "OG_S",
+    "company_code": "CO001",
+    "profit_center_code": "PC003",
+    "cost_center_code": "CC003",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "ch_retail_north",
+    "parent_id": "og_north",
+    "level": "channel",
+    "name": "北方零售渠道",
+    "code": "CH_R_N",
+    "company_code": "CO001",
+    "profit_center_code": "PC002",
+    "cost_center_code": "CC002",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "ch_retail_south",
+    "parent_id": "og_south",
+    "level": "channel",
+    "name": "南方零售渠道",
+    "code": "CH_R_S",
+    "company_code": "CO001",
+    "profit_center_code": "PC003",
+    "cost_center_code": "CC003",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "region_001",
+    "parent_id": "ch_retail_south",
+    "level": "region",
+    "name": "华东区",
+    "code": "HD",
+    "company_code": "CO001",
+    "profit_center_code": "PC003",
+    "cost_center_code": "CC003",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "region_002",
+    "parent_id": "ch_retail_north",
+    "level": "region",
+    "name": "华北区",
+    "code": "HB",
+    "company_code": "CO001",
+    "profit_center_code": "PC002",
+    "cost_center_code": "CC002",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "store_001",
+    "parent_id": "region_002",
+    "level": "store",
+    "name": "北京朝阳店",
+    "code": "STORE_001",
+    "company_code": "CO001",
+    "profit_center_code": "PC002",
+    "cost_center_code": "CC002_STORE_001",
+    "org_unit_id": "store_001",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "store_002",
+    "parent_id": "region_001",
+    "level": "store",
+    "name": "上海浦东店",
+    "code": "STORE_002",
+    "company_code": "CO001",
+    "profit_center_code": "PC003",
+    "cost_center_code": "CC003_STORE_002",
+    "org_unit_id": "store_002",
+    "workspace_name": "jjy"
+  }
+]

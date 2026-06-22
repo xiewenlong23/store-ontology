@@ -17,33 +17,44 @@
 
 ## 2. v2-权限：submission_criteria → 完整 RBAC×ABAC
 
-**当前实现**：仅 Action 级 `submission_criteria`（`roles` 白名单 + `is`/`is_not` 条件，见 [`00-architecture.md`](./00-architecture.md) §3.4）+ Repository 的 workspace/org_unit 隔离。
+**当前实现**：✅ 已完成（中版实用 RBAC×ABAC，2026-06-22）。
 
-**🔜 目标（未实现）**：完整 RBAC×ABAC 融合模型（来自 `archive/legacy-Harness-Design.md` §3）：
-- **PermissionEvaluator 接口**（内核）：每个工具调用前 `permission_gate.check(tool, context)`，失败抛 `PermissionDenied` + 写审计。
-- **三维 scope**：Domain（职能域）× OrgScope（组织范围）× CategoryScope（品类范围）。
-- **6 种 PermissionMode / 6 层 cascade**：组织调整时权限自动适应（"三不变"原则：组织调整/品类调整/职能域调整 ≠ 权限重配）。
-- **DeepImmutable 快照冻结 + HMAC 校验**：权限状态不可变快照。
-- **submission_criteria 操作符全集**：`is`/`is_not`（已有）+ `gte`/`matches`/`includes`/`value_ref` + 嵌套逻辑。
-- **26 个生命周期钩子**。
+**已落地**（设计文档 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)）：
+- **认证**：JWT + bcrypt + `/api/auth/{login,refresh,me,logout}` + `auth_middleware`（强制模式 `AUTH_REQUIRED=true`，跨 ws 越权防护）。
+- **identity domain**（第 4 类必备 capability domain）：User/Role/PermissionGrant/Session 本体 + 数据；User credentials 存 workspace 的 `users.json`，agent 层零身份数据。
+- **PermissionEvaluator**（`agent/engine/permission.py`）：5 类资源（tool/object/property/action/link）+ 正反向语法（roles/except）+ allow-by-default + system_admin 短路 + PermissionGrant runtime override（deny 优先）。求值顺序：system_admin → Grant → TTL 元数据 → allow-by-default。
+- **TTL 权限元数据**：`:read_roles` / `:read_except` / `:write_roles` / `:write_except`（ObjectType 属性级，含嵌套 `:property [ ... ]`）；Link 的 `:use_roles` / `:use_except`。
+- **tool_manifest.yaml**：Tool 不在 TTL，用 YAML 声明（内核 8 工具 + 各 workspace 专属）。
+- **OrgTree 5 级**：`agent/engine/org_tree.py`，descendants/visible_units 接入。
+- **信任修复**：actor 不再可被 LLM 自报（删 execute_action 的 actor_role 参数），从 auth_ctx → Employee.user_id 派生。
+- **属性级权限**：query_entity 等 tool 在返回时 mask 不可读属性 + 文本提示（不静默裁剪）。
+- **dashboard 越权修复**：改用请求级 `tenant_ctx.get()`（取代 `inst.tenant_context` 的 `org_unit_id="*"`）。
 
-> 这些重型机制当前**接口预留**，未实现。详见 `archive/legacy-Harness-Design.md` §3.1（六种权限模式/六层瀑布）、§3.3（快照冻结）、§3.6（求值引擎）。
+**🔜 仍待实现（重型机制留接口预留）**：
+- **6 种 PermissionMode / 6 层 cascade**（来自 `archive/legacy-Harness-Design.md` §3.1/§3.2）。
+- **DeepImmutable 快照冻结 + HMAC 校验**（§3.3）。
+- **26 个生命周期钩子**（§10）。
+- **submission_criteria 操作符全集**：现支持 `is/is_not`；`gte/lte/matches/includes/value_ref` + 嵌套 AND/OR 留 v3。
+- **CategoryScope coverage_depth / RuleSource 优先级**。
 
 ---
 
 ## 3. v2-本体：零售工作目录深化 + Interface/transfer/restock
 
-**当前实现**：retail 工作目录扁平组织（Region/Store）+ Product 的扁平 `category` 字符串；clearance 8 Action 完整，customerA 6 Action 完整。
+**当前实现**：✅ 已完成（组织 5 级 + 品类 5 级 + 4 类必备 domain，2026-06-22）。
 
-**🔜 目标（未实现）**：
-- **组织 5 级**：Brand → OrgGroup → Channel → Region → Store（收敛为现有 Region/Store，扩展留 v2）。每级带财务核算字段（company_code / profit_center_code / cost_center_code）。
-- **品类 5 级**：现用扁平字符串，5 级树留 v2（生鲜部门特有多一级）。
-- **DC 配送中心**：正交于组织维度的配送中心，现不实现。
-- **职能域 Domain**：正交于组织维度的职能划分。
-- **Interface Type / Shared Property**：跨 Object 共享形状，元数据预留，MVP 不实现。
-- **transfer/restock Action 契约补全**：当前工作目录聚焦 clearance + customerA，调拨/补货契约留后续。
+**已落地**：
+- **组织 5 级**：`Brand → OrgGroup → Channel → Region → Store`（生鲜部门特有 `Dept` 第 6 级）。OrgUnit 字段含 `company_code` / `profit_center_code` / `cost_center_code`（财务核算）。OrgTree（`agent/engine/org_tree.py`）支持 descendants/ancestors/visible_units。
+- **品类 5 级**：`Department → CategoryGroup → Category → SubCategory → Variety`。Product 加 `category_id` 引用 Category.id（保留旧 category 字符串做 deprecated 兼容）。
+- **4 类必备 capability domain**：`register_workspace_dir` 校验 workspace 含 organization/personnel/category/identity 四类必备 domain + 各类必备 Object Type（OrgUnit/Employee/Category/User+Role+PermissionGrant）。缺则启动失败。
+- **personnel domain 独立**：Employee 从 organization 拆出，加 `user_id`（反向引用 identity User）+ `department_id`。`EmployeeRole` 词汇表对齐 submission_criteria.roles（store_manager/store_clerk/region_cat_mgr/system_admin/...）。
+- **三家 workspace 全部迁移**：retail/jjy 含 6 domain（marketing/organization/personnel/category/finance/identity）；customerA 含 5 domain（maintenance/organization/personnel/category/identity）。
 
-详见 `archive/legacy-Harness-Design.md` §1（多组织架构）、§2（品类维度）、§1.2（DC 维度）、§1.3（职能域维度）。
+**🔜 仍待实现**：
+- **DC（配送中心）维度**：正交于组织维度的配送中心（legacy §1.2）。
+- **职能域 Domain 维度**：legacy 三维 scope（Domain×OrgScope×CategoryScope）之一。
+- **Interface Type / Shared Property**：跨 Object 共享形状，元数据预留。
+- **transfer/restock Action 契约**：当前工作目录聚焦 clearance + customerA，调拨/补货契约留后续。
 
 ---
 
@@ -110,12 +121,13 @@
 | 阶段 | 目标 | 状态 |
 |------|------|------|
 | **已实现（内核 + retail + customerA）** | 内核多工作目录架构 + Repository 多 workspace 隔离/锁/原子写/edits-only + 声明式 ActionExecutor（locator_field 数据驱动）+ per-process 状态机 + preview→confirm 闭环 + 折扣单一事实源 + Action YAML 契约 + CRUD 降级 + clearance 8 Action + customerA 6 Action + tenant 上下文注入 | ✅ |
-| **✅ v2-tenant动态（数据层）** | route.ts 静态 header → 前端 headers prop 动态注入 + 工具 _tc_ctx 从 contextvar 读 + Repository 按 workspace+org_unit 过滤 | ✅ 完成（156 测试，playwright 验证数据隔离） |
+| **✅ v2-tenant动态（数据层）** | route.ts 静态 header → 前端 headers prop 动态注入 + 工具 _tc_ctx 从 contextvar 读 + Repository 按 workspace+org_unit 过滤 | ✅ 完成 |
 | ✅ v2-agent 隔离 | 工具/skill/本体 prompt 按 workspace 隔离（agent per-workspace 构建） | ✅ 完成 |
+| ✅ **v2-认证 + RBAC×ABAC + 组织品类 5 级** | JWT 认证 + identity domain（User/Role/PermissionGrant）+ PermissionEvaluator（5 类资源 + 正反向 + allow-by-default）+ OrgTree 5 级 + 4 类必备 domain + 信任修复 + 强制 auth | ✅ 完成（2026-06-22，详见 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)） |
 | 🔜 v2-存储 | JSON → PostgreSQL+JSONB | 未开始 |
-| 🔜 v2-权限 | submission_criteria → 完整 RBAC×ABAC（三维 scope、6 层 cascade、快照冻结、操作符全集） | 接口预留 |
-| 🔜 v2-本体 | 零售工作目录深化（组织5级/品类5级/DC/职能域）；transfer/restock 契约 | 未开始 |
+| 🔜 v2-权限重型机制 | 6 PermissionMode / 6 cascade / HMAC 快照 / 26 hooks / 操作符全集 / CategoryScope coverage_depth | 接口预留 |
+| 🔜 v2-本体深化 | DC 维度 / 职能域 Domain / Interface Type / transfer/restock 契约 | 未开始 |
 | 🔜 v2-自动化 | 真实 POS/审批对接 + 定时器 LLM 唤醒 | webhook 模拟 + 计算式报损已实现 |
 | 🔜 v2-Agent | 单 Agent → subagent/多 Agent | 架构预留 |
-| 🔜 v2-UI | 手写 renderToolCalls → A2UI + 多工作目录切换 + 图表 + 审计 UI | 未开始 |
+| 🔜 v2-UI | A2UI + 多工作目录切换 UI + 图表 + 审计 UI | 登录页 + 动态 workspace 选择器已实现；其余未开始 |
 | 🔜 v2-长流程 | 后端自动化 → 可选 BPM 引擎增强 | 未开始 |

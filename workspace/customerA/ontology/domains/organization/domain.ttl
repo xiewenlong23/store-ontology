@@ -1,0 +1,35 @@
+@prefix repair: <http://example.org/equipment-repair#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 组织域（Organization）—— customerA（设备维修工作目录）
+# v2（WP4）：5 级 OrgUnit 树。customerA 业务以门店为最小运营单元。
+# ============================================================
+
+repair:OrgUnit a rdfs:Class ;
+    rdfs:label "组织单元"@zh , "OrgUnit"@en ;
+    rdfs:comment "5 级组织树节点"@zh ;
+    repair:properties "id:string,parent_id:string,level:OrgUnitLevel,name:string,code:string,company_code:string,profit_center_code:string,cost_center_code:string" ;
+    repair:storage "org_units.json" ;
+    repair:status "active" ;
+    repair:read_roles "*" .
+
+repair:Store a rdfs:Class ;
+    rdfs:label "门店"@zh , "Store"@en ;
+    rdfs:comment "维修服务覆盖的门店（OrgUnit level=store 的便捷视图）"@zh ;
+    repair:properties "id:string,name:string,region_id:string,address:string,manager_id:string,created_at:datetime" ;
+    repair:storage "stores.json" ;
+    repair:status "active" .
+
+# Link Types
+
+repair:parent_of a rdfs:Property ;
+    rdfs:label "父级"@zh , "parent of"@en ;
+    rdfs:comment "OrgUnit 自引用，通过 parent_id 构成 5 级树"@zh ;
+    rdfs:domain repair:OrgUnit ; rdfs:range repair:OrgUnit ; repair:via "parent_id" .
+
+repair:located_in a rdfs:Property ;
+    rdfs:label "位于"@zh , "located in"@en ;
+    rdfs:comment "Store 通过 region_id（domain 侧）归属到 Region OrgUnit"@zh ;
+    rdfs:domain repair:Store ; rdfs:range repair:OrgUnit ; repair:via "region_id" .

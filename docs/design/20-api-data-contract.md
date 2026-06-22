@@ -44,6 +44,64 @@
 
 webhook 取 executor 用 `_get_executor(process_name="clearance")`（精确选价值链流程，workspace 由 contextvar 解析）。
 
+### 1.4 认证端点（v2，✅ 已实现）
+
+| 路径 | 方法 | 用途 | 鉴权 |
+|------|------|------|------|
+| `POST /api/auth/login` | POST | 实名登录 → 签 JWT + 返回 memberships | 豁免 |
+| `POST /api/auth/refresh` | POST | 用 refresh token 换 access（MVP 提示重新 login） | refresh token |
+| `GET /api/auth/me` | GET | 当前认证身份 + ws 白名单 + visible_tools | Bearer |
+| `POST /api/auth/logout` | POST | 登出（客户端清 token；服务端撤销列表留 v2.1） | Bearer |
+
+**Login 请求/响应**：
+```json
+// POST /api/auth/login
+请求：{"username": "admin", "password": "admin123"}
+响应：{
+  "success": true,
+  "token": "<access jwt>",
+  "refresh_token": "<refresh jwt>",
+  "session_id": "<uuid>",
+  "expires_in": 7200,
+  "memberships": [
+    {"workspace_name": "jjy", "workspace_display_name": "客户 jjy",
+     "user_id": "user_admin", "username": "admin", "display_name": "系统管理员"}
+  ]
+}
+```
+
+**JWT Claims**：`sub`(user_id) / `sid`(session_id) / `ws`(白名单 workspace list) / `typ`(access|refresh) / `iat` / `exp`。
+
+**Header 约定**（除 §1.1 的 X-Workspace / X-Org-Unit-ID）：
+
+| Header | 方向 | 说明 |
+|--------|------|------|
+| `Authorization: Bearer <jwt>` | 前端 → 后端 | v2 强制（除豁免路径）；缺失/过期/跨 ws → 401 |
+
+`auth_middleware`：验签 + token.ws 白名单必须含 `X-Workspace`（跨 ws 越权防护）。`AUTH_REQUIRED=true`（默认）强制；`=false` 开发兜底。
+
+### 1.5 Admin 本体 CRUD 端点（WP7+WP8，✅ 已实现）
+
+九个写端点。鉴权：`system_admin` 角色，或 bootstrap 初始 `admin` 账号；其余 403。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/admin/customers/{cid}/ontology/objects` | 新建/覆盖 Object Type（upsert） |
+| PUT | `/api/admin/customers/{cid}/ontology/objects/{name}` | 更新 Object Type（路径 `name` 覆盖 body `id`） |
+| DELETE | `/api/admin/customers/{cid}/ontology/objects/{name}` | 删除 Object Type（不存在返回 404） |
+| POST/PUT/DELETE | `/api/admin/customers/{cid}/ontology/links[/{name}]` | 同上，主键 `name` |
+| POST/PUT/DELETE | `/api/admin/customers/{cid}/ontology/actions[/{api_name}]` | 同上，主键 `api_name` |
+
+配合既有只读端点（GET `/ontology/{objects|links|actions}`、GET `/data/{entity_type}`）。
+
+**Body**：与 GET 返回结构对称（round-trip）。Object Type body 含 `properties: [...]` 子表；POST/PUT **全量替换** properties。
+
+**响应**：`{created: <obj>}` / `{updated: <obj>}` / `{deleted: true}`。
+
+**失效（WP8）**：每个写端点成功后调用 `invalidate_workspace(ws)` —— 下次 `bootstrap_workspace(ws)` 从 PG 重载，新 schema 立即可见（运行时无过期数据）。进程内缓存（单进程 uvicorn 部署够用；多副本部署需扩展通知机制）。
+
+**错误**：404 不存在 / 422 body 缺主键或字段非法 / 403 非 admin。
+
 ---
 
 ## 2. Tool Schema 规范

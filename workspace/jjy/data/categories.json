@@ -1,0 +1,83 @@
+[
+  {
+    "id": "dept_food",
+    "parent_id": null,
+    "level": "department",
+    "name": "食品部",
+    "code": "DEPT_FOOD",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "dept_daily",
+    "parent_id": null,
+    "level": "department",
+    "name": "日用品部",
+    "code": "DEPT_DAILY",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cg_dairy",
+    "parent_id": "dept_food",
+    "level": "category_group",
+    "name": "乳制品组",
+    "code": "CG_DAIRY",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cg_bakery",
+    "parent_id": "dept_food",
+    "level": "category_group",
+    "name": "烘焙组",
+    "code": "CG_BAKERY",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cg_beverage",
+    "parent_id": "dept_food",
+    "level": "category_group",
+    "name": "饮料组",
+    "code": "CG_BEV",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cat_dairy_yogurt",
+    "parent_id": "cg_dairy",
+    "level": "category",
+    "name": "酸奶",
+    "code": "CAT_YOGURT",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cat_dairy_milk",
+    "parent_id": "cg_dairy",
+    "level": "category",
+    "name": "牛奶",
+    "code": "CAT_MILK",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cat_bakery_bread",
+    "parent_id": "cg_bakery",
+    "level": "category",
+    "name": "面包",
+    "code": "CAT_BREAD",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  },
+  {
+    "id": "cat_beverage_water",
+    "parent_id": "cg_beverage",
+    "level": "category",
+    "name": "瓶装水",
+    "code": "CAT_WATER",
+    "org_unit_id": "brand_default",
+    "workspace_name": "jjy"
+  }
+]

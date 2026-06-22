@@ -8,10 +8,14 @@
 
 store:Product a rdfs:Class ;
     rdfs:label "商品"@zh , "Product"@en ;
-    rdfs:comment "销售商品"@zh ;
-    store:properties "id:string,name:string,category:string,brand:string,unit:string,cost_price:float,retail_price:float" ;
+    rdfs:comment "销售商品。category_id 引用 Category（5 级品类树）；旧 category 字符串字段保留做兼容（deprecated）"@zh ;
+    store:properties "id:string,name:string,category:string,category_id:string,brand:string,unit:string,cost_price:float,retail_price:float" ;
     store:storage "products.json" ;
-    store:status "active" .
+    store:status "active" ;
+    store:property [
+        store:name "cost_price" ;
+        store:read_except "store_clerk"
+    ] .
 
 store:NearExpiryProduct a rdfs:Class ;
     rdfs:label "临期商品"@zh , "Near Expiry Product"@en ;

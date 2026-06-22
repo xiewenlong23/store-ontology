@@ -1,0 +1,26 @@
+[
+  {
+    "id": "role_system_admin",
+    "name": "system_admin",
+    "display_name": "系统管理员",
+    "description": "超级角色，绕过所有权限检查（设计文档 §2.5 system_admin 短路）"
+  },
+  {
+    "id": "role_store_manager",
+    "name": "store_manager",
+    "display_name": "门店店长",
+    "description": "门店级管理，可建维修工单、分配技师等"
+  },
+  {
+    "id": "role_store_clerk",
+    "name": "store_clerk",
+    "display_name": "门店店员",
+    "description": "门店级执行，可建维修工单"
+  },
+  {
+    "id": "role_technician",
+    "name": "technician",
+    "display_name": "技师",
+    "description": "执行维修，可诊断/开始/完成工单"
+  }
+]

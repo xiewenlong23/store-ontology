@@ -1,0 +1,76 @@
+# identity domain 模板（v2 认证/权限，设计文档 §3.1）
+#
+# 用法：拷贝到 workspace/<pack>/ontology/domains/identity/domain.ttl，
+# 把 `<prefix>:` 全部替换为该 workspace 自有的 prefix（如 `store:` / `repair:`）。
+# 必备 Object Type：User / Role / PermissionGrant（Session 可选）。
+#
+# 权限元数据语法（WP3 parser 解析；WP1 写入但不解析）：
+#   :read_roles "A,B,C"     —— 正向：只有 A/B/C 可读（逗号分隔）
+#   :read_except "X,Y"      —— 反向：除 X/Y 外都可读
+#   :write_roles / :write_except / :use_roles / :use_except / :execute_roles / :execute_except
+# 求值顺序（设计文档 §2.5）：
+#   system_admin 短路 → PermissionGrant runtime → TTL 元数据 → allow-by-default
+#   同时声明 read_roles + read_except → read_roles 集合减去 read_except
+#   deny 永远赢过 allow
+
+@prefix <prefix>: <http://example.org/<pack>-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# identity domain —— 用户/角色/权限授予
+# 设计文档 §3.1：User/Role/PermissionGrant 三件套
+# ============================================================
+
+<prefix>:User a rdfs:Class ;
+    rdfs:label "用户"@zh , "User"@en ;
+    rdfs:comment "登录账号。username 实名（工号/手机号），跨 workspace 一致；password_hash 各 workspace 独立"@zh ;
+    <prefix>:properties "id:string,username:string,password_hash:string,display_name:string,status:UserStatus,created_at:datetime" ;
+    <prefix>:storage "users.json" ;
+    <prefix>:status "active" ;
+    <prefix>:edits_only_via_actions "true" ;
+    <prefix>:read_roles "system_admin" ;
+    <prefix>:property [
+        <prefix>:name "password_hash" ;
+        <prefix>:read_except "*"
+    ] .
+
+<prefix>:Role a rdfs:Class ;
+    rdfs:label "角色"@zh , "Role"@en ;
+    rdfs:comment "角色定义（业务角色词汇表，如 store_manager/region_cat_mgr/system_admin）"@zh ;
+    <prefix>:properties "id:string,name:string,display_name:string,description:string" ;
+    <prefix>:storage "roles.json" ;
+    <prefix>:status "active" ;
+    <prefix>:read_roles "*" .
+
+<prefix>:PermissionGrant a rdfs:Class ;
+    rdfs:label "权限授予"@zh , "PermissionGrant"@en ;
+    rdfs:comment "运行时权限授予。覆盖 TTL 元数据默认（设计文档 §2.5 runtime override）"@zh ;
+    <prefix>:properties "id:string,role_id:string,resource_type:ResourceType,resource_id:string,action:PermissionAction,effect:PermissionEffect,scope_json:dict" ;
+    <prefix>:storage "permission_grants.json" ;
+    <prefix>:status "active" ;
+    <prefix>:edits_only_via_actions "true" ;
+    <prefix>:read_roles "system_admin" .
+
+<prefix>:Session a rdfs:Class ;
+    rdfs:label "会话"@zh , "Session"@en ;
+    rdfs:comment "刷新令牌管理（可选，refresh token 撤销留 v2.1）"@zh ;
+    <prefix>:properties "id:string,user_id:string,refresh_token_hash:string,expires_at:datetime" ;
+    <prefix>:storage "sessions.json" ;
+    <prefix>:status "experimental" ;
+    <prefix>:edits_only_via_actions "true" ;
+    <prefix>:read_roles "system_admin" .
+
+# ============================================================
+# Link Types
+# ============================================================
+
+<prefix>:has_role a rdfs:Property ;
+    rdfs:label "拥有角色"@zh , "has role"@en ;
+    rdfs:comment "User 通过 role_id 关联 Role（设计上 User 可多角色；当前 Employee.role 承载单一角色，多角色留 v2.1）"@zh ;
+    rdfs:domain <prefix>:User ; rdfs:range <prefix>:Role ; <prefix>:via "role_id" .
+
+<prefix>:grants_to a rdfs:Property ;
+    rdfs:label "授予给"@zh , "grants to"@en ;
+    rdfs:comment "PermissionGrant 通过 role_id 关联 Role"@zh ;
+    rdfs:domain <prefix>:PermissionGrant ; rdfs:range <prefix>:Role ; <prefix>:via "role_id" .

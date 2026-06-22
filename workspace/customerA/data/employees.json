@@ -1,0 +1,13 @@
+[
+  {
+    "id": "emp_001",
+    "name": "客户A管理员",
+    "store_id": "store_001",
+    "role": "store_manager",
+    "user_id": "user_admin",
+    "department_id": "",
+    "phone": "13800138001",
+    "workspace_name": "customerA",
+    "org_unit_id": "store_001"
+  }
+]

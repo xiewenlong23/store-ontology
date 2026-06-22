@@ -1,0 +1,29 @@
+[
+  {
+    "id": "cat_refrigeration",
+    "parent_id": null,
+    "level": "category",
+    "name": "制冷设备",
+    "code": "CAT_REFR",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  },
+  {
+    "id": "cat_kitchen",
+    "parent_id": null,
+    "level": "category",
+    "name": "厨房设备",
+    "code": "CAT_KIT",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  },
+  {
+    "id": "cat_it",
+    "parent_id": null,
+    "level": "category",
+    "name": "IT设备",
+    "code": "CAT_IT",
+    "workspace_name": "customerA",
+    "org_unit_id": "*"
+  }
+]

@@ -9,9 +9,87 @@ from pydantic import BaseModel, Field
 # ============ Enums ============
 
 class EmployeeRole(str, Enum):
+    """员工角色（v2 对齐 submission_criteria.roles 词汇表）。
+
+    保留旧值（CLERK/MANAGER/ADMIN）做向后兼容；新增业务角色与 YAML 里
+    submission_criteria.roles / TTL read_roles 等用的字符串一致。
+    实际取值以数据为准（Employee.role 是 string 字段，不强制 enum 校验）。
+    """
+    # 旧值（向后兼容）
     CLERK = "clerk"
     MANAGER = "manager"
     ADMIN = "admin"
+    # v2 业务角色（对齐 submission_criteria.roles）
+    STORE_MANAGER = "store_manager"
+    STORE_CLERK = "store_clerk"
+    REGION_CAT_MGR = "region_cat_mgr"
+    SYSTEM_ADMIN = "system_admin"
+    TECHNICIAN = "technician"
+    # 系统账号
+    SYSTEM_SCHEDULER = "system_scheduler"
+    SYSTEM_POS = "system_pos"
+    SYSTEM_INVENTORY = "system_inventory"
+
+
+# ============ 身份与权限 Enums（v2 认证/权限，WP1 引入）============
+
+class UserStatus(str, Enum):
+    """用户账号状态。"""
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    PENDING = "pending"
+
+
+class ResourceType(str, Enum):
+    """PermissionGrant 的资源类型（设计文档 §3.1）。
+
+    覆盖 5 类本体资源：Object/属性/Action/Link/Tool。
+    """
+    OBJECT_TYPE = "object_type"
+    PROPERTY = "property"
+    ACTION = "action"
+    LINK = "link"
+    TOOL = "tool"
+
+
+class PermissionAction(str, Enum):
+    """权限动作（与资源类型正交）。"""
+    READ = "read"
+    WRITE = "write"
+    EXECUTE = "execute"
+    TRAVERSE = "traverse"
+    USE = "use"
+
+
+class PermissionEffect(str, Enum):
+    """权限授予效果。deny 永远赢过 allow（设计文档 §2.5）。"""
+    ALLOW = "allow"
+    DENY = "deny"
+
+
+# ============ 组织/品类 Enums（v2，WP4）============
+
+class OrgUnitLevel(str, Enum):
+    """组织单元 5 级（+ 生鲜部门特有第 6 级）。
+
+    设计文档 §2.7：``Brand → OrgGroup → Channel → Region → Store``
+    （生鲜部门特有 ``Dept`` 第 6 级，挂在 Store 下）。
+    """
+    BRAND = "brand"
+    ORG_GROUP = "org_group"
+    CHANNEL = "channel"
+    REGION = "region"
+    STORE = "store"
+    DEPT = "dept"   # 生鲜部门特有
+
+
+class CategoryLevel(str, Enum):
+    """品类 5 级（设计文档 §2.7）。"""
+    DEPARTMENT = "department"
+    CATEGORY_GROUP = "category_group"
+    CATEGORY = "category"
+    SUB_CATEGORY = "sub_category"
+    VARIETY = "variety"
 
 
 class DiscountTier(str, Enum):
