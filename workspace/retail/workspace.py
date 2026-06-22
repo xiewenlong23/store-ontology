@@ -20,6 +20,16 @@ ORGANIZATION = CapabilityDomain(
     ttl_path=os.path.join(_BASE, "ontology", "domains", "organization", "domain.ttl"),
     actions_dir=os.path.join(_BASE, "ontology", "domains", "organization", "actions"))
 
+PERSONNEL = CapabilityDomain(
+    name="personnel", display_name="人员域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "personnel", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "personnel", "actions"))
+
+CATEGORY = CapabilityDomain(
+    name="category", display_name="品类域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "category", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "category", "actions"))
+
 FINANCE = CapabilityDomain(
     name="finance", display_name="财务域",
     ttl_path=os.path.join(_BASE, "ontology", "domains", "finance", "domain.ttl"),
@@ -43,7 +53,7 @@ CLEARANCE = ValueChainProcess(
 
 RETAIL_WS = WorkspaceDef(
     name="retail", display_name="零售（示例）",
-    domains=[MARKETING, ORGANIZATION, FINANCE, IDENTITY],
+    domains=[MARKETING, ORGANIZATION, PERSONNEL, CATEGORY, FINANCE, IDENTITY],
     processes=[CLEARANCE],
     data_dir=os.path.join(_BASE, "data"))
 

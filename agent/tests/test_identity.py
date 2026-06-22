@@ -63,7 +63,8 @@ def isolated_workspace(tmp_path, monkeypatch):
 
     fake_ws = pack_mod.WorkspaceDef(
         name="_test_ws", display_name="测试 workspace",
-        domains=[], processes=[], data_dir=str(tmp_path))
+        domains=[], processes=[], data_dir=str(tmp_path),
+        required_domain_kinds=[])   # 测试 fixture，关闭 4 类必备校验
     pack_mod.register_workspace_dir(fake_ws)
     yield fake_ws.name
     pack_mod.clear_workspace_dirs()
@@ -143,7 +144,8 @@ class TestListUserWorkspaces:
 
             for nm, dd in [("ws1", str(ws1_dir)), ("ws2", str(ws2_dir)), ("ws3", str(tmp_path/"ws3"/"data"))]:
                 pack_mod.register_workspace_dir(pack_mod.WorkspaceDef(
-                    name=nm, display_name=nm, domains=[], processes=[], data_dir=dd))
+                    name=nm, display_name=nm, domains=[], processes=[], data_dir=dd,
+                    required_domain_kinds=[]))
 
             memberships = list_user_workspaces("alice", "s3cret")
             assert len(memberships) == 2
@@ -165,7 +167,8 @@ class TestListUserWorkspaces:
                 "id": "u1", "username": "alice", "status": "active",
                 "password_hash": hash_password("s3cret")}], ensure_ascii=False), encoding="utf-8")
             pack_mod.register_workspace_dir(pack_mod.WorkspaceDef(
-                name="w", display_name="w", domains=[], processes=[], data_dir=str(d)))
+                name="w", display_name="w", domains=[], processes=[], data_dir=str(d),
+                required_domain_kinds=[]))
             assert list_user_workspaces("alice", "wrong") == []
         finally:
             pack_mod.clear_workspace_dirs()
@@ -225,9 +228,11 @@ class TestSeedWorkspaceIdentity:
             (d1 / "users.json").write_text("[]", encoding="utf-8")
             (d2 / "users.json").write_text("[]", encoding="utf-8")
             pack_mod.register_workspace_dir(pack_mod.WorkspaceDef(
-                name="a", display_name="A", domains=[], processes=[], data_dir=str(d1)))
+                name="a", display_name="A", domains=[], processes=[], data_dir=str(d1),
+                required_domain_kinds=[]))
             pack_mod.register_workspace_dir(pack_mod.WorkspaceDef(
-                name="b", display_name="B", domains=[], processes=[], data_dir=str(d2)))
+                name="b", display_name="B", domains=[], processes=[], data_dir=str(d2),
+                required_domain_kinds=[]))
             seed_all_workspaces()
             for d in [d1, d2]:
                 users = json.loads((d / "users.json").read_text(encoding="utf-8"))

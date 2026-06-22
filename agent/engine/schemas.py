@@ -55,6 +55,31 @@ class PermissionEffect(str, Enum):
     DENY = "deny"
 
 
+# ============ 组织/品类 Enums（v2，WP4）============
+
+class OrgUnitLevel(str, Enum):
+    """组织单元 5 级（+ 生鲜部门特有第 6 级）。
+
+    设计文档 §2.7：``Brand → OrgGroup → Channel → Region → Store``
+    （生鲜部门特有 ``Dept`` 第 6 级，挂在 Store 下）。
+    """
+    BRAND = "brand"
+    ORG_GROUP = "org_group"
+    CHANNEL = "channel"
+    REGION = "region"
+    STORE = "store"
+    DEPT = "dept"   # 生鲜部门特有
+
+
+class CategoryLevel(str, Enum):
+    """品类 5 级（设计文档 §2.7）。"""
+    DEPARTMENT = "department"
+    CATEGORY_GROUP = "category_group"
+    CATEGORY = "category"
+    SUB_CATEGORY = "sub_category"
+    VARIETY = "variety"
+
+
 class DiscountTier(str, Enum):
     T1 = "T1"   # 即将过期
     T2 = "T2"   # 中期临期

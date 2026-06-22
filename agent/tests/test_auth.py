@@ -174,7 +174,7 @@ def app_client(tmp_path, monkeypatch):
         "password_hash": _hash_pw("admin123")}], ensure_ascii=False), encoding="utf-8")
     pack_mod.register_workspace_dir(pack_mod.WorkspaceDef(
         name="_test_ws", display_name="测试", domains=[], processes=[],
-        data_dir=str(test_data)))
+        data_dir=str(test_data), required_domain_kinds=[]))   # 测试 fixture，关闭 4 类校验
 
     import main as main_mod
     client = TestClient(main_mod.app)

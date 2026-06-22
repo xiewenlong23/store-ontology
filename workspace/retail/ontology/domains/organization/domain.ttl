@@ -3,29 +3,33 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # ============================================================
-# 组织域（Organization）—— 区域/门店/员工/任务载体
+# 组织域（Organization）—— 5 级 OrgUnit 树 + 门店/区域 + 工作流载体
+# v2（WP4）：OrgUnit 5 级树（Brand→OrgGroup→Channel→Region→Store，生鲜 Dept 第 6 级）
+# Region/Store 保留为业务便捷视图（与 OrgUnit 同步；OrgUnit 是权限求值的真源）
 # Task 归此域（工作流载体是组织内的执行单元），状态机归 clearance process 管
+# Employee 在 v2 移到 personnel domain（含 user_id 反向引用）
 # ============================================================
+
+store:OrgUnit a rdfs:Class ;
+    rdfs:label "组织单元"@zh , "OrgUnit"@en ;
+    rdfs:comment "5 级组织树节点（Brand/OrgGroup/Channel/Region/Store/Dept）。权限求值的组织范围真源"@zh ;
+    store:properties "id:string,parent_id:string,level:OrgUnitLevel,name:string,code:string,company_code:string,profit_center_code:string,cost_center_code:string" ;
+    store:storage "org_units.json" ;
+    store:status "active" ;
+    store:read_roles "*" .
 
 store:Region a rdfs:Class ;
     rdfs:label "区域"@zh , "Region"@en ;
-    rdfs:comment "地理区域，组织门店"@zh ;
+    rdfs:comment "地理区域，组织门店（OrgUnit level=region 的便捷视图）"@zh ;
     store:properties "id:string,name:string,code:string" ;
     store:storage "regions.json" ;
     store:status "active" .
 
 store:Store a rdfs:Class ;
     rdfs:label "门店"@zh , "Store"@en ;
-    rdfs:comment "零售门店"@zh ;
+    rdfs:comment "零售门店（OrgUnit level=store 的便捷视图）"@zh ;
     store:properties "id:string,name:string,region_id:string,address:string,manager_id:string,created_at:datetime" ;
     store:storage "stores.json" ;
-    store:status "active" .
-
-store:Employee a rdfs:Class ;
-    rdfs:label "员工"@zh , "Employee"@en ;
-    rdfs:comment "门店员工"@zh ;
-    store:properties "id:string,name:string,store_id:string,role:EmployeeRole,phone:string" ;
-    store:storage "employees.json" ;
     store:status "active" .
 
 store:Task a rdfs:Class ;
@@ -39,20 +43,15 @@ store:Task a rdfs:Class ;
 
 # Link Types
 
+store:parent_of a rdfs:Property ;
+    rdfs:label "父级"@zh , "parent of"@en ;
+    rdfs:comment "OrgUnit 自引用，通过 parent_id 构成 5 级树"@zh ;
+    rdfs:domain store:OrgUnit ; rdfs:range store:OrgUnit ; store:via "parent_id" .
+
 store:located_in a rdfs:Property ;
     rdfs:label "位于"@zh , "located in"@en ;
     rdfs:comment "Store 通过 region_id（domain 侧）归属到 Region"@zh ;
     rdfs:domain store:Store ; rdfs:range store:Region ; store:via "region_id" .
-
-store:has_employee a rdfs:Property ;
-    rdfs:label "拥有员工"@zh , "has employee"@en ;
-    rdfs:comment "Store 的员工集合。via store_id 在 Employee（range 侧）上，指回 Store"@zh ;
-    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "store_id" .
-
-store:manages a rdfs:Property ;
-    rdfs:label "管理"@zh , "manages"@en ;
-    rdfs:comment "门店通过 manager_id（domain 侧）指向其店长 Employee"@zh ;
-    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "manager_id" .
 
 store:has_task a rdfs:Property ;
     rdfs:label "有任务"@zh , "has task"@en ;

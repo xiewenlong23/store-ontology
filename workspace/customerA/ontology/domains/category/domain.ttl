@@ -1,0 +1,28 @@
+@prefix repair: <http://example.org/equipment-repair#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 品类域（Category）—— customerA
+# 设备分类（制冷/厨房/IT 设备等）建为品类树
+# ============================================================
+
+repair:Category a rdfs:Class ;
+    rdfs:label "品类"@zh , "Category"@en ;
+    rdfs:comment "设备分类树"@zh ;
+    repair:properties "id:string,parent_id:string,level:CategoryLevel,name:string,code:string" ;
+    repair:storage "categories.json" ;
+    repair:status "active" ;
+    repair:read_roles "*" .
+
+# Link Types
+
+repair:parent_of a rdfs:Property ;
+    rdfs:label "父级"@zh , "parent of"@en ;
+    rdfs:comment "Category 自引用，通过 parent_id 构成树"@zh ;
+    rdfs:domain repair:Category ; rdfs:range repair:Category ; repair:via "parent_id" .
+
+repair:classified_as a rdfs:Property ;
+    rdfs:label "归类为"@zh , "classified as"@en ;
+    rdfs:comment "Equipment 通过 category_id（domain 侧）归属到 Category"@zh ;
+    rdfs:domain repair:Equipment ; rdfs:range repair:Category ; repair:via "category_id" .

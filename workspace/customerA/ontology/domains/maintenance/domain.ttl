@@ -8,8 +8,8 @@
 
 repair:Equipment a rdfs:Class ;
     rdfs:label "设备"@zh , "Equipment"@en ;
-    rdfs:comment "门店可维修的设备资产"@zh ;
-    repair:properties "id:string,name:string,store_id:string,category:string,vendor_id:string,purchased_date:date,status:EquipmentStatus" ;
+    rdfs:comment "门店可维修的设备资产。category_id 引用 Category（设备分类树）"@zh ;
+    repair:properties "id:string,name:string,store_id:string,category:string,category_id:string,vendor_id:string,purchased_date:date,status:EquipmentStatus" ;
     repair:storage "equipments.json" ;
     repair:status "active" ;
     repair:edits_only_via_actions "true" .

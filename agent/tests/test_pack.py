@@ -36,7 +36,8 @@ def test_industry_pack_aggregates():
 
 def test_ws_registry():
     clear_workspace_dirs()
-    ws = WorkspaceDef(name="retail", display_name="零售")
+    # required_domain_kinds=[] 关闭 4 类必备校验（本测试只验证注册机制本身）
+    ws = WorkspaceDef(name="retail", display_name="零售", required_domain_kinds=[])
     register_workspace_dir(ws)
     assert get_workspace_dir("retail") is ws
     assert len(all_workspace_dirs()) == 1
@@ -79,7 +80,8 @@ def test_ws_to_registry_merges_domains(tmp_path):
     d2 = CapabilityDomain(name="organization", display_name="组织",
                           ttl_path=str(d2_dir / "domain.ttl"),
                           actions_dir=str(d2_dir / "actions"))  # 无 action
-    ws = WorkspaceDef(name="retail", display_name="零售", domains=[d1, d2])
+    ws = WorkspaceDef(name="retail", display_name="零售", domains=[d1, d2],
+                      required_domain_kinds=[])
 
     registry = domains_to_registry(ws)
     assert "Product" in registry.object_types

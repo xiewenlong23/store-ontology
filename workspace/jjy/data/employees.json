@@ -3,7 +3,9 @@
     "id": "emp_001",
     "name": "张三",
     "store_id": "store_001",
-    "role": "manager",
+    "role": "store_manager",
+    "user_id": "user_admin",
+    "department_id": "dept_food",
     "phone": "13800138001",
     "org_unit_id": "store_001",
     "workspace_name": "jjy"
@@ -12,7 +14,9 @@
     "id": "emp_002",
     "name": "李四",
     "store_id": "store_001",
-    "role": "clerk",
+    "role": "store_clerk",
+    "user_id": "",
+    "department_id": "dept_food",
     "phone": "13800138002",
     "org_unit_id": "store_001",
     "workspace_name": "jjy"
@@ -21,7 +25,9 @@
     "id": "emp_003",
     "name": "王五",
     "store_id": "store_002",
-    "role": "manager",
+    "role": "store_manager",
+    "user_id": "",
+    "department_id": "dept_food",
     "phone": "13800138003",
     "org_unit_id": "store_002",
     "workspace_name": "jjy"
@@ -30,7 +36,9 @@
     "id": "emp_004",
     "name": "赵六",
     "store_id": "store_002",
-    "role": "clerk",
+    "role": "store_clerk",
+    "user_id": "",
+    "department_id": "dept_food",
     "phone": "13800138004",
     "org_unit_id": "store_002",
     "workspace_name": "jjy"

@@ -1,0 +1,37 @@
+@prefix store: <http://example.org/store-ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 人员域（Personnel）—— Employee + 用户账号反向引用
+# v2（WP4）：从 organization 拆出。Employee.user_id 反向引用 identity domain 的 User
+# ============================================================
+
+store:Employee a rdfs:Class ;
+    rdfs:label "员工"@zh , "Employee"@en ;
+    rdfs:comment "门店员工。user_id 反向引用 User（实名制登录）；role 是业务角色（store_manager/store_clerk 等）"@zh ;
+    store:properties "id:string,name:string,store_id:string,role:string,user_id:string,department_id:string,phone:string" ;
+    store:storage "employees.json" ;
+    store:status "active" ;
+    store:read_roles "*" ;
+    store:property [
+        store:name "user_id" ;
+        store:read_except "store_clerk"   # 店员不可读其他人的 user_id（防越权推测）
+    ] .
+
+# Link Types
+
+store:has_employee a rdfs:Property ;
+    rdfs:label "拥有员工"@zh , "has employee"@en ;
+    rdfs:comment "Store 的员工集合。via store_id 在 Employee（range 侧）上，指回 Store"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "store_id" .
+
+store:manages a rdfs:Property ;
+    rdfs:label "管理"@zh , "manages"@en ;
+    rdfs:comment "门店通过 manager_id（domain 侧）指向其店长 Employee"@zh ;
+    rdfs:domain store:Store ; rdfs:range store:Employee ; store:via "manager_id" .
+
+store:employed_as a rdfs:Property ;
+    rdfs:label "受雇于用户"@zh , "employed as"@en ;
+    rdfs:comment "Employee 通过 user_id（domain 侧）关联到 identity domain 的 User"@zh ;
+    rdfs:domain store:Employee ; rdfs:range store:User ; store:via "user_id" .

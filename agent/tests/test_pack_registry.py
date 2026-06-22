@@ -16,7 +16,7 @@ def _clean_registry():
 
 
 def test_register_and_get():
-    ws = WorkspaceDef(name="demo", display_name="测试")
+    ws = WorkspaceDef(name="demo", display_name="测试", required_domain_kinds=[])
     register_workspace_dir(ws)
     assert get_workspace_dir("demo") is ws
     assert len(all_workspace_dirs()) == 1
@@ -44,7 +44,8 @@ def test_config_aware_parser_loads_ttl_and_actions():
         domains=[CapabilityDomain(
             name="marketing", display_name="营销",
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
-            actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
+            actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))],
+        required_domain_kinds=[])
     register_workspace_dir(cfg)
     p = domains_to_registry(cfg)
     assert len(p.object_types) >= 2  # Product + NearExpiryProduct
@@ -59,7 +60,8 @@ def test_ws_to_registry_deterministic():
         domains=[CapabilityDomain(
             name="marketing", display_name="营销",
             ttl_path=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "domain.ttl"),
-            actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))])
+            actions_dir=os.path.join(base, "..", "workspace", "retail", "ontology", "domains", "marketing", "actions"))],
+        required_domain_kinds=[])
     register_workspace_dir(cfg)
     p1 = domains_to_registry(cfg)
     p2 = domains_to_registry(cfg)

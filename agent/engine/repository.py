@@ -14,10 +14,22 @@ from engine.tenant import TenantContext
 
 
 def _normalize_tenant(tenant) -> TenantContext:
-    """字符串 tenant_id 兼容为 TenantContext。"""
+    """字符串 tenant_id 兼容为 TenantContext。
+
+    v2（WP4 修复）：
+    - TenantContext 原样返回
+    - 已知 workspace 名（在 pack 注册表里）→ 用其作 workspace_name
+    - 未知字符串（含历史值 ``tenant_default``/``customer_default``）→ 回落 jjy（向后兼容）
+    """
     if isinstance(tenant, TenantContext):
         return tenant
-    # 旧式字符串：视为 jjy + 通配 org
+    if isinstance(tenant, str) and tenant:
+        # 已知 workspace 名直接用
+        from engine.pack import get_workspace_dir
+        if get_workspace_dir(tenant) is not None:
+            return TenantContext(workspace_name=tenant, org_unit_id="*")
+        # 历史/未知字符串值：保持旧行为（视为 jjy 默认 workspace）
+        return TenantContext(workspace_name="jjy", org_unit_id="*")
     return TenantContext(workspace_name="jjy", org_unit_id="*")
 
 

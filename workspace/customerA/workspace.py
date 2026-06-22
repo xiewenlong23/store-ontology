@@ -11,6 +11,21 @@ MAINTENANCE = CapabilityDomain(
     ttl_path=os.path.join(_BASE, "ontology", "domains", "maintenance", "domain.ttl"),
     actions_dir=os.path.join(_BASE, "ontology", "domains", "maintenance", "actions"))
 
+ORGANIZATION = CapabilityDomain(
+    name="organization", display_name="组织域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "organization", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "organization", "actions"))
+
+PERSONNEL = CapabilityDomain(
+    name="personnel", display_name="人员域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "personnel", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "personnel", "actions"))
+
+CATEGORY = CapabilityDomain(
+    name="category", display_name="品类域",
+    ttl_path=os.path.join(_BASE, "ontology", "domains", "category", "domain.ttl"),
+    actions_dir=os.path.join(_BASE, "ontology", "domains", "category", "actions"))
+
 IDENTITY = CapabilityDomain(
     name="identity", display_name="身份域",
     ttl_path=os.path.join(_BASE, "ontology", "domains", "identity", "domain.ttl"),
@@ -29,7 +44,7 @@ REPAIR = ValueChainProcess(
 
 CUSTOMERA_WS = WorkspaceDef(
     name="customerA", display_name="客户 A",
-    domains=[MAINTENANCE, IDENTITY],
+    domains=[MAINTENANCE, ORGANIZATION, PERSONNEL, CATEGORY, IDENTITY],
     processes=[REPAIR],
     data_dir=os.path.join(_BASE, "data"))
 

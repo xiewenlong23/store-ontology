@@ -68,16 +68,21 @@ t:Foo a rdfs:Class ;
         assert obj.write_except == ""
 
     def test_backward_compat_existing_object_types(self, tmp_path):
-        """现有 retail organization TTL 仍能正常解析（无新元数据字段，向后兼容）。"""
+        """现有 retail organization TTL 仍能正常解析（含新字段，向后兼容）。
+
+        v2（WP4）：Employee 已移到 personnel domain；organization 含
+        OrgUnit/Region/Store/Task。
+        """
         ttl_path = BACKEND_DIR.parent / "workspace" / "retail" / "ontology" / "domains" / "organization" / "domain.ttl"
         if not ttl_path.exists():
             pytest.skip("retail organization TTL 不存在")
         p = OntologyParser(
             ttl_path=str(ttl_path),
             data_dir=str(BACKEND_DIR.parent / "workspace" / "retail" / "data"))
-        # 业务实体应能解析
+        # 业务实体应能解析（WP4 后 Employee 移到 personnel）
+        assert "OrgUnit" in p.registry.object_types
         assert "Store" in p.registry.object_types
-        assert "Employee" in p.registry.object_types
+        assert "Task" in p.registry.object_types
         # 未声明权限 → 字段为 ''
         store = p.registry.object_types["Store"]
         assert store.read_roles == ""
