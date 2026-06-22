@@ -262,14 +262,24 @@ function ActionCrud({ ws }: { ws: string }) {
 
   async function save(body: any, isNew: boolean) {
     setSaving(true)
-    // edits_object_types 是逗号分隔字符串 → 数组；JSON 字段解析
+    // edits_object_types 是逗号分隔字符串 → 数组；JSON 字段解析（解析失败给出明确提示）
+    let parameters: any, submissionCriteria: any, sideEffects: any
+    try {
+      parameters = JSON.parse(body.parameters || '[]')
+      submissionCriteria = JSON.parse(body.submission_criteria || '{}')
+      sideEffects = JSON.parse(body.side_effects || '[]')
+    } catch (e: any) {
+      setSaving(false)
+      alert(`JSON 解析失败（parameters / submission_criteria / side_effects 必须是合法 JSON）：${e?.message || e}`)
+      return
+    }
     const payload: any = {
       ...body,
       edits_object_types: typeof body.edits_object_types === 'string'
         ? body.edits_object_types.split(',').map((s: string) => s.trim()).filter(Boolean) : body.edits_object_types,
-      parameters: JSON.parse(body.parameters || '[]'),
-      submission_criteria: JSON.parse(body.submission_criteria || '{}'),
-      side_effects: JSON.parse(body.side_effects || '[]'),
+      parameters,
+      submission_criteria: submissionCriteria,
+      side_effects: sideEffects,
     }
     const url = isNew ? `/api/admin/customers/${ws}/ontology/actions`
       : `/api/admin/customers/${ws}/ontology/actions/${payload.api_name}`
