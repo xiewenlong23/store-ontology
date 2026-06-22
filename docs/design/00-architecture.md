@@ -1,7 +1,7 @@
 # OntologyAgent 平台架构（单一权威）
 
 > **状态**：✅ 当前（已实现）。本文档是平台架构的**唯一**权威来源——定方向、消冲突、明边界。它回答"做什么/不做什么"。配套文档见 [`README.md`](./README.md)。
-> **版本**：MVP（内核 + 零售临期工作目录 + 设备维修工作目录）
+> **版本**：v2（内核 + 零售临期 + 设备维修工作目录 + 认证/RBAC×ABAC + 组织/品类 5 级，详见 §11）
 > **来源**：本文档由三份历史设计 reconcile 而来（见 [`archive/`](./archive/)），随实现滚动更新。
 
 ---
@@ -66,9 +66,9 @@
 
 ---
 
-## 2. 四概念分工（核心）
+## 2. 概念分工（核心）
 
-整个设计的地基。混淆大多来自没区分清楚这四者。
+整个设计的地基。混淆大多来自没区分清楚下表这些概念——前四者（Object/Link Type、Action Type、Tool、Skill）是主干，后两者（计算逻辑、Interface Type）是延伸。
 
 | 概念 | 性质 | LLM 关系 | 何时用 |
 |------|------|---------|--------|
@@ -102,7 +102,7 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 
 通用 CRUD 工具能直接改任意实体的任意字段，**绕过所有 Action Type 治理**。生产环境下这是漏洞。
 
-**已落地**：核心业务实体（NearExpiryProduct、Task、LossReport、Equipment、RepairTicket 等）的写操作锁为 edits-only-via-actions。`create_entity`/`update_entity`/`update_task` 降级为仅用于非业务数据；`update_task` 收紧为白名单字段（`notes`/`priority`），其余字段走 Action。
+**已落地**：核心业务实体（NearExpiryProduct、Task、LossReport、Equipment、RepairTicket，及 identity 域的 User/Role/PermissionGrant 等）的写操作锁为 edits-only-via-actions。`create_entity`/`update_entity`/`update_task` 降级为仅用于非业务数据；`update_task` 收紧为白名单字段（`notes`/`priority`），其余字段走 Action。
 
 实现（`agent/engine/repository.py`、`agent/tools/`）：
 1. **标记来源**：Object Type 在 TTL 元数据声明 `edits_only_via_actions "true"`，Parser 解析后存入 `ObjectType.edits_only_via_actions`。
@@ -112,7 +112,7 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 ### 2.4 长流程承载：工作流对象 + 状态机 + 自动化（不引入 BPM 引擎）
 
 "生成任务是一个跨数天的流程"不靠单一 Skill 装下。它**涌现**自三样东西：
-- **工作流 Object + 状态机**：clearance 用 `Task`（`created → pending_approval → approved → accepted → in_progress → completed`，或 `→ scrapped`）；customerA 用 `RepairTicket`（`reported → diagnosed → assigned → repairing → resolved`，旁路 `→ cancelled`）。状态跨天持久化。
+- **工作流 Object + 状态机**：clearance 用 `Task`（`created → pending_approval → approved → accepted → in_progress → completed`，旁路 `→ scrapped`；审批拒绝 `pending_approval → rejected`）；customerA 用 `RepairTicket`（`reported → diagnosed → assigned → repairing → resolved`，旁路 `→ cancelled`）。状态跨天持久化。
 - **Action Type**：每个状态迁移是一个 Action。
 - **后端自动化**：事件处理（POS）、定时器（到期检查）、审批回调——调 Action Type，不需要 LLM。
 
@@ -164,20 +164,23 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 
 ### 3.2 工作目录结构
 
-**retail 工作目录**：3 能力域（marketing/organization/finance）+ 1 价值链流程（clearance）。clearance 本体 7 Object（Region/Store/Employee/Product/NearExpiryProduct/Task/LossReport）+ 多 Link + 8 Action（create_clearance_task/submit_for_approval/approve_clearance/accept_task/print_labels/deduct_stock/complete_task/create_loss_report）。
+**retail 工作目录**：3 业务能力域（marketing/organization/finance）+ 1 价值链流程（clearance）。clearance 业务本体 7 Object（Region/Store/Employee/Product/NearExpiryProduct/Task/LossReport）+ 多 Link + 9 Action（create_clearance_task/submit_for_approval/approve_clearance/accept_task/print_labels/deduct_stock/complete_task/create_loss_report/update_task_notes）。
 
-**customerA 工作目录**（worked example）：1 能力域（maintenance）+ 1 价值链流程（repair）。4 Object（Equipment/RepairTicket/Technician/Vendor）+ 4 Link + 6 Action。证明多工作目录并存 + 零改内核 + 无折扣概念也能跑。
+**customerA 工作目录**（worked example）：1 业务能力域（maintenance）+ 1 价值链流程（repair）。4 Object（Equipment/RepairTicket/Technician/Vendor）+ 4 Link + 6 Action。证明多工作目录并存 + 零改内核 + 无折扣概念也能跑。
+
+> 注：上述"业务能力域/业务本体"指 clearance/repair 建模部分；每个 workspace 另含 4 类平台必备 domain（organization/personnel/category/identity，见 §11.5）及其 Object（OrgUnit/Category/User/Role/PermissionGrant 等），故 retail 实际 6 个 domain、customerA 实际 5 个。
 
 详见 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)（customerA worked example；retail 工作目录结构见本节上文）。
 
 ### 3.3 多 workspace 抽象层（内核关键设计）
 
 ```
-Repository 接口（内核）—— agent/engine/repository.py
-    ├── 现状实现：JSONFileRepository
+Repository 接口（内核）—— repository.py + pg_data_repo.py + pg_ontology_repo.py
+    ├── 现状实现：JSONFileRepository（repository.py）
     │     workspace/<pack>/data/*.json
     │     所有读写强制带 workspace_name + org_unit_id 过滤 + fcntl 文件锁 + 原子写
-    ├── ✅ 已实现：PgDataRepository / PgOntologyRepository（PostgreSQL+JSONB）
+    ├── ✅ 已实现：PgDataRepository（pg_data_repo.py，PostgreSQL+JSONB 数据读写）
+    │            + pg_ontology_repo.py（模块级函数 upsert_*/delete_*/list_*，本体 schema 读写，供 §11.9 admin 用）
     └── 🔜 远期：GraphRepository（复杂关系遍历，见 roadmap §1）
 ```
 
@@ -356,35 +359,46 @@ _build_ws_skills(ws_name)  → 只挂载该工作目录的 skill
 ```
 store-ontology/
 ├── agent/                        # 后端（FastAPI + Deep Agents，内核 + 系统工具/skills）
-│   ├── main.py                   # 入口（端口 8123）· Agent 创建 · AG-UI 端点 · webhook
+│   ├── main.py                   # 入口（端口 8123）· Agent 创建 · middleware · include_router(routers/)
 │   ├── engine/                   # 核心引擎（内核）
 │   │   ├── parser.py             # OntologyParser · EntityRegistry
 │   │   ├── repository.py         # JSONFileRepository（workspace 隔离/锁/原子写/edits-only）
+│   │   ├── pg_data_repo.py       # PgDataRepository（PostgreSQL+JSONB 数据后端）
+│   │   ├── pg_ontology_repo.py   # 本体 schema 读写（模块级 upsert_*/delete_*/list_*，§11.9 admin 用）
 │   │   ├── executor.py           # 声明式 ActionExecutor（locator_field 数据驱动）
 │   │   ├── action_loader.py      # YAML → ActionDefinition
 │   │   ├── state_machine.py      # is_valid_transition（per-process 表）
 │   │   ├── preview_cache.py      # preview→confirm 闭环
-│   │   ├── workspace.py               # WorkspaceDef / CapabilityDomain / ValueChainProcess + 注册表
+│   │   ├── pack.py               # WorkspaceDef / CapabilityDomain / ValueChainProcess + 注册表
 │   │   ├── workspace.py          # WorkspaceConfig / OrgUnit + 注册表
-│   │   ├── workspace_bootstrap.py # bootstrap_workspace → WorkspaceAgentInstance
+│   │   ├── workspace_bootstrap.py # bootstrap_workspace → WorkspaceAgentInstance · invalidate_workspace
 │   │   ├── tenant.py             # TenantContext（workspace_name + org_unit_id 双层）
-│   │   ├── bootstrap.py          # 自动发现 workspace/*/workspace.py
+│   │   ├── bootstrap.py          # 自动发现 workspace/*/workspace.py + 必备 domain 校验
 │   │   ├── scheduler.py          # AutomationScheduler（APScheduler 封装）
 │   │   ├── discount_stub.py      # 折扣数据源优先级链（注入源→workspace rules→data 副本→全局）
 │   │   ├── onboarding.py         # workspace 实例化（ontocopy/ontoseed 自动化）
+│   │   ├── auth.py               # JWT 签发/校验 + bcrypt + AuthContext（§11.1）
+│   │   ├── auth_audit.py         # 认证事件审计（§11.1）
+│   │   ├── permission.py         # PermissionEvaluator 求值引擎（§11.3）
+│   │   ├── org_tree.py           # OrgTree 5 级组织树（§11.4）
+│   │   ├── tool_manifest.py      # Tool 权限声明加载（§11.1）
+│   │   ├── admin_ontology_api.py # require_admin + admin schema 写逻辑（§11.9）
+│   │   ├── identity.py           # identity domain 辅助
+│   │   ├── db.py                 # PG 连接辅助
 │   │   ├── schemas.py            # Pydantic 模型
 │   │   └── errors.py             # 通用异常
 │   ├── tools/                    # 系统原子 Tool（query/crud/action，依赖 shared 装配）
+│   ├── routers/                  # FastAPI 路由（auth/admin/dashboard/webhooks）
 │   └── skills/                   # 系统 Skill（platform-help，所有 workspace 共享）
 │
 ├── workspace/                    # workspace 层（工作目录 + 客户实例）
-│   ├── jjy/         # 默认 workspace（config.yaml，source_pack=retail）
-│   ├── retail/                   # 零售工作目录
-│   │   ├── workspace.py               # WorkspaceDef 声明（3 能力域 + clearance 流程）
-│   │   ├── ontology/domains/     # 能力域本体（marketing/organization/finance，各 domain.ttl + actions/）
+│   ├── jjy/                      # 默认客户实例（config.yaml，enabled_domains/processes）
+│   ├── retail/                   # 零售工作目录（源包）
+│   │   ├── workspace.py          # WorkspaceDef 声明（业务能力域 + clearance 流程）
+│   │   ├── ontology/domains/     # 能力域本体（marketing/organization/finance + 4 类平台必备 domain，各 domain.ttl，actions/ 按需）
 │   │   ├── data/                 # 种子数据
 │   │   └── skills/               # 场景单元（clearance_workflow/ + store_ontology/）
-│   └── customerA/         # 设备维修工作目录（同构）
+│   └── customerA/                # 设备维修工作目录（同构：maintenance + 平台必备 domain + repair 流程）
 │
 ├── frontend/                     # CopilotKit + Next.js
 │   └── app/
@@ -474,42 +488,6 @@ execute_action(...)              confirm_action(preview_id)
 
 ---
 
-## 附录 A：错误处理（MVP）
-
-### Tool 调用失败
-| 场景 | 策略 |
-|------|------|
-| LLM 调用了不存在的 Action Type | `execute_action` 检查 `action_type` 是否在 `registry.action_types`，不存在返回明确错误 + 可用列表 |
-| 参数校验失败 | 返回具体字段+约束的错误信息 |
-| 数据不存在 | 查询/操作目标实体不存在返回 `EntityNotFoundError` |
-
-### 数据一致性
-| 场景 | 策略 |
-|------|------|
-| JSON 文件并发写入损坏 | JSON 后端：Repository 层 `fcntl.flock` 文件锁（Unix）+ 原子写；PG 后端：由数据库事务保证（已落地，roadmap §1） |
-| `confirm_action` 执行到一半失败 | 原子写入：临时文件 → `os.rename` 覆盖；写入前 `.bak` 备份 |
-| preview 与 confirm 状态不一致 | preview_id 缓存 TTL 机制（过期失效，LLM 必须重新 preview） |
-
-### 数据文件损坏恢复
-| 场景 | 策略 |
-|------|------|
-| JSON 解析失败 | `_load_json` 捕获 `JSONDecodeError`，返回空数据 + 结构化警告日志（不自动恢复，运维从 `.bak` 恢复） |
-| 数据文件缺失 | Repository 初始化为空 `[]` + 写日志；首次启动自动创建缺失目录和空文件 |
-
----
-
-## 附录 B：Palantir 参考关键收获
-
-精读 `docs/palantir-ontology-docs/`（现位于 [`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/)）后的收获：
-1. **Action Type 结构 = parameters + rules + submission criteria + side effects**。本设计 MVP 补全 submission_criteria + side_effects。
-2. **submission criteria 独立于粗粒度权限**——细粒度门控。本设计采纳。
-3. **Function 是独立、有类型、版本化、沙箱化的计算单元**——但这是为"应用"消费者设计。agent 时代消费者是 LLM，计算通过 Tool 暴露，故**不引入 Function 本体元素**（§2.1）。
-4. **Ontology Branching / Proposal / Change Management**——git 式本体变更管理，列为 v2。
-5. **Object 标识符三件套**（typeId + primaryKey + rid）——MVP 沿用 `id` 字段，v2 可采纳更严谨模型。
-6. **"edits only via actions"**——直接采纳为治理强制机制（§2.3）。
-
----
-
 ## 11. v2 认证 + RBAC×ABAC + 组织/品类 5 级（✅ 已实现）
 
 > **状态**：✅ 当前（2026-06-22 落地）。本节描述 v2 新增的认证体系、完整 RBAC×ABAC 权限引擎、5 级组织/品类树。详见设计文档 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)。
@@ -523,8 +501,8 @@ agent 层（内核，纯通用机制，零身份数据）
   • engine/permission.py: PermissionEvaluator 通用求值引擎
   • engine/org_tree.py: OrgTree 5 级组织树
   • engine/tool_manifest.py: Tool 权限声明加载
-  • main.py: auth_middleware（强制模式 AUTH_REQUIRED=true）
-            + /api/auth/{login,refresh,me,logout} endpoints
+  • main.py: auth_middleware（强制模式 AUTH_REQUIRED=true）+ include_router
+  • routers/auth.py: /api/auth/{login,refresh,me,logout} endpoints
   • tools/manifest.yaml: 内核 8 工具默认权限
 workspace 层（每个 workspace 自管）
   • identity domain: User / Role / PermissionGrant 本体 + 数据
@@ -550,6 +528,8 @@ LLM agent 实例（只读消费身份）
 5. `auth_middleware`：验签 + 跨 ws 越权校验 → `auth_ctx` contextvar。
 6. **强制模式**：`AUTH_REQUIRED=true`（默认）时无 token / 过期 / 跨 ws 越权 → 401；豁免 `/api/auth/login` + `/health`。
 
+> 注：`/api/auth/refresh` 当前返回 501（🔜 v2.1，过期后客户端重新 login）；`/logout` 仅记审计日志 + 客户端清 token。access token 2h 内有效。
+
 ### 11.3 PermissionEvaluator 求值引擎
 
 ```python
@@ -569,7 +549,7 @@ LLM agent 实例（只读消费身份）
 
 **正反向语法**：`roles="A,B,C"`（正向）+ `except="X,Y"`（反向）+ `roles="*"` 通配 + `except="*"` 全员除外（password_hash 用）。
 
-**Tool 层接入**（5 个内核工具全部接入）：
+**Tool 层接入**（8 个内核工具全部接入）：
 - `query_entity` / `query_task`: Object 读 + 属性 mask + 文本提示（不静默裁剪）
 - `traverse_relation`: Link 遍历校验
 - `execute_action` / `confirm_action`: tool + action 级（confirm 再校验防 preview 期间权限变化）
@@ -582,7 +562,7 @@ LLM agent 实例（只读消费身份）
 - **Organization**：`Brand → OrgGroup → Channel → Region → Store`（生鲜部门特有 `Dept` 第 6 级）。OrgUnit 字段含 `company_code` / `profit_center_code` / `cost_center_code`。
 - **Category**：`Department → CategoryGroup → Category → SubCategory → Variety`。
 - 两树自引用 `parent_of` Link（via=parent_id）。
-- **`OrgTree.visible_units(unit_id)` 接入 Repository.matches**：
+- **`OrgTree.visible_units(unit_id)` 接入 Repository 读过滤**（`repository.py` 模块级 `_matches_with_tree`）：
   - `org_unit_id="*"` 上下文 → 看全部（总部视角）
   - 有 OrgTree → record.org_unit_id 必须在 visible_units 内（自身 + 子孙）
   - region_cat_mgr 登录后能看到本 region 子树所有门店数据（之前精确匹配做不到）
@@ -635,9 +615,45 @@ LLM agent 实例（只读消费身份）
 
 管理员可在 admin UI 直接编辑本体 schema（Object / Link / Action Type），不再需要改 TTL/YAML 文件 + 重启。
 
-- **写端点**：`POST/PUT/DELETE /api/admin/customers/{cid}/ontology/{objects|links|actions}[/{key}]`（spec §1.5）。仓储层走 `PgOntologyRepository.upsert_*` / `delete_*`（WP3）；HTTP 层只暴露本体 schema 的写。
+- **写端点**：`POST/PUT/DELETE /api/admin/customers/{cid}/ontology/{objects|links|actions}[/{key}]`（spec §1.5）。仓储层走 `pg_ontology_repo.py` 的模块级函数 `upsert_*` / `delete_*`（WP3）；HTTP 层只暴露本体 schema 的写。
 - **鉴权**：`system_admin` 角色，或 bootstrap 初始 `admin` 账号；其余 403（统一入口 `require_admin`）。
 - **失效（WP8）**：每个写端点成功后调用 `invalidate_workspace(ws)`，丢弃进程内的 `WorkspaceAgentInstance` 缓存，下次读取从 PG 重载。单进程部署够用；多副本需扩展通知机制（defer）。
 - **业务数据 CRUD 仍走对话/Action**：User/Role/Task/NearExpiryProduct 等保持只读浏览，`edits-only-via-actions` 治理与 Action 审计不受影响。
 - **前端（WP9）**：`/admin` 页 tab 化——"数据浏览"（只读，原有）+ "本体编辑"（Objects/Links/Actions 子 tab，全字段表单含 properties 子编辑器）。
+
+---
+
+## 附录 A：错误处理（MVP）
+
+### Tool 调用失败
+| 场景 | 策略 |
+|------|------|
+| LLM 调用了不存在的 Action Type | `execute_action` 检查 `action_type` 是否在 `registry.action_types`，不存在返回明确错误 + 可用列表 |
+| 参数校验失败 | 返回具体字段+约束的错误信息 |
+| 数据不存在 | 查询/操作目标实体不存在返回 `EntityNotFoundError` |
+
+### 数据一致性
+| 场景 | 策略 |
+|------|------|
+| JSON 文件并发写入损坏 | JSON 后端：Repository 层 `fcntl.flock` 文件锁（Unix）+ 原子写；PG 后端：由数据库事务保证（已落地，roadmap §1） |
+| `confirm_action` 执行到一半失败 | 原子写入：临时文件 → `os.rename` 覆盖；写入前 `.bak` 备份 |
+| preview 与 confirm 状态不一致 | preview_id 缓存 TTL 机制（过期失效，LLM 必须重新 preview） |
+
+### 数据文件损坏恢复
+| 场景 | 策略 |
+|------|------|
+| JSON 解析失败 | `_load_json` 捕获 `JSONDecodeError`，返回空数据 + 结构化警告日志（不自动恢复，运维从 `.bak` 恢复） |
+| 数据文件缺失 | Repository 初始化为空 `[]` + 写日志；首次启动自动创建缺失目录和空文件 |
+
+---
+
+## 附录 B：Palantir 参考关键收获
+
+精读 `docs/palantir-ontology-docs/`（现位于 [`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/)）后的收获：
+1. **Action Type 结构 = parameters + rules + submission criteria + side effects**。本设计 MVP 补全 submission_criteria + side_effects。
+2. **submission criteria 独立于粗粒度权限**——细粒度门控。本设计采纳。
+3. **Function 是独立、有类型、版本化、沙箱化的计算单元**——但这是为"应用"消费者设计。agent 时代消费者是 LLM，计算通过 Tool 暴露，故**不引入 Function 本体元素**（§2.1）。
+4. **Ontology Branching / Proposal / Change Management**——git 式本体变更管理，列为 v2。
+5. **Object 标识符三件套**（typeId + primaryKey + rid）——MVP 沿用 `id` 字段，v2 可采纳更严谨模型。
+6. **"edits only via actions"**——直接采纳为治理强制机制（§2.3）。
 
