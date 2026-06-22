@@ -283,7 +283,7 @@ side_effects:
 
 ### 3.2 现有 Action Type
 
-**clearance 价值链流程（retail 工作目录，8 个流程 Action + 1 个内核辅助 Action）**：`create_clearance_task` / `submit_for_approval` / `approve_clearance` / `accept_task` / `print_labels` / `deduct_stock` / `complete_task` / `create_loss_report`（流程 Action）；外加 `update_task_notes`（支撑 `update_task` 内核工具的白名单字段写入）。详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md)。
+**clearance 价值链流程（retail 工作目录，8 个流程 Action + 1 个内核辅助 Action）**：`create_clearance_task` / `submit_for_approval` / `approve_clearance` / `accept_task` / `print_labels` / `deduct_stock` / `complete_task` / `create_loss_report`（流程 Action）；外加 `update_task_notes`（支撑 `update_task` 内核工具的白名单字段写入）。
 
 **repair 价值链流程（customerA 工作目录，6 个）**：`create_repair_ticket` / `diagnose_ticket` / `assign_technician` / `start_repair` / `complete_repair` / `cancel_ticket`。详见 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)。
 

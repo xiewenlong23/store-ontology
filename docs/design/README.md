@@ -28,12 +28,6 @@
 |------|------|-----------|
 | **演进路线** | [`roadmap.md`](./roadmap.md) | v2 方向：存储/权限/本体深化/自动化/多 Agent/UI。每节带 ✅/🔜 标注，部分已落地、部分前瞻 |
 
-### 工作目录 as-built（✅ 当前）
-
-| 文档 | 路径 | 一句话说明 |
-|------|------|-----------|
-| **零售临期工作目录** | [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md) | 第一个工作目录：6 Object、8 Action、折扣单一事实源、CopilotKit 接入 |
-
 ### 接入手册（✅ 当前）
 
 | 文档 | 路径 | 一句话说明 |

@@ -168,7 +168,7 @@ Palantir Function 的可借鉴点（计算应命名、可复用、与 Action 解
 
 **customerA 工作目录**（worked example）：1 能力域（maintenance）+ 1 价值链流程（repair）。4 Object（Equipment/RepairTicket/Technician/Vendor）+ 4 Link + 6 Action。证明多工作目录并存 + 零改内核 + 无折扣概念也能跑。
 
-详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md) 与 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)。
+详见 [`manual/03-worked-example-customerA.md`](./manual/03-worked-example-customerA.md)（customerA worked example；retail 工作目录结构见本节上文）。
 
 ### 3.3 多 workspace 抽象层（内核关键设计）
 
@@ -303,7 +303,7 @@ customerA 工作目录无折扣概念 → 无计算模块 → 证明内核不依
 
 ### 4.6 折扣单一事实源
 
-全系统折扣为**减扣百分比（0-100 int）**。单一事实源 = `workspace/retail/ontology/domains/marketing/rules/discount_rules.json`（`discount_percent` 字段，T1=50/T2=30/T3=10）+ `calculate_discount()`（读它）。详见 [`industry-packs/retail-clearance.md`](./industry-packs/retail-clearance.md)。
+全系统折扣为**减扣百分比（0-100 int）**。单一事实源 = `workspace/retail/ontology/domains/marketing/rules/discount_rules.json`（`discount_percent` 字段，T1=50/T2=30/T3=10）+ `calculate_discount()`（读它）。
 
 ---
 
