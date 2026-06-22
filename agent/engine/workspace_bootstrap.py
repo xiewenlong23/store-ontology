@@ -56,7 +56,7 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
                                       storage_type="json_files",
                                       data_dir=os.path.join(base, "..", "workspace", "retail", "data"))
         else:
-            # v2 兜底：尝试从 WorkspaceDef 注册表（新模型）构造 WorkspaceConfig
+            # v2 兜底 1：尝试从 WorkspaceDef 注册表（新模型）构造 WorkspaceConfig
             # retail/customerA 等用 workspace.py 注册的 workspace 走此路径
             from engine.pack import get_workspace_dir
             ws_def = get_workspace_dir(workspace_name)
@@ -69,7 +69,18 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
                         if ws_def.data_dir else "",
                 )
             else:
-                raise KeyError(f"未注册的 workspace: {workspace_name}")
+                # v2 兜底 2：历史/未知 workspace 名（如 customer_default / customer_id 旧值）
+                # 视为默认 jjy workspace（向后兼容，避免 LLM 传错 workspace 名直接崩）
+                # 实际数据过滤仍由 Repository.matches 的 workspace_name 比较保证隔离。
+                try:
+                    cfg = load_workspace_config(_DEFAULT_WORKSPACE_DIR)
+                    # 覆盖 workspace_name 为请求值（让上下文一致）
+                    cfg.workspace_name = workspace_name
+                except Exception:
+                    cfg = WorkspaceConfig(
+                        workspace_name=workspace_name, name=workspace_name,
+                        storage_type="json_files",
+                        data_dir=os.path.join(base, "..", "workspace", "jjy", "data"))
 
     # data_dir 可能是相对路径（如 workspace/retail/data），需解析为绝对路径
     raw_data_dir = cfg.data_dir or os.path.join(base, "..", "workspace", "retail", "data")

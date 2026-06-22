@@ -170,7 +170,10 @@ class ActionExecutor:
     def _check_submission(self, action, actor, target, params, tenant_id):
         sc = action.submission_criteria or {}
         roles = sc.get("roles", [])
-        if roles and actor.get("role") not in roles:
+        # v2：system_admin 是超级角色，submission_criteria 的 roles 白名单对其短路
+        # （与 PermissionEvaluator 的 system_admin 短路语义一致；避免 admin 调任何
+        # 业务 action 都因 roles 不在白名单被拒）
+        if roles and actor.get("role") != "system_admin" and actor.get("role") not in roles:
             raise ValidationError(
                 f"角色 {actor.get('role')} 无权提交 {action.api_name}（需 {roles}）")
         for cond in sc.get("conditions", []):
