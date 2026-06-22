@@ -33,6 +33,42 @@ def _normalize_tenant(tenant) -> TenantContext:
     return TenantContext(workspace_name="jjy", org_unit_id="*")
 
 
+def _matches_with_tree(record: dict, tc: TenantContext,
+                       org_tree=None) -> bool:
+    """v2（WP5 接入）：用 OrgTree.visible_units 判断记录可见性。
+
+    - workspace_name 必须精确匹配（硬隔离）
+    - org_unit_id：
+      - tc.org_unit_id == "*" → 看全部（总部视角）
+      - 有 org_tree → record.org_unit_id 必须在 tc.org_unit_id 的 visible_units 内
+        （自身 + 所有子孙，如 region_cat_mgr 看 region 时能见子树所有门店）
+      - 无 org_tree → 回落精确匹配（向后兼容）
+    - 旧数据（无 workspace_name）视为 jjy + 通配 org
+    """
+    # workspace_name 硬隔离
+    rec_workspace = record.get("workspace_name")
+    if rec_workspace is None:
+        rec_workspace = record.get("customer_id", "jjy")
+    if rec_workspace != tc.workspace_name:
+        return False
+
+    # 总部视角
+    if tc.sees_all_org_units():
+        return True
+
+    rec_org = record.get("org_unit_id", "*")
+    # record 自身标记为通配（共享数据，如品类）→ 可见
+    if rec_org == "*":
+        return True
+
+    if org_tree is not None:
+        # 用 OrgTree 计算 visible_units（自身 + 子孙）
+        visible = org_tree.visible_units(tc.org_unit_id)
+        return rec_org in visible
+    # 无 OrgTree → 回落精确匹配（向后兼容）
+    return rec_org == tc.org_unit_id
+
+
 class Repository:
     """Repository 接口（实现见 JSONFileRepository）。
 
@@ -57,7 +93,10 @@ class JSONFileRepository(Repository):
     """JSON 文件实现。
 
     - 多租户（架构 spec §3.3 双层）：workspace_name 硬隔离 + org_unit_id 权限范围。
-      过滤用 TenantContext.matches(record)；写入盖 workspace_name + org_unit_id。
+      v2（WP5 接入）：过滤用 OrgTree.visible_units（取代精确字符串匹配）——
+      region_cat_mgr 登录后能看到本 region 子树的所有门店数据。
+      无 OrgTree（缺 org_units.json）回落精确匹配。
+      写入盖 workspace_name + org_unit_id。
       向后兼容旧 tenant_id 字符串/旧数据（customer_id 字段）。
     - 文件锁：fcntl.flock（仅 Unix）。
     - 原子写：临时文件 + os.replace。
@@ -67,6 +106,9 @@ class JSONFileRepository(Repository):
     def __init__(self, data_dir: str, registry):
         self.data_dir = data_dir
         self.registry = registry
+        # v2（WP5 接入）：加载 OrgTree（可选，None 时回落精确匹配）
+        from engine.org_tree import load_org_tree_from_data_dir
+        self._org_tree = load_org_tree_from_data_dir(data_dir)
 
     def _path(self, object_type: str) -> str:
         obj = self.registry.object_types.get(object_type)
@@ -101,7 +143,7 @@ class JSONFileRepository(Repository):
     def read(self, object_type: str, tenant, filters: Optional[dict] = None) -> list[dict]:
         tc = _normalize_tenant(tenant)
         rows = self._load(self._path(object_type))
-        rows = [r for r in rows if tc.matches(r)]
+        rows = [r for r in rows if _matches_with_tree(r, tc, self._org_tree)]
         if filters:
             rows = [r for r in rows
                     if all(str(r.get(k)) == str(v) for k, v in filters.items())]
@@ -133,7 +175,7 @@ class JSONFileRepository(Repository):
         else:
             replaced = False
             for i, r in enumerate(rows):
-                if r.get("id") == record.get("id") and tc.matches(r):
+                if r.get("id") == record.get("id") and _matches_with_tree(r, tc, self._org_tree):
                     merged = {**r, **record}
                     rows[i] = merged
                     replaced = True
@@ -149,6 +191,6 @@ class JSONFileRepository(Repository):
         rows = self._load(path)
         before = len(rows)
         rows = [r for r in rows
-                if not (r.get("id") == entity_id and tc.matches(r))]
+                if not (r.get("id") == entity_id and _matches_with_tree(r, tc, self._org_tree))]
         self._dump(path, rows)
         return len(rows) < before
