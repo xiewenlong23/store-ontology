@@ -88,10 +88,16 @@ def _compute_visible_units(tc: TenantContext, org_tree) -> set:
 
 
 class Repository:
-    """Repository 接口（实现见 JSONFileRepository）。
+    """Repository 接口（实现见 JSONFileRepository / PgDataRepository）。
 
     tenant 参数接受 TenantContext 或字符串（向后兼容）。
+
+    v2-存储（WP2）：补全契约，加 ``storage_kind`` 属性标识存储类型，
+    供上层（admin UI / health check）区分当前用 JSON 还是 PG。
     """
+
+    # 子类覆盖：标识存储类型（"json" / "pg"）
+    storage_kind: str = "abstract"
 
     def read(self, object_type: str, tenant, filters: Optional[dict] = None) -> list[dict]:
         raise NotImplementedError
@@ -120,6 +126,8 @@ class JSONFileRepository(Repository):
     - 原子写：临时文件 + os.replace。
     - edits-only-via-actions：object_type 在 registry 中标记时，非 bypass 写直接拒绝。
     """
+
+    storage_kind = "json"
 
     def __init__(self, data_dir: str, registry):
         self.data_dir = data_dir
@@ -216,3 +224,24 @@ class JSONFileRepository(Repository):
                 if not (r.get("id") == entity_id and _matches_with_tree(r, tc, self._org_tree, visible))]
         self._dump(path, rows)
         return len(rows) < before
+
+
+# ============ v2-storage factory (WP2) ============
+
+def build_data_repository(data_dir, registry, workspace_name=None):
+    """Factory: return PG or JSON Repository based on DATABASE_URL config.
+
+    - PG available (DATABASE_URL set + ping ok) -> PgDataRepository (WP4)
+    - otherwise -> JSONFileRepository (backward compat + test fallback)
+
+    workspace_name: needed for PG path (isolation key); ignored by JSON path.
+    """
+    from engine.db import is_pg_enabled, ping
+    if is_pg_enabled() and ping():
+        try:
+            from engine.pg_data_repo import PgDataRepository
+            return PgDataRepository(workspace_name=workspace_name or "default",
+                                    registry=registry)
+        except ImportError:
+            pass   # WP4 not yet implemented -> fall back to JSON
+    return JSONFileRepository(data_dir=data_dir, registry=registry)
