@@ -210,7 +210,7 @@ function AppWithWorkspace({
                   </tbody>
                 </table>
                 <div style={{marginTop:10,padding:'8px 12px',background:'#fef9c3',borderRadius:6,fontSize:12,color:'#92400e'}}>
-                  💡 回复"确认"、"好的"或"可以"来完成操作
+                  💡 回复&ldquo;确认&rdquo;、&ldquo;好的&rdquo;或&ldquo;可以&rdquo;来完成操作
                 </div>
               </div>
             </div>
