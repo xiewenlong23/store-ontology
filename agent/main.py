@@ -489,17 +489,54 @@ async def auth_me(request: Request):
     """返回当前认证身份 + memberships + visible_tools（设计文档 §5 WP7 前端用）。
 
     可信身份来自 auth_ctx contextvar（auth_middleware 注入）。
-    WP2 阶段 visible_tools 返回空（PermissionEvaluator 在 WP5 实现）。
+    visible_tools 由 PermissionEvaluator 求值：列出当前 role 可用的工具。
     """
     auth = auth_ctx.get()
     if not auth.is_authenticated():
         return {"authenticated": False}
+
+    # 求当前 role 的可见工具清单
+    visible_tools = []
+    try:
+        from agent.tools.shared import _get_actor, _get_evaluator
+        actor = _get_actor()
+        evaluator = _get_evaluator()
+        role = actor.get("role", "")
+        # 内核 8 工具 + 该 workspace 的专属工具
+        from agent.tools import (
+            query_entity, create_entity, update_entity, traverse_relation,
+            execute_action, confirm_action, query_task, update_task)
+        kernel_tools = [query_entity, create_entity, update_entity, traverse_relation,
+                        execute_action, confirm_action, query_task, update_task]
+        for t in kernel_tools:
+            name = getattr(t, "name", "")
+            if name and evaluator.can_use_tool(role, name).granted:
+                visible_tools.append(name)
+        # workspace 专属工具
+        from engine.pack import get_workspace_dir
+        import importlib
+        ws = get_workspace_dir(_resolve_workspace_name(request))
+        if ws:
+            for proc in ws.processes:
+                if not proc.tools_module:
+                    continue
+                try:
+                    mod = importlib.import_module(proc.tools_module)
+                    for t in getattr(mod, "TOOLS", []):
+                        name = getattr(t, "name", "")
+                        if name and evaluator.can_use_tool(role, name).granted:
+                            visible_tools.append(name)
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception:  # noqa: BLE001
+        pass
+
     return {
         "authenticated": True,
         "user_id": auth.user_id,
         "session_id": auth.session_id,
         "workspace_names": list(auth.workspace_names),
-        "visible_tools": [],   # WP5 PermissionEvaluator 填充
+        "visible_tools": visible_tools,
     }
 
 

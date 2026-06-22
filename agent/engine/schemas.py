@@ -9,14 +9,26 @@ from pydantic import BaseModel, Field
 # ============ Enums ============
 
 class EmployeeRole(str, Enum):
-    """员工角色（旧版，向后兼容；WP4 与 submission_criteria.roles 词汇表对齐后扩展）。
+    """员工角色（v2 对齐 submission_criteria.roles 词汇表）。
 
-    注：当前是 Employee 实体的 role 属性枚举；submission_criteria 用的
-    store_manager/region_cat_mgr 等字符串尚未对齐（WP4 统一）。
+    保留旧值（CLERK/MANAGER/ADMIN）做向后兼容；新增业务角色与 YAML 里
+    submission_criteria.roles / TTL read_roles 等用的字符串一致。
+    实际取值以数据为准（Employee.role 是 string 字段，不强制 enum 校验）。
     """
+    # 旧值（向后兼容）
     CLERK = "clerk"
     MANAGER = "manager"
     ADMIN = "admin"
+    # v2 业务角色（对齐 submission_criteria.roles）
+    STORE_MANAGER = "store_manager"
+    STORE_CLERK = "store_clerk"
+    REGION_CAT_MGR = "region_cat_mgr"
+    SYSTEM_ADMIN = "system_admin"
+    TECHNICIAN = "technician"
+    # 系统账号
+    SYSTEM_SCHEDULER = "system_scheduler"
+    SYSTEM_POS = "system_pos"
+    SYSTEM_INVENTORY = "system_inventory"
 
 
 # ============ 身份与权限 Enums（v2 认证/权限，WP1 引入）============

@@ -1,0 +1,7 @@
+# jjy workspace 专属工具权限声明（设计文档 §2.8）。
+# 内核 8 工具的 manifest 在 agent/tools/manifest.yaml。
+# jjy 是 retail 的客户实例拷贝，工具结构相同。
+
+tools:
+  - name: query_near_expiry
+    use_roles: "*"

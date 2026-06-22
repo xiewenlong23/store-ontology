@@ -1,0 +1,10 @@
+# retail workspace 专属工具权限声明（设计文档 §2.8）。
+# 内核 8 工具的 manifest 在 agent/tools/manifest.yaml。
+# 此文件声明 retail workspace 的 process tools_module 导出的 TOOLS。
+#
+# 求值顺序：system_admin 短路 → Grant override → TTL/manifest → allow-by-default
+# 未在此声明的工具 → allow-by-default（保守默认）。
+
+tools:
+  - name: query_near_expiry
+    use_roles: "*"   # 所有角色可查临期商品（具体 Object 级由 NearExpiryProduct.read_roles 再校验）

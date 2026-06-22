@@ -96,20 +96,32 @@ def get_employee_by_user(workspace_name: str, user_id: str) -> Optional[dict]:
 def list_user_workspaces(username: str, password: str) -> List[Dict]:
     """扫描所有 workspace，返回该用户认成功的 workspace 列表（登录用）。
 
-    返回 memberships：``[{workspace_name, user_id, display_name}]``。
-    role/org_unit_id 字段需 Employee 关联（WP4 后补），此处先返回 user 维度信息。
+    返回 memberships：``[{workspace_name, user_id, role, org_unit_id, display_name}]``。
+    role/org_unit_id 从该 workspace 的 Employee（user_id 反向引用）查得；
+    Employee 缺失时（如 admin 系统账号）role=system_admin / org_unit_id=*。
     """
     from engine.pack import all_workspace_dirs
     memberships = []
     for ws in all_workspace_dirs():
         user = verify_credentials(ws.name, username, password)
         if user:
+            # 查 Employee 关联（user_id 反向引用）推导 role/org_unit
+            emp = get_employee_by_user(ws.name, user.get("id"))
+            if emp:
+                role = emp.get("role") or "system_admin"
+                org_unit = emp.get("org_unit_id") or emp.get("store_id") or "*"
+            else:
+                # admin 等系统账号无 Employee → 默认 system_admin + 总部视角
+                role = "system_admin"
+                org_unit = "*"
             memberships.append({
                 "workspace_name": ws.name,
                 "workspace_display_name": ws.display_name,
                 "user_id": user.get("id"),
                 "username": user.get("username"),
                 "display_name": user.get("display_name"),
+                "role": role,
+                "org_unit_id": org_unit,
             })
     return memberships
 

@@ -1,0 +1,6 @@
+# customerA workspace 专属工具权限声明（设计文档 §2.8）。
+# 内核 8 工具的 manifest 在 agent/tools/manifest.yaml。
+
+tools:
+  - name: query_repair_tickets
+    use_roles: "*"
