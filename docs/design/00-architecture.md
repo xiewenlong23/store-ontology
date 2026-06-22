@@ -29,8 +29,8 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  第5层：用户交互入口                                                      │
-│  现状：CopilotKit v1.57（9 个 renderToolCalls，clearance 专用）           │
-│  未来（v2）：A2UI 标准渲染、多工作目录切换 UI、定时自动化作业 UI              │
+│  现状：CopilotKit v1.57 + 多工作目录切换 UI（✅ 已落地，见 §11）          │
+│  🔜 v2：A2UI 标准渲染、定时自动化作业 UI、权限/审计管理 UI                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  第4层：Agent 层                                                          │
 │  现状：per-workspace Agent（build_workspace_graph + 缓存）                 │
@@ -54,11 +54,13 @@
 │  工作目录（声明式接入，零改内核）：                                          │
 │    retail: marketing/organization/finance 能力域 + clearance 价值链流程   │
 │    customerA: maintenance 能力域 + repair 价值链流程（worked example）│
-│  未来（v2）：组织5级 / 品类5级 / DC / 职能域（零售工作目录深化）              │
+│  ✅ 已落地：组织5级 / 品类5级 / 4 类必备 domain（见 §11.4/§11.5）         │
+│  🔜 v2：DC 维度 / 职能域 Domain（三维 scope 之一）                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  第1层：LLM + 存储                                                        │
 │  LLM：MiniMax-M2.7-highspeed（OpenAI 兼容，现有一套，未来多 provider）     │
-│  存储：JSON 文件（现状）via Repository 抽象 → PostgreSQL+JSONB（v2）        │
+│  存储：JSON / PostgreSQL+JSONB 双后端（✅ 已落地，见 roadmap §1）         │
+│        配 DATABASE_URL 走 PG，缺失回落 JSON，Repository 接口不变          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -175,7 +177,8 @@ Repository 接口（内核）—— agent/engine/repository.py
     ├── 现状实现：JSONFileRepository
     │     workspace/<pack>/data/*.json
     │     所有读写强制带 workspace_name + org_unit_id 过滤 + fcntl 文件锁 + 原子写
-    └── 未来实现（🔜 v2）：PostgresRepository（JSONB）、GraphRepository
+    ├── ✅ 已实现：PgDataRepository / PgOntologyRepository（PostgreSQL+JSONB）
+    └── 🔜 远期：GraphRepository（复杂关系遍历，见 roadmap §1）
 ```
 
 **决策**：多租户通过 **workspace_name（硬隔离）+ org_unit_id（权限范围）** 双层抽象承载。上层（工具、Agent）经 `Repository` 接口，不直接碰文件。
@@ -216,7 +219,7 @@ side_effects:                       # 副作用声明（create_object/update_obj
 
 **submission_criteria 是权限的细粒度补充**（独立于粗粒度 RBAC）：粗粒度 RBAC 答"谁能用 execute_action 工具"，submission_criteria 答"给定这个 user 和这组参数，这个 action 实例能不能提交"。
 
-**现状**（`agent/engine/executor.py`）：submission_criteria 做 `roles` 白名单 + 条件（`is`/`is_not` 操作符）。🔜 复杂操作符（matches/includes/gte/value_ref）与嵌套逻辑留 v2。
+**现状**（`agent/engine/executor.py`）：submission_criteria 做 `roles` 白名单 + 条件，操作符已落地全集 `is`/`is_not`/`gte`/`lte`/`gt`/`lt`/`matches`/`includes`/`value_ref`（见 §11.7）。🔜 嵌套 AND/OR 逻辑留 v2。
 
 **`locator_field`（数据驱动）**：声明 Action 用哪个参数定位 target 记录。target 是工作流对象时填其 id 参数（`task_id`/`ticket_id`）；target 是标的物填 `target_id`。
 
@@ -452,7 +455,7 @@ execute_action(...)              confirm_action(preview_id)
 | LLM 模型 | MiniMax-M2.7-highspeed | 中文能力强，高性价比，OpenAI 兼容 |
 | 本体格式 | Turtle (TTL) | W3C 标准 RDF 格式，声明式 schema 定义 |
 | Action 格式 | YAML | 嵌套结构友好，比 TTL 扩展更轻量 |
-| 数据存储 | JSON 文件 | MVP 零依赖，未来通过 Repository 抽象迁移到 PostgreSQL+JSONB |
+| 数据存储 | JSON / PostgreSQL+JSONB 双后端 | 配 `DATABASE_URL` 走 PG（JSONB + GIN 索引），缺失自动回落 JSON；Repository 接口不变（roadmap §1） |
 
 ---
 
@@ -466,8 +469,8 @@ execute_action(...)              confirm_action(preview_id)
 ```
 启动：后端 `cd agent && python main.py`；前端 `cd frontend && npm run dev`。
 
-### 生产部署（v2 预留）
-前端 `next build` → Nginx 托管；后端 `uvicorn main:app --workers N`；Nginx 反向代理 `/api/copilotkit` → 后端。数据存储 v2 从 JSON 迁移到 PostgreSQL+JSONB（换 Repository 实现，上层接口不变）。
+### 生产部署
+前端 `next build` → Nginx 托管；后端 `uvicorn main:app --workers N`；Nginx 反向代理 `/api/copilotkit` → 后端。数据存储走 PostgreSQL+JSONB（生产配 `DATABASE_URL`）；Repository 接口不变，缺失或连不上自动回落 JSON（roadmap §1）。
 
 ---
 
@@ -483,7 +486,7 @@ execute_action(...)              confirm_action(preview_id)
 ### 数据一致性
 | 场景 | 策略 |
 |------|------|
-| JSON 文件并发写入损坏 | Repository 层 `fcntl.flock` 文件锁（MVP，仅 Unix）；v2 换 PG 后由数据库事务保证 |
+| JSON 文件并发写入损坏 | JSON 后端：Repository 层 `fcntl.flock` 文件锁（Unix）+ 原子写；PG 后端：由数据库事务保证（已落地，roadmap §1） |
 | `confirm_action` 执行到一半失败 | 原子写入：临时文件 → `os.rename` 覆盖；写入前 `.bak` 备份 |
 | preview 与 confirm 状态不一致 | preview_id 缓存 TTL 机制（过期失效，LLM 必须重新 preview） |
 
@@ -624,7 +627,6 @@ LLM agent 实例（只读消费身份）
 - 嵌套 AND/OR 权限逻辑
 - 真实 IdP（OAuth/SSO/企业微信/钉钉）
 - token 撤销列表 / 多设备会话
-- PostgreSQL 迁移
 - 组织/品类/权限管理 CRUD UI
 - DC（配送中心）维度 / 职能域 Domain 维度（legacy 三维 scope 之一）
 - transfer/restock Action 契约补全

@@ -22,11 +22,11 @@
 | **平台开发规范** | [`30-development-guide.md`](./30-development-guide.md) | 本体/Tool/Skill 开发步骤、权限、错误处理、测试规范 |
 | **业务本体建模规范** | [`40-ontology-modeling-spec.md`](./40-ontology-modeling-spec.md) | 建模硬规范：命名、元数据、via 归属、Action 边界、反模式 |
 
-### 前瞻（🔮 未实现）
+### 演进路线（部分已落地）
 
 | 文档 | 路径 | 一句话说明 |
 |------|------|-----------|
-| **演进路线** | [`roadmap.md`](./roadmap.md) | v2 方向：存储/权限/本体深化/自动化/多 Agent/UI。**均未落地**，仅供方向参考 |
+| **演进路线** | [`roadmap.md`](./roadmap.md) | v2 方向：存储/权限/本体深化/自动化/多 Agent/UI。每节带 ✅/🔜 标注，部分已落地、部分前瞻 |
 
 ### 工作目录 as-built（✅ 当前）
 
