@@ -200,3 +200,39 @@ def _get_actor(tenant=None) -> dict:
         pass
     # Employee 无关联但已认证 → 系统账号（如 admin）
     return {"role": "system_admin", "user_id": auth.user_id}
+
+
+# ============ v2 权限求值接入（WP5 完成收尾）============
+
+def _get_evaluator():
+    """取当前 workspace 的 PermissionEvaluator（按 workspace 缓存）。
+
+    从 contextvar 解析 workspace_name → build_evaluator_from_workspace。
+    失败（workspace 未注册、import 错）返回空 evaluator（全 allow-by-default），
+    让 tool 链路不中断。
+
+    缓存：per-process dict，key=workspace_name。workspace 数据运行时不变，无需 TTL。
+    测试用 monkeypatch 替换本函数。
+    """
+    global _evaluator_cache
+    if '_evaluator_cache' not in globals():
+        _evaluator_cache = {}
+    ws_name = _workspace_name_from_ctx()
+    if ws_name in _evaluator_cache:
+        return _evaluator_cache[ws_name]
+    try:
+        from engine.permission import build_evaluator_from_workspace
+        ev = build_evaluator_from_workspace(ws_name)
+    except Exception as e:  # noqa: BLE001
+        # 任何装配失败 → 空 evaluator（全 allow-by-default，不阻断 tool）
+        from engine.permission import PermissionEvaluator, _EmptyRegistry
+        ev = PermissionEvaluator(registry=_EmptyRegistry(), grants=[], tool_manifest={})
+    _evaluator_cache[ws_name] = ev
+    return ev
+
+
+def _reset_evaluator_cache():
+    """测试用：清空 evaluator 缓存（数据/权限变更后或 fixture 重置时调）。"""
+    global _evaluator_cache
+    _evaluator_cache = {}
+

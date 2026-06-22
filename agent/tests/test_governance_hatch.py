@@ -21,6 +21,12 @@ def _setup(monkeypatch, data_dir):
     # v2（WP6）：actor 从 _get_actor 派生（auth_ctx → Employee → role）。
     # 测试环境无 auth_ctx，monkeypatch 模拟"当前用户是 store_manager"。
     monkeypatch.setattr(T, "_get_actor", lambda tenant=None: {"role": "store_manager"})
+    # v2（WP5 接入）：PermissionEvaluator 求值；测试用空 evaluator（全 allow-by-default）
+    # 让 store_manager 能调 update_task（submission_criteria 由 executor 校验）
+    from engine.permission import PermissionEvaluator, _EmptyRegistry
+    monkeypatch.setattr(T, "_get_evaluator",
+                        lambda: PermissionEvaluator(registry=_EmptyRegistry(),
+                                                    grants=[], tool_manifest={}))
     return ex, repo
 
 

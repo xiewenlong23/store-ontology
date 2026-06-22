@@ -28,6 +28,23 @@ def execute_action(action_type: str, params: dict,
     """
     tc = shared._tc_ctx(workspace_name, org_unit_id)
     actor = shared._get_actor(tc)
+
+    # v2 权限：tool 级 + action 级校验
+    evaluator = shared._get_evaluator()
+    role = actor.get("role", "")
+    tool_result = evaluator.can_use_tool(role, "execute_action")
+    if not tool_result.granted:
+        return shared._wrap(
+            {"type": "action_preview", "valid": False,
+             "permission_denied": True, "reason": tool_result.reason},
+            f"无权使用 execute_action：{tool_result.reason}")
+    action_result = evaluator.can_execute_action(role, action_type)
+    if not action_result.granted:
+        return shared._wrap(
+            {"type": "action_preview", "valid": False,
+             "permission_denied": True, "reason": action_result.reason},
+            f"无权执行 {action_type}：{action_result.reason}")
+
     ex = shared._get_executor()
     actions = ex.actions
     if action_type not in actions:
@@ -63,6 +80,21 @@ def confirm_action(preview_id: str) -> str:
         return shared._wrap({"type": "action_result", "success": False,
                              "error": "preview 无效或已过期，请先 execute_action"},
                             "preview 无效或已过期，请重新预览。")
+    # v2 权限：confirm 时再次校验（防 preview 期间权限变化）
+    actor = preview.get("actor") or {}
+    evaluator = shared._get_evaluator()
+    role = actor.get("role", "")
+    action_type = preview["action_type"]
+    tool_result = evaluator.can_use_tool(role, "confirm_action")
+    if not tool_result.granted:
+        return shared._wrap({"type": "action_result", "success": False,
+                             "permission_denied": True, "reason": tool_result.reason},
+                            f"无权确认：{tool_result.reason}")
+    action_result = evaluator.can_execute_action(role, action_type)
+    if not action_result.granted:
+        return shared._wrap({"type": "action_result", "success": False,
+                             "permission_denied": True, "reason": action_result.reason},
+                            f"无权执行 {action_type}：{action_result.reason}")
     try:
         result = shared._get_executor().execute(
             preview["action_type"], preview["params"],
