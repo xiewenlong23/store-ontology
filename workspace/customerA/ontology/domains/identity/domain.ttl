@@ -17,7 +17,7 @@ repair:User a rdfs:Class ;
     repair:read_roles "system_admin" ;
     repair:property [
         repair:name "password_hash" ;
-        repair:read_roles ""
+        repair:read_except "*"
     ] .
 
 repair:Role a rdfs:Class ;

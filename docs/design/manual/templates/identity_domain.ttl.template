@@ -32,7 +32,7 @@
     <prefix>:read_roles "system_admin" ;
     <prefix>:property [
         <prefix>:name "password_hash" ;
-        <prefix>:read_roles ""
+        <prefix>:read_except "*"
     ] .
 
 <prefix>:Role a rdfs:Class ;

@@ -17,7 +17,7 @@ store:User a rdfs:Class ;
     store:read_roles "system_admin" ;
     store:property [
         store:name "password_hash" ;
-        store:read_roles ""
+        store:read_except "*"
     ] .
 
 store:Role a rdfs:Class ;
