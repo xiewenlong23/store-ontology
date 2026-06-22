@@ -44,6 +44,42 @@
 
 webhook 取 executor 用 `_get_executor(process_name="clearance")`（精确选价值链流程，workspace 由 contextvar 解析）。
 
+### 1.4 认证端点（v2，✅ 已实现）
+
+| 路径 | 方法 | 用途 | 鉴权 |
+|------|------|------|------|
+| `POST /api/auth/login` | POST | 实名登录 → 签 JWT + 返回 memberships | 豁免 |
+| `POST /api/auth/refresh` | POST | 用 refresh token 换 access（MVP 提示重新 login） | refresh token |
+| `GET /api/auth/me` | GET | 当前认证身份 + ws 白名单 + visible_tools | Bearer |
+| `POST /api/auth/logout` | POST | 登出（客户端清 token；服务端撤销列表留 v2.1） | Bearer |
+
+**Login 请求/响应**：
+```json
+// POST /api/auth/login
+请求：{"username": "admin", "password": "admin123"}
+响应：{
+  "success": true,
+  "token": "<access jwt>",
+  "refresh_token": "<refresh jwt>",
+  "session_id": "<uuid>",
+  "expires_in": 7200,
+  "memberships": [
+    {"workspace_name": "jjy", "workspace_display_name": "客户 jjy",
+     "user_id": "user_admin", "username": "admin", "display_name": "系统管理员"}
+  ]
+}
+```
+
+**JWT Claims**：`sub`(user_id) / `sid`(session_id) / `ws`(白名单 workspace list) / `typ`(access|refresh) / `iat` / `exp`。
+
+**Header 约定**（除 §1.1 的 X-Workspace / X-Org-Unit-ID）：
+
+| Header | 方向 | 说明 |
+|--------|------|------|
+| `Authorization: Bearer <jwt>` | 前端 → 后端 | v2 强制（除豁免路径）；缺失/过期/跨 ws → 401 |
+
+`auth_middleware`：验签 + token.ws 白名单必须含 `X-Workspace`（跨 ws 越权防护）。`AUTH_REQUIRED=true`（默认）强制；`=false` 开发兜底。
+
 ---
 
 ## 2. Tool Schema 规范

@@ -504,3 +504,127 @@ execute_action(...)              confirm_action(preview_id)
 4. **Ontology Branching / Proposal / Change Management**——git 式本体变更管理，列为 v2。
 5. **Object 标识符三件套**（typeId + primaryKey + rid）——MVP 沿用 `id` 字段，v2 可采纳更严谨模型。
 6. **"edits only via actions"**——直接采纳为治理强制机制（§2.3）。
+
+---
+
+## 11. v2 认证 + RBAC×ABAC + 组织/品类 5 级（✅ 已实现）
+
+> **状态**：✅ 当前（2026-06-22 落地）。本节描述 v2 新增的认证体系、完整 RBAC×ABAC 权限引擎、5 级组织/品类树。详见设计文档 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)。
+
+### 11.1 agent 层 vs workspace 层（核心边界）
+
+```
+agent 层（内核，纯通用机制，零身份数据）
+  • engine/auth.py: JWT 签发/校验 + bcrypt 密码 hash/verify + AuthContext
+  • engine/auth_audit.py: 认证事件审计（login/logout/token_invalid）
+  • engine/permission.py: PermissionEvaluator 通用求值引擎
+  • engine/org_tree.py: OrgTree 5 级组织树
+  • engine/tool_manifest.py: Tool 权限声明加载
+  • main.py: auth_middleware（强制模式 AUTH_REQUIRED=true）
+            + /api/auth/{login,refresh,me,logout} endpoints
+  • tools/manifest.yaml: 内核 8 工具默认权限
+workspace 层（每个 workspace 自管）
+  • identity domain: User / Role / PermissionGrant 本体 + 数据
+    （users.json 含 password_hash，permission_grants.json runtime override）
+  • organization domain: OrgUnit 5 级树 + 财务核算字段
+  • personnel domain: Employee（user_id 反向引用 User）
+  • category domain: Category 5 级品类树
+  • TTL 权限元数据: :read_roles / :read_except / :write_roles / :write_except /
+                   :use_roles / :use_except（含 :property [ ... ] 嵌套属性级）
+  • tool_manifest.yaml: 本 workspace 专属工具的权限声明
+LLM agent 实例（只读消费身份）
+  • actor/权限从 auth_ctx contextvar 派生，绝不让 LLM 自报
+```
+
+**协议面**：agent 求值引擎只懂通用原语（`user_id` / `role` / `resource_type` / `resource_id` / `action` / `effect`）；具体角色字符串、组织树、品类树、TTL 权限声明都由 workspace 提供。
+
+### 11.2 认证流程
+
+1. 前端 `/login`：username + password（不选 workspace）。
+2. `POST /api/auth/login`：扫描 `all_workspace_dirs()` → 调每个 ws 的 `verify_credentials(username, password)` → 收集认成功的 ws → 返回 `{token, refresh_token, memberships}`。
+3. JWT（HS256，access 2h + refresh 7d），含 `user_id + session_id + ws 白名单`（防跨 ws 越权）。
+4. 前端选 ws → 后续带 `Authorization: Bearer <token>` + `X-Workspace: <ws>`。
+5. `auth_middleware`：验签 + 跨 ws 越权校验 → `auth_ctx` contextvar。
+6. **强制模式**：`AUTH_REQUIRED=true`（默认）时无 token / 过期 / 跨 ws 越权 → 401；豁免 `/api/auth/login` + `/health`。
+
+### 11.3 PermissionEvaluator 求值引擎
+
+```python
+求值顺序（设计文档 §2.5）：
+  1. system_admin 短路（全 allow）
+  2. PermissionGrant runtime override（deny 优先）
+  3. TTL 元数据（read_roles/read_except 正反向）
+  4. allow-by-default（无声明 → allow）
+```
+
+支持 **5 类资源**：
+- `can_use_tool(actor, tool_name)` — Tool 级（manifest）
+- `can_read_object(actor, obj_type)` / `can_write_object` — Object 级（TTL）
+- `readable_properties` / `denied_properties` / `can_write_property` — 属性级（TTL 嵌套 `:property [...]`）
+- `can_execute_action(actor, action_type)` — Action 级（Grant override）
+- `can_traverse_link(actor, link_type)` — Link 级（TTL `:use_roles`）
+
+**正反向语法**：`roles="A,B,C"`（正向）+ `except="X,Y"`（反向）+ `roles="*"` 通配 + `except="*"` 全员除外（password_hash 用）。
+
+**Tool 层接入**（5 个内核工具全部接入）：
+- `query_entity` / `query_task`: Object 读 + 属性 mask + 文本提示（不静默裁剪）
+- `traverse_relation`: Link 遍历校验
+- `execute_action` / `confirm_action`: tool + action 级（confirm 再校验防 preview 期间权限变化）
+- `create_entity`: tool + Object 写
+- `update_entity`: tool + Object 写 + **属性级写校验**（每字段单独 check）
+- `update_task`: tool 级
+
+### 11.4 组织 5 级 + 品类 5 级
+
+- **Organization**：`Brand → OrgGroup → Channel → Region → Store`（生鲜部门特有 `Dept` 第 6 级）。OrgUnit 字段含 `company_code` / `profit_center_code` / `cost_center_code`。
+- **Category**：`Department → CategoryGroup → Category → SubCategory → Variety`。
+- 两树自引用 `parent_of` Link（via=parent_id）。
+- **`OrgTree.visible_units(unit_id)` 接入 Repository.matches**：
+  - `org_unit_id="*"` 上下文 → 看全部（总部视角）
+  - 有 OrgTree → record.org_unit_id 必须在 visible_units 内（自身 + 子孙）
+  - region_cat_mgr 登录后能看到本 region 子树所有门店数据（之前精确匹配做不到）
+  - 无 OrgTree → 回落精确匹配（向后兼容）
+  - record.org_unit_id="*"（共享数据如品类）→ 任何上下文可见
+
+### 11.5 4 类必备 capability domain
+
+`register_workspace_dir` 校验 workspace 含四类必备 domain（缺则启动失败）：
+- `organization`（含 OrgUnit）
+- `personnel`（含 Employee，user_id 反向引用 User）
+- `category`（含 Category）
+- `identity`（含 User / Role / PermissionGrant）
+
+测试 fixture 用 `required_domain_kinds=[]` 关闭校验。
+
+### 11.6 信任修复（WP6）
+
+- **`execute_action` 删 `actor_role` 参数**（LLM 不再可自报）
+- actor 一律从 `shared._get_actor()` 派生：`auth_ctx` → Employee.user_id → role
+- `_get_actor` 兜底：contextvar 缺失/`AUTH_REQUIRED=false` + anonymous → system_admin（开发/测试）；生产强制时 anonymous 拒
+- `crud_tools.update_task` 删硬编码 actor
+- **dashboard 改用请求级 `tenant_ctx.get()`**（取代 `inst.tenant_context` 的 `org_unit_id="*"` 越权 bug）
+- `system_admin` 在 `executor._check_submission` 也短路（roles 白名单对其无效）
+
+### 11.7 submission_criteria 操作符全集（✅ 已落地）
+
+| 操作符 | 含义 | 示例 |
+|---|---|---|
+| `is` / `is_not` | 相等/不等（原有） | `target.status is created` |
+| `gte` / `lte` / `gt` / `lt` | 数值比较（含字符串数字强制） | `target.qty gte 10` |
+| `matches` | 正则匹配 | `target.status matches "in_progress\|approved"` |
+| `includes` | list/str/dict 包含 | `target.tags includes "urgent"` |
+| `value_ref` | actual == params[other_field] | `target.id value_ref "$expected_id"` |
+
+未知操作符保守返回 False；None / 非数字 / 非法正则都安全 False 不抛。
+
+### 11.8 范围外（defer，留 v2.1+）
+
+- HMAC 快照冻结、26 生命周期 hook、6 PermissionMode / 6 cascade
+- CategoryScope coverage_depth / RuleSource 优先级
+- 嵌套 AND/OR 权限逻辑
+- 真实 IdP（OAuth/SSO/企业微信/钉钉）
+- token 撤销列表 / 多设备会话
+- PostgreSQL 迁移
+- 组织/品类/权限管理 CRUD UI
+- DC（配送中心）维度 / 职能域 Domain 维度（legacy 三维 scope 之一）
+- transfer/restock Action 契约补全
