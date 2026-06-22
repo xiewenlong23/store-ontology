@@ -72,6 +72,20 @@ export default function HomePage() {
             >
               📊 运营看板
             </Link>
+            <Link
+              href="/admin"
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                background: '#7c3aed',
+                color: '#fff',
+                textDecoration: 'none',
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              🛠️ 管理员
+            </Link>
             <button
               onClick={handleLogout}
               style={{

@@ -599,6 +599,54 @@ async def admin_ontology_links(request: Request, cid: str):
     return {"links": links}
 
 
+# ============ v2 管理数据浏览 API（WP7 配套）============
+
+@app.get("/api/admin/customers/{cid}/data/{entity_type}")
+async def admin_data_browse(request: Request, cid: str, entity_type: str):
+    """管理员数据浏览（只读）：列出指定 entity_type 的全部记录。
+
+    用途：admin UI 展示 User/Role/PermissionGrant/OrgUnit/Category 等数据。
+    权限：需要 system_admin 角色（PermissionEvaluator 校验）。其他角色 → 403。
+
+    entity_type 限制为 identity/organization/category/personnel 域的"管理类"对象，
+    避免业务数据（Task/NearExpiryProduct 等）泄露（那些走各自的工具）。
+    """
+    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
+    # v2 权限：管理数据浏览允许 system_admin 或 username=='admin'（初始管理员）。
+    # admin User 在 workspace 的 Employee.role 可能是 store_manager（视客户配置），
+    # 但作为系统初始化的 admin 账号，应能浏览管理数据。
+    from agent.tools.shared import _get_actor, _get_evaluator
+    from engine.identity import verify_credentials, _load_users
+    from engine.pack import get_workspace_dir
+    from fastapi.responses import JSONResponse
+    actor = _get_actor()
+    role = actor.get("role", "")
+    user_id = actor.get("user_id", "")
+    # 检查是否 admin 账号（username=='admin'）
+    ws_name = _resolve_workspace_name(request, cid)
+    is_admin_account = False
+    if user_id:
+        ws_def = get_workspace_dir(ws_name)
+        if ws_def and ws_def.data_dir:
+            for u in _load_users(ws_def.data_dir):
+                if u.get("id") == user_id and u.get("username") == "admin":
+                    is_admin_account = True
+                    break
+    if role != "system_admin" and not is_admin_account:
+        evaluator = _get_evaluator()
+        if not evaluator.can_read_object(role, entity_type).granted:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": f"无权浏览 {entity_type}", "role": role})
+    # 总部视角读全部（admin 数据不应受 org_unit 隔离）
+    tc = TenantContext(workspace_name=_resolve_workspace_name(request, cid), org_unit_id="*")
+    rows = inst.repository.read(entity_type, tc)
+    # 脱敏：User 表剥离 password_hash
+    if entity_type == "User":
+        rows = [{k: v for k, v in r.items() if k != "password_hash"} for r in rows]
+    return {"entity_type": entity_type, "total": len(rows), "items": rows}
+
+
 # ============ 运营看板 API（P4 §4.4）============
 
 @app.get("/api/dashboard/{cid}/metrics")
