@@ -18,6 +18,9 @@ def _setup(monkeypatch, data_dir):
     monkeypatch.setattr(T, "_parser", lambda vertical=None: type('P',(),{'registry':reg})())
     monkeypatch.setattr(T, "_get_repo", lambda tenant="jjy", vertical=None: repo)
     monkeypatch.setattr(T, "_get_executor", lambda vertical=None: ex)
+    # v2（WP6）：actor 从 _get_actor 派生（auth_ctx → Employee → role）。
+    # 测试环境无 auth_ctx，monkeypatch 模拟"当前用户是 store_manager"。
+    monkeypatch.setattr(T, "_get_actor", lambda tenant=None: {"role": "store_manager"})
     return ex, repo
 
 

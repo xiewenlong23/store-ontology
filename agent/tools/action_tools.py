@@ -4,6 +4,9 @@ execute_action 生成预览（校验参数、返回 preview_id），confirm_acti
 这是受治理写操作的统一入口（架构 spec §1.6 治理闭环），与具体 Action 定义无关——
 Action Type 由各 workspace 的 ontology 声明，本工具只负责调用管道。
 helper 通过 shared 模块引用（非直接 import），便于测试 monkeypatch。
+
+v2（WP6 信任修复）：actor 一律从 auth_ctx contextvar 派生（shared._get_actor），
+LLM 不再能自报 actor_role。未登录用户的 actor.role="anonymous"，多数业务资源拒绝。
 """
 from langchain_core.tools import tool
 
@@ -13,7 +16,6 @@ from engine.errors import OntologyError
 
 @tool
 def execute_action(action_type: str, params: dict,
-                   actor_role: str = "store_manager",
                    workspace_name: str = None,
                    org_unit_id: str = None) -> str:
     """执行 Action 预览。返回 preview_id，用户确认后用 confirm_action(preview_id) 提交。
@@ -21,8 +23,11 @@ def execute_action(action_type: str, params: dict,
     params 是该 Action 的参数字典，具体参数名见系统提示中的 Action 清单。
     例如 create_clearance_task 的 params: {"target_id":"...", "store_id":"...",
     "assignee_id":"...", "discount_percent":30, "planned_quantity":50}
+
+    注：actor 从当前登录用户派生（auth_ctx），不需要也不能由调用方指定。
     """
     tc = shared._tc_ctx(workspace_name, org_unit_id)
+    actor = shared._get_actor(tc)
     ex = shared._get_executor()
     actions = ex.actions
     if action_type not in actions:
@@ -43,7 +48,7 @@ def execute_action(action_type: str, params: dict,
                              "required_params": required},
                             f"预览失败: {e}。该 Action 必填参数: {required}")
     preview = {"action_type": action_type, "params": validated,
-               "actor_role": actor_role, "tenant_id": tc}
+               "actor": actor, "tenant_id": tc}
     preview_id = shared._preview_cache.put(preview)
     return shared._wrap({"type": "action_preview", "valid": True, "preview_id": preview_id,
                          "action_type": action_type, "params": validated},
@@ -61,7 +66,7 @@ def confirm_action(preview_id: str) -> str:
     try:
         result = shared._get_executor().execute(
             preview["action_type"], preview["params"],
-            actor={"role": preview["actor_role"]},
+            actor=preview["actor"],
             tenant_id=preview["tenant_id"])
         return shared._wrap({"type": "action_result", "success": True, **result},
                             f"操作完成: {preview['action_type']}")

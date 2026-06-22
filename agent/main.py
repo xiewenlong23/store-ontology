@@ -295,40 +295,68 @@ async def workspace_middleware(request, call_next):
     return await call_next(request)
 
 
-# ============ v2 认证 middleware（设计文档 §5 WP2）============
-# WP2 阶段：只注入 auth_ctx 不强制（豁免所有路径，不破坏现有 e2e）。
-# WP6 切换为强制：除豁免路径外，无 token/过期/跨 ws 越权 → 401。
+# ============ v2 认证 middleware（设计文档 §5 WP2/WP6）============
+# WP6：默认强制认证（无 token/过期/跨 ws 越权 → 401）。
+# 通过 AUTH_REQUIRED=false env 可关闭（测试/开发兜底；生产必须开启）。
 
 _AUTH_EXEMPT_PATHS = {"/api/auth/login", "/health"}
+
+
+def _auth_required() -> bool:
+    """是否强制认证。env AUTH_REQUIRED=false 关闭（默认开启）。"""
+    val = os.getenv("AUTH_REQUIRED", "true").strip().lower()
+    return val not in ("false", "0", "no", "off")
 
 
 @app.middleware("http")
 async def auth_middleware(request, call_next):
     """解析 Authorization Bearer，校验 JWT 签名 → 注入 auth_ctx contextvar。
 
-    跨 ws 越权防护：token 声明的 ws 白名单不含当前 X-Workspace → token 视为
-    无效（auth_ctx 回落 anonymous）；不立即 401（WP2 阶段不强制）。
+    WP6 强制模式（默认）：
+    - 豁免路径（/api/auth/login、/health）放行
+    - 其余路径无 token / token 无效 / token ws 白名单不含当前 X-Workspace → 401
+    - env AUTH_REQUIRED=false 可关闭强制（开发/测试兜底）
+
+    跨 ws 越权防护：token 声明的 ws 白名单不含当前 X-Workspace → 视为未授权。
     """
     from engine.auth import decode_token, TokenError, AuthContext
     from engine.auth_audit import log_auth_event
+    from fastapi.responses import JSONResponse
 
     auth = AuthContext.anonymous()
+    failure: tuple = None   # (reason, detail)
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[len("Bearer "):]
         try:
             payload = decode_token(token, expected_typ="access")
             ws_list = tuple(payload.get("ws", []))
-            auth = AuthContext(
-                user_id=payload.get("sub", ""),
-                session_id=payload.get("sid", ""),
-                workspace_names=ws_list,
-            )
+            # 跨 ws 越权校验：X-Workspace 必须在 token ws 白名单内
+            req_ws = request.headers.get("X-Workspace") or "jjy"
+            if ws_list and req_ws not in ws_list:
+                failure = ("token_invalid",
+                           f"token 不含 workspace '{req_ws}'（ws 白名单：{list(ws_list)}）")
+            else:
+                auth = AuthContext(
+                    user_id=payload.get("sub", ""),
+                    session_id=payload.get("sid", ""),
+                    workspace_names=ws_list,
+                )
         except TokenError as e:
-            # 记录但不阻断（WP2 阶段；WP6 后改为返回 401）
-            log_auth_event("token_invalid", outcome="failed",
-                           detail=str(e),
-                           client_ip=request.client.host if request.client else None)
+            failure = ("token_invalid", str(e))
+    else:
+        failure = ("token_missing", "缺少 Authorization Bearer header")
+
+    if failure:
+        event, detail = failure
+        client_ip = request.client.host if request.client else None
+        log_auth_event(event, outcome="failed", detail=detail, client_ip=client_ip)
+        # 强制模式 + 非豁免路径 → 401
+        if _auth_required() and request.url.path not in _AUTH_EXEMPT_PATHS:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "未授权", "reason": detail})
+
     token_set = auth_ctx.set(auth)
     try:
         return await call_next(request)
@@ -540,7 +568,9 @@ async def admin_ontology_links(request: Request, cid: str):
 async def dashboard_metrics(request: Request, cid: str):
     """跨域 KPI 指标卡。"""
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    tc = inst.tenant_context
+    # v2（WP6）：用请求级 tenant_ctx（反映 X-Org-Unit-ID header），
+    # 不再用 inst.tenant_context（硬编码 org_unit_id="*" 的总部视角，越权）。
+    tc = tenant_ctx.get()
 
     # Task 按 status 分组计数
     tasks = inst.repository.read("Task", tc)
@@ -566,7 +596,7 @@ async def dashboard_metrics(request: Request, cid: str):
 async def dashboard_todos(request: Request, cid: str):
     """待办列表：非终态的 Task（需人介入）。"""
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    tc = inst.tenant_context
+    tc = tenant_ctx.get()   # v2（WP6）：请求级，非 inst.tenant_context
     tasks = inst.repository.read("Task", tc)
     active_statuses = {"created", "pending_approval", "approved", "accepted", "in_progress"}
     todos = [t for t in tasks if t.get("status") in active_statuses]

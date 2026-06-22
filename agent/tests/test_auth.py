@@ -238,8 +238,10 @@ class TestMeEndpoint:
         login = app_client.post("/api/auth/login", json={
             "username": "admin", "password": "admin123"}).json()
         token = login["token"]
+        # 带匹配 token ws 白名单的 X-Workspace header（防跨 ws 越权防护误伤）
         r = app_client.get("/api/auth/me",
-                           headers={"Authorization": f"Bearer {token}"})
+                           headers={"Authorization": f"Bearer {token}",
+                                    "X-Workspace": "_test_ws"})
         assert r.status_code == 200
         body = r.json()
         assert body["authenticated"] is True
@@ -266,9 +268,10 @@ class TestAuthMiddleware:
         """middleware 注入 auth_ctx（通过 /me 反映）。"""
         login = app_client.post("/api/auth/login", json={
             "username": "admin", "password": "admin123"}).json()
-        # /me 应反映认证态
+        # /me 应反映认证态（带匹配 token ws 白名单的 X-Workspace）
         r = app_client.get("/api/auth/me",
-                           headers={"Authorization": f"Bearer {login['token']}"})
+                           headers={"Authorization": f"Bearer {login['token']}",
+                                    "X-Workspace": "_test_ws"})
         body = r.json()
         assert body["authenticated"] is True
         assert body["user_id"] == login["memberships"][0]["user_id"]

@@ -61,6 +61,7 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
     必须经各自对应的 Action 修改。
     """
     tc = shared._tc_ctx(workspace_name, org_unit_id)
+    actor = shared._get_actor(tc)
     params = {"task_id": task_id}
     if notes is not None:
         params["notes"] = notes
@@ -69,7 +70,7 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
     try:
         result = shared._get_executor().execute(
             "update_task_notes", params,
-            actor={"role": "store_manager"},
+            actor=actor,
             tenant_id=tc)
         return shared._wrap({"type": "update_task_result", "success": True, **result},
                             "已更新任务。")

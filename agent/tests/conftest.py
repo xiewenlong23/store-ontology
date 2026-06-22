@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pytest
 
+# v2（WP6）：测试默认关闭强制认证，让无 token 的旧测试仍能跑。
+# 单测可在 fixture 内 monkeypatch.setenv("AUTH_REQUIRED", "true") 重新开启验证。
+os.environ.setdefault("AUTH_REQUIRED", "false")
+
 # 以 backend/ 为 sys.path 根，使 from engine... / from models... 可用
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
