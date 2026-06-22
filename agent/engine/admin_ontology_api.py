@@ -103,4 +103,51 @@ def json_to_action_def(body: dict) -> ActionDefinition:
     )
 
 
-# ============ require_admin（Task 2 填充） ============
+# ============ require_admin：统一鉴权入口 ============
+
+def _get_actor() -> dict:
+    """从 auth_ctx contextvar 派生 actor（转发到 agent.tools.shared._get_actor）。
+
+    单独包一层方便测试 monkeypatch（避免直接 patch shared 模块）。
+    """
+    from agent.tools.shared import _get_actor as _impl
+    return _impl()
+
+
+def _is_bootstrap_admin_account(ws_name: str, user_id: str) -> bool:
+    """检查 user_id 是否为该 workspace 的 bootstrap 初始 admin 账号
+    （username=='admin'）。与 main.py 旧 /data 端点判断一致。"""
+    if not user_id:
+        return False
+    from engine.identity import _load_users
+    from engine.pack import get_workspace_dir
+    ws_def = get_workspace_dir(ws_name)
+    if not ws_def or not ws_def.data_dir:
+        return False
+    for u in _load_users(ws_def.data_dir):
+        if u.get("id") == user_id and u.get("username") == "admin":
+            return True
+    return False
+
+
+def require_admin(ws_name: str, is_admin_account: Optional[bool] = None) -> Optional[JSONResponse]:
+    """鉴权：system_admin 角色或 bootstrap admin 账号放行；其余返回 403。
+
+    返回 None 表示放行；返回 JSONResponse(403) 表示拒绝（调用方直接 return 该对象）。
+
+    is_admin_account：调用方可预算（复用判断结果）传 None 让本函数自查。
+    """
+    actor = _get_actor()
+    role = actor.get("role", "")
+    user_id = actor.get("user_id", "")
+    if role == "system_admin":
+        return None
+    if is_admin_account is None:
+        is_admin_account = _is_bootstrap_admin_account(ws_name, user_id)
+    if is_admin_account:
+        return None
+    return JSONResponse(
+        status_code=403,
+        content={"detail": f"无权操作（需 system_admin）", "role": role},
+    )
+

@@ -112,3 +112,35 @@ class TestJsonActionConv:
         assert ad.parameters == [] and ad.side_effects == []
         assert ad.submission_criteria == {}
         assert ad.target_object_type == ""
+
+
+class TestRequireAdmin:
+    """require_admin 鉴权逻辑。
+
+    actor 由 _get_actor() 从 auth_ctx contextvar 派生。测试用 monkeypatch 替换。
+    """
+
+    def test_system_admin_allowed(self, monkeypatch):
+        import engine.admin_ontology_api as mod
+        monkeypatch.setattr(mod, "_get_actor", lambda: {"role": "system_admin",
+                                                         "user_id": "u1"})
+        # 不抛、不返回 JSONResponse（返回 None）
+        result = mod.require_admin(ws_name="jjy", is_admin_account=False)
+        assert result is None
+
+    def test_other_role_denied(self, monkeypatch):
+        import engine.admin_ontology_api as mod
+        monkeypatch.setattr(mod, "_get_actor", lambda: {"role": "clerk",
+                                                         "user_id": "u1"})
+        result = mod.require_admin(ws_name="jjy", is_admin_account=False)
+        assert result is not None
+        assert result.status_code == 403
+
+    def test_bootstrap_admin_account_allowed(self, monkeypatch):
+        """username=='admin' 的 bootstrap 初始账号即使 role 非 system_admin 也放行。"""
+        import engine.admin_ontology_api as mod
+        monkeypatch.setattr(mod, "_get_actor", lambda: {"role": "store_manager",
+                                                         "user_id": "u1"})
+        result = mod.require_admin(ws_name="jjy", is_admin_account=True)
+        assert result is None
+
