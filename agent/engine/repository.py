@@ -34,16 +34,19 @@ def _normalize_tenant(tenant) -> TenantContext:
 
 
 def _matches_with_tree(record: dict, tc: TenantContext,
-                       org_tree=None) -> bool:
+                       org_tree=None, visible_units=None) -> bool:
     """v2（WP5 接入）：用 OrgTree.visible_units 判断记录可见性。
 
     - workspace_name 必须精确匹配（硬隔离）
     - org_unit_id：
       - tc.org_unit_id == "*" → 看全部（总部视角）
-      - 有 org_tree → record.org_unit_id 必须在 tc.org_unit_id 的 visible_units 内
+      - 有 org_tree 或预算的 visible_units → record.org_unit_id 必须在 visible_units 内
         （自身 + 所有子孙，如 region_cat_mgr 看 region 时能见子树所有门店）
-      - 无 org_tree → 回落精确匹配（向后兼容）
+      - 都无 → 回落精确匹配（向后兼容）
     - 旧数据（无 workspace_name）视为 jjy + 通配 org
+
+    visible_units 参数：调用方预算的集合（性能优化，避免每条 record 重算）。
+    传 None 时按需用 org_tree 计算（每次都全树遍历）。
     """
     # workspace_name 硬隔离
     rec_workspace = record.get("workspace_name")
@@ -61,12 +64,27 @@ def _matches_with_tree(record: dict, tc: TenantContext,
     if rec_org == "*":
         return True
 
+    # 优先用预算的 visible_units（性能优化）
+    if visible_units is not None:
+        return rec_org in visible_units
+    # 无预算 → 用 org_tree 计算（慢路径）
     if org_tree is not None:
-        # 用 OrgTree 计算 visible_units（自身 + 子孙）
-        visible = org_tree.visible_units(tc.org_unit_id)
-        return rec_org in visible
-    # 无 OrgTree → 回落精确匹配（向后兼容）
+        return rec_org in org_tree.visible_units(tc.org_unit_id)
+    # 无 org_tree → 回落精确匹配（向后兼容）
     return rec_org == tc.org_unit_id
+
+
+def _compute_visible_units(tc: TenantContext, org_tree) -> set:
+    """对当前 tc 求一次 visible_units（None 表示"全部可见"——总部视角）。
+
+    性能：让 Repository.read 调用方求一次，传给 _matches_with_tree 复用，
+    避免每条 record 都全树遍历。
+    """
+    if tc.sees_all_org_units():
+        return None   # None 表示"全部可见"（_matches_with_tree 内已短路）
+    if org_tree is None:
+        return None   # 无 tree → _matches_with_tree 回落精确匹配
+    return org_tree.visible_units(tc.org_unit_id)
 
 
 class Repository:
@@ -142,8 +160,10 @@ class JSONFileRepository(Repository):
 
     def read(self, object_type: str, tenant, filters: Optional[dict] = None) -> list[dict]:
         tc = _normalize_tenant(tenant)
+        # v2 性能：对当前 tc 求一次 visible_units，复用给所有 record
+        visible = _compute_visible_units(tc, self._org_tree)
         rows = self._load(self._path(object_type))
-        rows = [r for r in rows if _matches_with_tree(r, tc, self._org_tree)]
+        rows = [r for r in rows if _matches_with_tree(r, tc, self._org_tree, visible)]
         if filters:
             rows = [r for r in rows
                     if all(str(r.get(k)) == str(v) for k, v in filters.items())]
@@ -164,6 +184,7 @@ class JSONFileRepository(Repository):
     def write(self, object_type: str, tenant, record: dict, *,
               create: bool = False, bypass_action_check: bool = False) -> dict:
         tc = _normalize_tenant(tenant)
+        visible = _compute_visible_units(tc, self._org_tree)
         self._check_edits_only(object_type, bypass_action_check)
         path = self._path(object_type)
         rows = self._load(path)
@@ -175,7 +196,7 @@ class JSONFileRepository(Repository):
         else:
             replaced = False
             for i, r in enumerate(rows):
-                if r.get("id") == record.get("id") and _matches_with_tree(r, tc, self._org_tree):
+                if r.get("id") == record.get("id") and _matches_with_tree(r, tc, self._org_tree, visible):
                     merged = {**r, **record}
                     rows[i] = merged
                     replaced = True
@@ -187,10 +208,11 @@ class JSONFileRepository(Repository):
 
     def delete(self, object_type: str, tenant, entity_id: str) -> bool:
         tc = _normalize_tenant(tenant)
+        visible = _compute_visible_units(tc, self._org_tree)
         path = self._path(object_type)
         rows = self._load(path)
         before = len(rows)
         rows = [r for r in rows
-                if not (r.get("id") == entity_id and _matches_with_tree(r, tc, self._org_tree))]
+                if not (r.get("id") == entity_id and _matches_with_tree(r, tc, self._org_tree, visible))]
         self._dump(path, rows)
         return len(rows) < before
