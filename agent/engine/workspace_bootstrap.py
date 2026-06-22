@@ -86,33 +86,29 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
     raw_data_dir = cfg.data_dir or os.path.join(base, "..", "workspace", "retail", "data")
     data_dir = raw_data_dir if os.path.isabs(raw_data_dir) else os.path.join(root, raw_data_dir)
 
-    # I-3: 优先用 cfg.ontology_dir（显式声明）；回退：从 data_dir 推导（兼容旧 config）
-    ontology_dir = cfg.ontology_dir
-    if not ontology_dir and cfg.data_dir:
-        ontology_dir = os.path.join(os.path.dirname(cfg.data_dir), "ontology")
+    # ----- v2-存储：优先用 PG；PG 不可用回落 JSON 文件 -----
+    from engine.db import is_pg_enabled, ping, PGNotConfigured
+    use_pg = is_pg_enabled() and ping()
 
-    # ontology_dir 可能是相对路径（如 "ontology"），需解析为绝对路径（相对 workspace_root）
-    if ontology_dir and not os.path.isabs(ontology_dir):
-        workspace_root = os.path.dirname(data_dir)
-        ontology_dir = os.path.join(workspace_root, ontology_dir)
-
-    if ontology_dir and os.path.isdir(os.path.join(ontology_dir, "domains")):
-        # 从 workspace 自定义 ontology 构建（本体语义隔离）
-        registry = _build_registry_from_workspace_ontology(ontology_dir, data_dir)
+    if use_pg:
+        try:
+            from engine import pg_ontology_repo
+            registry = pg_ontology_repo.load_registry(workspace_name)
+        except (PGNotConfigured, Exception) as e:  # noqa: BLE001
+            # PG 加载失败 → 回落 JSON 路径
+            print(f"[bootstrap] PG load_registry 失败，回落 JSON：{e}")
+            use_pg = False
+            registry = _load_registry_from_files(cfg, data_dir, workspace_name, base, root)
     else:
-        # 无 workspace ontology 目录时，从 pack registry 构建（jjy 走此路径）
-        from engine.pack import get_workspace_dir, domains_to_registry
-        from engine.bootstrap import bootstrap
-        bootstrap()
-        ws = get_workspace_dir(cfg.source_pack or "retail")
-        if ws:
-            registry = domains_to_registry(ws, data_dir=data_dir)
-        else:
-            from engine.parser import EntityRegistry
-            registry = EntityRegistry()
+        registry = _load_registry_from_files(cfg, data_dir, workspace_name, base, root)
 
-    from engine.repository import JSONFileRepository
-    repo = JSONFileRepository(data_dir=data_dir, registry=registry)
+    # 选 Repository 实现（PG 或 JSON）
+    if use_pg:
+        from engine.pg_data_repo import PgDataRepository
+        repo = PgDataRepository(workspace_name=workspace_name, registry=registry)
+    else:
+        from engine.repository import JSONFileRepository
+        repo = JSONFileRepository(data_dir=data_dir, registry=registry)
 
     # 接通 executor：config 取该工作目录的（第一个）价值链流程。
     # 解析链：优先 source_pack；否则用 workspace_name 本身（自洽工作目录以自己名字注册）。
@@ -133,6 +129,34 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
         registry=registry, repository=repo, executor=executor)
     _instances[workspace_name] = inst
     return inst
+
+
+def _load_registry_from_files(cfg, data_dir: str, workspace_name: str,
+                               base: str, root: str):
+    """回落路径：从 TTL/YAML 文件构建 registry（原 bootstrap_workspace 的逻辑）。"""
+    # I-3: 优先用 cfg.ontology_dir（显式声明）；回退：从 data_dir 推导（兼容旧 config）
+    ontology_dir = cfg.ontology_dir
+    if not ontology_dir and cfg.data_dir:
+        ontology_dir = os.path.join(os.path.dirname(cfg.data_dir), "ontology")
+
+    # ontology_dir 可能是相对路径（如 "ontology"），需解析为绝对路径（相对 workspace_root）
+    if ontology_dir and not os.path.isabs(ontology_dir):
+        workspace_root = os.path.dirname(data_dir)
+        ontology_dir = os.path.join(workspace_root, ontology_dir)
+
+    if ontology_dir and os.path.isdir(os.path.join(ontology_dir, "domains")):
+        # 从 workspace 自定义 ontology 构建（本体语义隔离）
+        return _build_registry_from_workspace_ontology(ontology_dir, data_dir)
+    else:
+        # 无 workspace ontology 目录时，从 pack registry 构建（jjy 走此路径）
+        from engine.pack import get_workspace_dir, domains_to_registry
+        from engine.bootstrap import bootstrap
+        bootstrap()
+        ws = get_workspace_dir(cfg.source_pack or "retail")
+        if ws:
+            return domains_to_registry(ws, data_dir=data_dir)
+        from engine.parser import EntityRegistry
+        return EntityRegistry()
 
 
 def _build_registry_from_workspace_ontology(ontology_dir: str, data_dir: str):
