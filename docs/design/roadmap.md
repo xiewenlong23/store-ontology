@@ -1,17 +1,29 @@
 # 演进路线
 
-> **状态**：🔮 前瞻（**未实现**）。本文件描述的所有机制**均未落地**，仅供方向参考。**不可据此认为系统已具备这些能力。**
+> **状态**：部分已落地、部分前瞻。每节顶部用 ✅/🔜 标注当前状态；底部「阶段总览」表给出全局快照。**前瞻章节仅供方向参考，不可据此认为系统已具备这些能力。**
 > **来源**：本文档从历史设计（`archive/legacy-Harness-Design.md` 的多组织/RBAC×ABAC/审计/观测，以及目标架构的 v2 项）摘要而来。完整原始设计见归档文档。
 
 每节明确标注"当前实现仅 X，本节描述目标 Y"，避免混淆现状与前瞻。
 
 ---
 
-## 1. v2-存储：JSON → PostgreSQL+JSONB
+## 1. v2-存储：JSON → PostgreSQL+JSONB（✅ 代码已完成；默认部署仍走 JSON）
 
-**当前实现**：`JSONFileRepository`（`agent/engine/repository.py`），JSON 文件 + `fcntl.flock` 文件锁 + 临时文件原子替换 + `.bak` 备份。
+**当前实现**：✅ 代码已完成（**PG + JSON 双后端**，2026-06-22）。配了 `DATABASE_URL` 就走 PostgreSQL+JSONB；未配或连不上时自动回落 `JSONFileRepository`，上层 Repository 接口不变。
 
-**🔜 目标（未实现）**：换 `PostgresRepository`（PostgreSQL + JSONB），由数据库事务保证一致性与并发，上层 Repository 接口不变。支持水平扩展（多 uvicorn worker/实例）。GraphRepository（图存储）列为更远期。
+> ⚠️ **注意默认行为**：仓库根 `.env` 当前**未配** `DATABASE_URL`，所以开箱即用的实例仍走 JSON 文件。要启用 PG：在 `.env` 加 `DATABASE_URL=postgresql://ontology:ontology@localhost:5433/ontology`，`docker compose up -d` 起 PG，再跑 `agent/scripts/import_to_pg.py` 迁移数据。迁移后重启后端，日志不再出现 `回落 JSON` 即生效。
+
+**已落地**（WP1–WP10，设计见 `docs/superpowers/plans/2026-06-22-wp7-10-admin-ontology-crud.md`）：
+- **PG schema**（`agent/sql/schema.sql`）：`object_types` / `object_type_properties` / `link_types` / `action_types` / `entities` 五表；关系列存核心查询字段，JSONB 存复杂结构（parameters/side_effects/properties）。含 TenantContext 过滤索引（`workspace_name + org_unit_id`）+ JSONB GIN 索引 + `updated_at` 触发器。pgvector 扩展已建（embedding 列预留，本轮注释掉）。
+- **连接层**（`agent/engine/db.py`）：psycopg 3 + psycopg-pool 单例连接池（4–8 连接）；`transaction()` 上下文自动 commit/rollback；`is_pg_enabled()` / `ping()` / `migrate()` helper；`DATABASE_URL` 缺失抛 `PGNotConfigured` 让上层回落。
+- **双 Repository**：`PgDataRepository`（`pg_data_repo.py`，业务数据）+ `PgOntologyRepository`（`pg_ontology_repo.py`，本体 schema 读写）。`workspace_bootstrap.py:89-111` 按 `is_pg_enabled() and ping()` 选实现，PG 加载失败回落 JSON 并打印告警。
+- **迁移脚本**（`agent/scripts/import_to_pg.py`）：TTL/YAML/JSON → PG 幂等 upsert，支持 `--workspace` / `--skip-data` / `--skip-schema` / `--dry-run`。
+- **Admin 本体 CRUD**（WP7–WP10）：`admin_ontology_api.py` 做 JSON↔dataclass 转换 + `require_admin` 鉴权；`main.py` 加 9 个 POST/PUT/DELETE 端点（3 collections × POST/PUT/DELETE），写后 `invalidate_workspace(ws)` 失效缓存；前端 admin 页 tab 化 + 全字段编辑器。
+
+**🔜 仍待实现（更远期）**：
+- **GraphRepository（图存储）**：复杂关系遍历（如多层 OrgTree 路径、跨品类聚合），列为更远期。
+- **embedding / RAG**：schema 已预留 `entities.embedding vector(1536)` + ivfflat 索引位，待语义检索场景启用。
+- **水平扩展验证**：多 uvicorn worker/实例下连接池与缓存失效的实测（每进程一池已就绪，跨进程缓存失效待验证）。
 
 ---
 
@@ -124,7 +136,7 @@
 | **✅ v2-tenant动态（数据层）** | route.ts 静态 header → 前端 headers prop 动态注入 + 工具 _tc_ctx 从 contextvar 读 + Repository 按 workspace+org_unit 过滤 | ✅ 完成 |
 | ✅ v2-agent 隔离 | 工具/skill/本体 prompt 按 workspace 隔离（agent per-workspace 构建） | ✅ 完成 |
 | ✅ **v2-认证 + RBAC×ABAC + 组织品类 5 级** | JWT 认证 + identity domain（User/Role/PermissionGrant）+ PermissionEvaluator（5 类资源 + 正反向 + allow-by-default）+ OrgTree 5 级 + 4 类必备 domain + 信任修复 + 强制 auth | ✅ 完成（2026-06-22，详见 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)） |
-| 🔜 v2-存储 | JSON → PostgreSQL+JSONB | 未开始 |
+| ✅ **v2-存储（PG+JSONB 双后端）** | JSON → PostgreSQL+JSONB（`db.py` 连接池 + `PgDataRepository`/`PgOntologyRepository` + `import_to_pg.py` 迁移 + admin 本体 CRUD + 失效）；代码已完成，`DATABASE_URL` 缺失自动回落 JSONFileRepository（**当前默认部署仍走 JSON**） | ✅ 代码完成（2026-06-22，详见 §1） |
 | 🔜 v2-权限重型机制 | 6 PermissionMode / 6 cascade / HMAC 快照 / 26 hooks / 操作符全集 / CategoryScope coverage_depth | 接口预留 |
 | 🔜 v2-本体深化 | DC 维度 / 职能域 Domain / Interface Type / transfer/restock 契约 | 未开始 |
 | 🔜 v2-自动化 | 真实 POS/审批对接 + 定时器 LLM 唤醒 | webhook 模拟 + 计算式报损已实现 |

@@ -23,6 +23,17 @@ python main.py
 
 健康检查：`curl http://localhost:8123/health` → `{"status":"healthy"}`
 
+> **存储后端**：v2-存储已落地为 **PG + JSON 双后端**，但**默认走 JSON**（仓库 `.env` 未配 `DATABASE_URL`）。在 `.env` 配上 `DATABASE_URL` 后走 PostgreSQL+JSONB（`PgDataRepository` + `PgOntologyRepository`）；未配或连不上时自动回落 `JSONFileRepository`（`workspace/` 下的 JSON 文件）。启用 PG 步骤：
+>
+> ```bash
+> docker compose up -d                                   # 起 PG（端口 5433）
+> DATABASE_URL=postgresql://ontology:ontology@localhost:5433/ontology \
+>   /opt/miniconda3/envs/store-ontology/bin/python agent/scripts/import_to_pg.py
+> # 然后在 .env 加 DATABASE_URL=postgresql://ontology:ontology@localhost:5433/ontology，重启后端
+> ```
+>
+> 详见 [docs/design/roadmap.md §1](docs/design/roadmap.md)。
+
 ### 2. 前端（端口 3000）
 
 ```bash
@@ -62,6 +73,8 @@ store-ontology/
 QWEN_API_KEY=<your_key>
 QWEN_BASE_URL=https://api.minimaxi.com/v1
 QWEN_MODEL=MiniMax-M2.7-highspeed
+# 可选：配置后启用 PostgreSQL 存储；不配则回落 workspace/ 下的 JSON 文件
+# DATABASE_URL=postgresql://ontology:ontology@localhost:5433/ontology
 ```
 
 仓库根目录有 `.env.example` 作为模板。
@@ -72,9 +85,11 @@ QWEN_MODEL=MiniMax-M2.7-highspeed
 |---|---|
 | FastAPI 后端 | 8123 |
 | Next.js 前端 | 3000 |
+| PostgreSQL（可选，配置 `DATABASE_URL` 后启用） | 5433 |
 
 ## 常见问题
 
 - **缺 `QWEN_API_KEY`**：启动后端会报 `RuntimeError`，去项目根 `.env` 填入。
 - **端口被占用**：`lsof -nP -iTCP:8123 -sTCP:LISTEN` 查 PID，杀掉或改 `PORT` 环境变量。
 - **前端 CopilotKit 404**：检查前端 `app/api/copilotkit/route.ts` 是否代理到 `http://localhost:8123/api/copilotkit`。
+- **想用 PG 但回落了 JSON**：检查 `.env` 是否配了 `DATABASE_URL`、PG 是否在跑（`docker compose ps`）。后端日志会打印 `[bootstrap] PG load_registry 失败，回落 JSON`。
