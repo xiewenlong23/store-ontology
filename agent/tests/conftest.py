@@ -11,9 +11,34 @@ import pytest
 # 单测可在 fixture 内 monkeypatch.setenv("AUTH_REQUIRED", "true") 重新开启验证。
 os.environ.setdefault("AUTH_REQUIRED", "false")
 
+# P1：测试默认 JWT_SECRET（main.py 启动 + engine.auth 均 fail-fast，未配则崩）。
+# 各测试仍可用 monkeypatch.setenv 覆盖为独立值。测试环境固定 secret 无安全风险。
+os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-32bytes-min!!")
+
 # 以 backend/ 为 sys.path 根，使 from engine... / from models... 可用
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_storage_env(monkeypatch):
+    """每个测试默认隔离 PG 存储环境，提供干净起点（P0 测试隔离修复）。
+
+    背景：main.py 顶部 ``load_dotenv(override=True)`` 会把 .env 里的 DATABASE_URL
+    注入进程级 ``os.environ``（模块级副作用，不经 monkeypatch，不会被自动还原）。
+    一旦某个测试 ``import main``（如 test_tools_tenant 的 contextvar 测试）触发，
+    后续走 JSON 路径的测试会因 ``is_pg_enabled()=True`` 而错误走 PG，导致 registry
+    为空、断言失败（test_onboarding_e2e / test_customer_bootstrap* 的 5 个用例）。
+
+    本 fixture 在每个测试前删掉 DATABASE_URL 并清掉 db 模块的 ``_pg_enabled`` 缓存，
+    让未声明 PG 的测试一律走 JSON。PG 专用测试（test_pg_*）在自己的 fixture 里
+    ``monkeypatch.setenv("DATABASE_URL", ...)`` 覆盖即可——fixture 解析顺序保证
+    autouse 先 setup、PG fixture 后 setup，顺序正确。
+    """
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    from engine import db as _db_mod
+    _db_mod._reset_pg_state()
+    yield
 
 
 @pytest.fixture

@@ -72,21 +72,19 @@ SECRET_ENV = "JWT_SECRET"
 ACCESS_TTL_ENV = "JWT_ACCESS_TTL"      # 默认 7200s=2h
 REFRESH_TTL_ENV = "JWT_REFRESH_TTL"    # 默认 604800s=7d
 
-# 开发兜底 secret（生产应通过 JWT_SECRET env 覆盖；启动时警告）
-_DEV_SECRET = "dev-only-insecure-secret-change-me"
-
 
 def _get_secret() -> str:
+    """读 JWT 签名密钥。未配置 fail-fast（不再静默回落 dev secret）。
+
+    安全理由：静默回落会让生产忘配 env 时，所有 token 可被知道源码的人伪造。
+    main.py 启动时也会校验；此处再校验一次，防御直接 import engine.auth 的用法。
+    """
     secret = os.getenv(SECRET_ENV)
-    if secret:
-        return secret
-    # 开发兜底：未配置 JWT_SECRET 时打印警告，回落到固定 dev secret
-    # （只在首次调用时打印一次，避免刷屏）
-    if not getattr(_get_secret, "_warned", False):
-        print(f"[auth] 警告: {SECRET_ENV} 未配置，使用开发兜底 secret。"
-              f" 生产环境必须配置 {SECRET_ENV}。")
-        _get_secret._warned = True
-    return _DEV_SECRET
+    if not secret:
+        raise RuntimeError(
+            f"{SECRET_ENV} 未配置。请在 .env 设置一个随机长字符串"
+            f"（生产必填，否则 token 可被伪造）。")
+    return secret
 
 
 def _get_ttl(env_var: str, default: int) -> int:

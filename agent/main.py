@@ -77,6 +77,14 @@ api_key = os.getenv("QWEN_API_KEY")
 if not api_key:
     raise RuntimeError("QWEN_API_KEY 环境变量未设置")
 
+# P1：JWT_SECRET 必填（fail-fast）。未配则启动失败——避免静默回落到固定 secret
+# 导致 token 可被伪造。engine.auth._get_secret() 调用时也会再校验一次。
+_jwt_secret = os.getenv("JWT_SECRET")
+if not _jwt_secret:
+    raise RuntimeError(
+        "JWT_SECRET 环境变量未设置。请在 .env 配置一个随机长字符串"
+        "（生产必填，否则认证 token 可被伪造）。")
+
 base_url = os.getenv("QWEN_BASE_URL", "https://api.minimaxi.com/v1")
 model_name = os.getenv("QWEN_MODEL", "MiniMax-M2.7-highspeed")
 

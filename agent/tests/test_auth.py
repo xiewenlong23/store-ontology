@@ -88,6 +88,17 @@ class TestJWTTools:
         assert access_payload["ws"] == ["jjy", "customerA"]
         assert "ws" not in refresh_payload
 
+    def test_get_secret_raises_when_not_configured(self, monkeypatch):
+        """未配 JWT_SECRET 时 _get_secret 应 fail-fast（P1：不再静默回落 dev secret）。
+
+        安全理由：静默回落到固定 dev secret 会让生产环境在忘配 env 时，
+        所有 token 可被任何知道源码的人伪造。fail-fast 让问题在调用点立即暴露。
+        """
+        monkeypatch.delenv("JWT_SECRET", raising=False)
+        from engine.auth import _get_secret
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            _get_secret()
+
 
 # ============ 单元：AuthContext ============
 
