@@ -599,6 +599,198 @@ async def admin_ontology_links(request: Request, cid: str):
     return {"links": links}
 
 
+# ============ v2 本体 CRUD 写端点（WP7 + WP8 失效，spec §3/§4）============
+
+from fastapi.responses import JSONResponse
+from engine.admin_ontology_api import (
+    json_to_object_type, json_to_link_type, json_to_action_def,
+    require_admin,
+)
+from engine.workspace_bootstrap import invalidate_workspace
+from engine import pg_ontology_repo as _ont_repo
+
+
+def _ontology_to_dict(ot) -> dict:
+    """ObjectType → dict（与 list_object_types 输出对称，用于响应 body）。"""
+    return {
+        "id": ot.id, "label": ot.label, "label_zh": ot.label_zh,
+        "comment": ot.comment, "storage_file": ot.storage_file,
+        "status": ot.status, "visibility": ot.visibility,
+        "edits_only_via_actions": ot.edits_only_via_actions,
+        "read_roles": ot.read_roles, "read_except": ot.read_except,
+        "write_roles": ot.write_roles, "write_except": ot.write_except,
+        "properties": [{"name": p.name, "type": p.type,
+                        "read_roles": p.read_roles, "read_except": p.read_except,
+                        "write_roles": p.write_roles, "write_except": p.write_except}
+                       for p in ot.properties],
+    }
+
+
+def _link_to_dict(lt) -> dict:
+    return {
+        "id": lt.id, "label": lt.label, "label_zh": lt.label_zh,
+        "comment": lt.comment, "domain": lt.domain, "range": lt.range,
+        "via": lt.via, "use_roles": lt.use_roles, "use_except": lt.use_except,
+    }
+
+
+def _action_to_dict(ad) -> dict:
+    return {
+        "api_name": ad.api_name, "display_name": ad.display_name,
+        "description": ad.description, "status": ad.status,
+        "target_object_type": ad.target_object_type,
+        "edits_object_types": list(ad.edits_object_types or []),
+        "locator_field": ad.locator_field,
+        "parameters": list(ad.parameters or []),
+        "submission_criteria": dict(ad.submission_criteria or {}),
+        "side_effects": list(ad.side_effects or []),
+    }
+
+
+# ----- Object Types -----
+
+@app.post("/api/admin/customers/{cid}/ontology/objects")
+async def admin_create_object(request: Request, cid: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    try:
+        ot = json_to_object_type(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_object_type(ws_name, ot)
+    invalidate_workspace(ws_name)
+    return {"created": _ontology_to_dict(ot)}
+
+
+@app.put("/api/admin/customers/{cid}/ontology/objects/{name}")
+async def admin_update_object(request: Request, cid: str, name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    body["id"] = name  # 路径主键覆盖 body（spec §3.1）
+    try:
+        ot = json_to_object_type(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_object_type(ws_name, ot)
+    invalidate_workspace(ws_name)
+    return {"updated": _ontology_to_dict(ot)}
+
+
+@app.delete("/api/admin/customers/{cid}/ontology/objects/{name}")
+async def admin_delete_object(request: Request, cid: str, name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    ok = _ont_repo.delete_object_type(ws_name, name)
+    if not ok:
+        return JSONResponse(status_code=404, content={"detail": f"{name} 不存在"})
+    invalidate_workspace(ws_name)
+    return {"deleted": True}
+
+
+# ----- Link Types -----
+
+@app.post("/api/admin/customers/{cid}/ontology/links")
+async def admin_create_link(request: Request, cid: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    try:
+        lt = json_to_link_type(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_link_type(ws_name, lt)
+    invalidate_workspace(ws_name)
+    return {"created": _link_to_dict(lt)}
+
+
+@app.put("/api/admin/customers/{cid}/ontology/links/{name}")
+async def admin_update_link(request: Request, cid: str, name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    body["id"] = name
+    try:
+        lt = json_to_link_type(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_link_type(ws_name, lt)
+    invalidate_workspace(ws_name)
+    return {"updated": _link_to_dict(lt)}
+
+
+@app.delete("/api/admin/customers/{cid}/ontology/links/{name}")
+async def admin_delete_link(request: Request, cid: str, name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    ok = _ont_repo.delete_link_type(ws_name, name)
+    if not ok:
+        return JSONResponse(status_code=404, content={"detail": f"{name} 不存在"})
+    invalidate_workspace(ws_name)
+    return {"deleted": True}
+
+
+# ----- Action Types -----
+
+@app.post("/api/admin/customers/{cid}/ontology/actions")
+async def admin_create_action(request: Request, cid: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    try:
+        ad = json_to_action_def(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_action_type(ws_name, ad)
+    invalidate_workspace(ws_name)
+    return {"created": _action_to_dict(ad)}
+
+
+@app.put("/api/admin/customers/{cid}/ontology/actions/{api_name}")
+async def admin_update_action(request: Request, cid: str, api_name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    body = await request.json()
+    body["api_name"] = api_name
+    try:
+        ad = json_to_action_def(body)
+    except ValueError as e:
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    _ont_repo.upsert_action_type(ws_name, ad)
+    invalidate_workspace(ws_name)
+    return {"updated": _action_to_dict(ad)}
+
+
+@app.delete("/api/admin/customers/{cid}/ontology/actions/{api_name}")
+async def admin_delete_action(request: Request, cid: str, api_name: str):
+    ws_name = _resolve_workspace_name(request, cid)
+    denied = require_admin(ws_name)
+    if denied:
+        return denied
+    ok = _ont_repo.delete_action_type(ws_name, api_name)
+    if not ok:
+        return JSONResponse(status_code=404, content={"detail": f"{api_name} 不存在"})
+    invalidate_workspace(ws_name)
+    return {"deleted": True}
+
+
 # ============ v2 管理数据浏览 API（WP7 配套）============
 
 @app.get("/api/admin/customers/{cid}/data/{entity_type}")
@@ -612,32 +804,18 @@ async def admin_data_browse(request: Request, cid: str, entity_type: str):
     避免业务数据（Task/NearExpiryProduct 等）泄露（那些走各自的工具）。
     """
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    # v2 权限：管理数据浏览允许 system_admin 或 username=='admin'（初始管理员）。
-    # admin User 在 workspace 的 Employee.role 可能是 store_manager（视客户配置），
-    # 但作为系统初始化的 admin 账号，应能浏览管理数据。
-    from agent.tools.shared import _get_actor, _get_evaluator
-    from engine.identity import verify_credentials, _load_users
-    from engine.pack import get_workspace_dir
-    from fastapi.responses import JSONResponse
-    actor = _get_actor()
-    role = actor.get("role", "")
-    user_id = actor.get("user_id", "")
-    # 检查是否 admin 账号（username=='admin'）
     ws_name = _resolve_workspace_name(request, cid)
-    is_admin_account = False
-    if user_id:
-        ws_def = get_workspace_dir(ws_name)
-        if ws_def and ws_def.data_dir:
-            for u in _load_users(ws_def.data_dir):
-                if u.get("id") == user_id and u.get("username") == "admin":
-                    is_admin_account = True
-                    break
-    if role != "system_admin" and not is_admin_account:
+    # v2 权限：管理数据浏览允许 system_admin 或 username=='admin'（初始管理员），
+    # 走统一 require_admin；非 admin 但 PermissionEvaluator 允许 read 的角色仍放行（保留旧语义）。
+    from agent.tools.shared import _get_actor as _ga, _get_evaluator
+    from fastapi.responses import JSONResponse
+    denied = require_admin(ws_name)
+    if denied:
+        actor = _ga()
+        role = actor.get("role", "")
         evaluator = _get_evaluator()
         if not evaluator.can_read_object(role, entity_type).granted:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": f"无权浏览 {entity_type}", "role": role})
+            return denied
     # 总部视角读全部（admin 数据不应受 org_unit 隔离）
     tc = TenantContext(workspace_name=_resolve_workspace_name(request, cid), org_unit_id="*")
     rows = inst.repository.read(entity_type, tc)

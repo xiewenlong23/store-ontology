@@ -11,6 +11,8 @@ import pytest
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
+from fastapi.testclient import TestClient
+
 from engine.admin_ontology_api import (
     json_to_object_type, json_to_link_type, json_to_action_def,
 )
@@ -143,4 +145,159 @@ class TestRequireAdmin:
                                                          "user_id": "u1"})
         result = mod.require_admin(ws_name="jjy", is_admin_account=True)
         assert result is None
+
+
+# ============ WP7/WP8 端点端到端测试 ============
+
+@pytest.fixture
+def client(monkeypatch):
+    """启动 FastAPI app（main:app）+ 关强制认证 + actor=system_admin。
+
+    AUTH_REQUIRED=false → auth middleware 放行；_get_actor 兜底返回 system_admin。
+    """
+    monkeypatch.setenv("AUTH_REQUIRED", "false")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://ontology:ontology@localhost:5433/ontology")
+    # 重置 workspace 实例缓存 + PG 状态，避免跨用例污染
+    from engine.workspace_bootstrap import reset_instances
+    from engine import db as db_mod
+    reset_instances()
+    db_mod._reset_pg_state()
+    import main
+    with TestClient(main.app) as c:
+        yield c
+    reset_instances()
+    db_mod._reset_pg_state()
+
+
+@pytest.fixture
+def admin_ws(client):
+    """准备测试 workspace：清空 PG 中 _test_admin_ws 的 ontology 数据。"""
+    from engine import db as db_mod
+    if not db_mod.ping():
+        pytest.skip("PG 不可用")
+    db_mod.execute("DELETE FROM object_types WHERE workspace_name = %s", ("_test_admin_ws",))
+    db_mod.execute("DELETE FROM link_types WHERE workspace_name = %s", ("_test_admin_ws",))
+    db_mod.execute("DELETE FROM action_types WHERE workspace_name = %s", ("_test_admin_ws",))
+    yield "_test_admin_ws"
+    db_mod.execute("DELETE FROM object_types WHERE workspace_name = %s", ("_test_admin_ws",))
+    db_mod.execute("DELETE FROM link_types WHERE workspace_name = %s", ("_test_admin_ws",))
+    db_mod.execute("DELETE FROM action_types WHERE workspace_name = %s", ("_test_admin_ws",))
+
+
+@pytest.fixture
+def deny_admin(monkeypatch):
+    """让 require_admin 拒绝（actor=clerk）。"""
+    import engine.admin_ontology_api as mod
+    monkeypatch.setattr(mod, "_get_actor", lambda: {"role": "clerk", "user_id": "u1"})
+
+
+HEADERS = {"X-Workspace": "_test_admin_ws"}
+
+
+class TestObjectEndpoints:
+    def test_post_then_get(self, client, admin_ws):
+        body = {
+            "id": "Foo", "label": "Foo (x)", "label_zh": "Foo",
+            "comment": "t", "storage_file": "foos.json", "status": "active",
+            "visibility": "normal", "edits_only_via_actions": False,
+            "read_roles": "", "read_except": "", "write_roles": "", "write_except": "",
+            "properties": [{"name": "id", "type": "string"},
+                           {"name": "n", "type": "string"}],
+        }
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                        json=body, headers=HEADERS)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["created"]["id"] == "Foo"
+        # GET 确认落库
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                       headers=HEADERS)
+        ids = [o["id"] for o in g.json()["objects"]]
+        assert "Foo" in ids
+
+    def test_put_replaces_properties(self, client, admin_ws):
+        # 先 POST 2 props
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                    json={"id": "Bar", "label": "Bar", "properties": [
+                        {"name": "id", "type": "string"},
+                        {"name": "a", "type": "string"}]},
+                    headers=HEADERS)
+        # PUT 改成 3 props
+        r = client.put(f"/api/admin/customers/{admin_ws}/ontology/objects/Bar",
+                       json={"id": "Bar", "label": "Bar2", "properties": [
+                           {"name": "id", "type": "string"},
+                           {"name": "a", "type": "string"},
+                           {"name": "b", "type": "string"}]},
+                       headers=HEADERS)
+        assert r.status_code == 200
+        # GET 验证 3 props + label 更新
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                       headers=HEADERS)
+        bar = next(o for o in g.json()["objects"] if o["id"] == "Bar")
+        assert bar["label"] == "Bar2"
+        assert len(bar["properties"]) == 3
+
+    def test_delete_then_404(self, client, admin_ws):
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                    json={"id": "Baz", "label": "Baz", "properties": []},
+                    headers=HEADERS)
+        d = client.delete(f"/api/admin/customers/{admin_ws}/ontology/objects/Baz",
+                          headers=HEADERS)
+        assert d.status_code == 200
+        assert d.json()["deleted"] is True
+        d2 = client.delete(f"/api/admin/customers/{admin_ws}/ontology/objects/Baz",
+                           headers=HEADERS)
+        assert d2.status_code == 404
+
+    def test_post_denied_non_admin(self, client, admin_ws, deny_admin):
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                        json={"id": "X", "label": "X", "properties": []},
+                        headers=HEADERS)
+        assert r.status_code == 403
+
+    def test_invalid_body_422(self, client, admin_ws):
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                        json={"label": "no id"}, headers=HEADERS)
+        assert r.status_code == 422
+
+
+class TestLinkActionEndpoints:
+    def test_link_crud(self, client, admin_ws):
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/links",
+                        json={"id": "lk", "label": "lk", "domain": "A",
+                              "range": "B", "via": "ref", "use_roles": "x"},
+                        headers=HEADERS)
+        assert r.status_code == 200
+        d = client.delete(f"/api/admin/customers/{admin_ws}/ontology/links/lk",
+                          headers=HEADERS)
+        assert d.status_code == 200
+
+    def test_action_crud(self, client, admin_ws):
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/actions",
+                        json={"api_name": "do_x", "display_name": "Do X",
+                              "target_object_type": "Task",
+                              "parameters": [{"name": "a", "type": "string"}]},
+                        headers=HEADERS)
+        assert r.status_code == 200
+        d = client.delete(f"/api/admin/customers/{admin_ws}/ontology/actions/do_x",
+                          headers=HEADERS)
+        assert d.status_code == 200
+
+
+class TestInvalidation:
+    def test_post_invalidates_workspace_instance(self, client, admin_ws):
+        """编辑后 bootstrap_workspace 重取应反映新对象（spec §7 test 6）。"""
+        from engine.workspace_bootstrap import bootstrap_workspace, invalidate_workspace
+        # 触发一次 bootstrap 缓存（此时 _test_admin_ws 的 registry 为空）
+        invalidate_workspace(admin_ws)
+        inst_before = bootstrap_workspace(admin_ws)
+        assert "Foo" not in inst_before.registry.object_types
+        # POST 新对象
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                    json={"id": "Foo", "label": "Foo", "properties": []},
+                    headers=HEADERS)
+        # 再取（端点内部应已 invalidate）
+        inst_after = bootstrap_workspace(admin_ws)
+        assert "Foo" in inst_after.registry.object_types
+
 
