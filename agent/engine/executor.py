@@ -18,6 +18,77 @@ def _resolve(value, params):
     return value
 
 
+def _eval_operator(op: str, actual, want) -> bool:
+    """v2（设计文档 §5 WP5 defer 项 → 落地）：submission_criteria 操作符求值。
+
+    支持的操作符：
+      - is / is_not：相等/不等（原有）
+      - gte / lte / gt / lt：数值比较（actual >= want 等）
+      - matches：actual（str）匹配 want（正则）
+      - includes：actual（list/str）含 want
+      - value_ref：actual 等于 params[want 引用的字段]（want 形如 "$other_field"）
+
+    实际 None（字段缺失）处理：
+      - is/is_not：None 与 want 比较（None == None 等）
+      - 数值/正则/包含：actual None → False（除非 want 也是 None）
+    """
+    if op == "is":
+        return actual == want
+    if op == "is_not":
+        return actual != want
+    if op in ("gte", "lte", "gt", "lt"):
+        if actual is None or want is None:
+            return False
+        try:
+            a, w = float(actual), float(want)
+        except (TypeError, ValueError):
+            return False
+        if op == "gte":
+            return a >= w
+        if op == "lte":
+            return a <= w
+        if op == "gt":
+            return a > w
+        return a < w   # lt
+    if op == "matches":
+        if actual is None or want is None:
+            return False
+        try:
+            return re.search(str(want), str(actual)) is not None
+        except re.error:
+            return False
+    if op == "includes":
+        if actual is None or want is None:
+            return False
+        if isinstance(actual, (list, tuple, set, str, dict)):
+            return want in actual
+        return False
+    if op == "value_ref":
+        # want 形如 "$other_field"；actual 应等于 params[other_field]
+        # 注意：本函数签名只取 actual/want，value_ref 需要 params 上下文。
+        # 在 _check_submission 里需要特殊处理；这里返回 False 让上层特殊路径接管。
+        # 实际由 _eval_condition_with_params 处理 value_ref（见下）。
+        return False
+    # 未知操作符 → 视为不通过（保守）
+    return False
+
+
+def _eval_condition_with_params(cond: dict, actual, params) -> bool:
+    """支持 value_ref 的条件求值（需要 params 上下文）。
+
+    value_ref 的 want 形如 "$other_field"，actual 应等于 params[other_field]。
+    其它操作符走 _eval_operator。
+    """
+    op = cond.get("operator")
+    want = cond.get("value")
+    if op == "value_ref":
+        if not (isinstance(want, str) and want.startswith("$")):
+            return False
+        other = params.get(want[1:])
+        return actual == other
+    return _eval_operator(op, actual, want)
+
+
 def _match_constraint(value, constraint: str) -> bool:
     c = constraint.strip()
     if ".." in c:  # 形如 "0..100"
@@ -110,10 +181,7 @@ class ActionExecutor:
                 raise ValidationError(f"submission 条件无法解析对象: {field_path}")
             key = field_path.split(".")[-1]
             actual = obj.get(key)
-            op, want = cond["operator"], cond.get("value")
-            ok = (op == "is" and actual == want) or \
-                 (op == "is_not" and actual != want)
-            if not ok:
+            if not _eval_condition_with_params(cond, actual, params):
                 raise ValidationError(cond.get("fail_msg", "submission 条件不满足"))
 
     def _resolve_condition_obj(self, field_path, target, params, tenant_id, action):

@@ -56,7 +56,20 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
                                       storage_type="json_files",
                                       data_dir=os.path.join(base, "..", "workspace", "retail", "data"))
         else:
-            raise KeyError(f"未注册的 workspace: {workspace_name}")
+            # v2 兜底：尝试从 WorkspaceDef 注册表（新模型）构造 WorkspaceConfig
+            # retail/customerA 等用 workspace.py 注册的 workspace 走此路径
+            from engine.pack import get_workspace_dir
+            ws_def = get_workspace_dir(workspace_name)
+            if ws_def is not None:
+                cfg = WorkspaceConfig(
+                    workspace_name=ws_def.name, name=ws_def.display_name,
+                    storage_type="json_files",
+                    data_dir=ws_def.data_dir or "",
+                    ontology_dir=os.path.join(os.path.dirname(ws_def.data_dir or ""), "ontology")
+                        if ws_def.data_dir else "",
+                )
+            else:
+                raise KeyError(f"未注册的 workspace: {workspace_name}")
 
     # data_dir 可能是相对路径（如 workspace/retail/data），需解析为绝对路径
     raw_data_dir = cfg.data_dir or os.path.join(base, "..", "workspace", "retail", "data")
