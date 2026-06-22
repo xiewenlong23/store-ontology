@@ -628,3 +628,14 @@ LLM agent 实例（只读消费身份）
 - 组织/品类/权限管理 CRUD UI
 - DC（配送中心）维度 / 职能域 Domain 维度（legacy 三维 scope 之一）
 - transfer/restock Action 契约补全
+
+### 11.9 Admin 本体 Schema CRUD（WP7-WP10，✅ 已落地）
+
+管理员可在 admin UI 直接编辑本体 schema（Object / Link / Action Type），不再需要改 TTL/YAML 文件 + 重启。
+
+- **写端点**：`POST/PUT/DELETE /api/admin/customers/{cid}/ontology/{objects|links|actions}[/{key}]`（spec §1.5）。仓储层走 `PgOntologyRepository.upsert_*` / `delete_*`（WP3）；HTTP 层只暴露本体 schema 的写。
+- **鉴权**：`system_admin` 角色，或 bootstrap 初始 `admin` 账号；其余 403（统一入口 `require_admin`）。
+- **失效（WP8）**：每个写端点成功后调用 `invalidate_workspace(ws)`，丢弃进程内的 `WorkspaceAgentInstance` 缓存，下次读取从 PG 重载。单进程部署够用；多副本需扩展通知机制（defer）。
+- **业务数据 CRUD 仍走对话/Action**：User/Role/Task/NearExpiryProduct 等保持只读浏览，`edits-only-via-actions` 治理与 Action 审计不受影响。
+- **前端（WP9）**：`/admin` 页 tab 化——"数据浏览"（只读，原有）+ "本体编辑"（Objects/Links/Actions 子 tab，全字段表单含 properties 子编辑器）。
+
