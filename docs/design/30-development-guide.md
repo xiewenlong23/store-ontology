@@ -167,7 +167,7 @@ agent/skills/                         ← 系统 skills（低优先级，/system
 
 ## 4. 权限开发规范
 
-> **现状说明**：当前已落地的只有 Action 级 `submission_criteria`（角色白名单 + 条件）和 Repository 的 workspace 隔离。完整 RBAC 引擎、审计日志留 v2（见 [`roadmap.md`](./roadmap.md)）。
+> **现状说明**：✅ 认证 + 完整 RBAC×ABAC 权限引擎已落地（2026-06-22，详见架构文档 §11）。本节先讲既有两项（edits-only / submission_criteria），再讲 v2 权限开发（§4.3）。审计日志仍 🔜 v2。
 
 ### 4.1 edits-only-via-actions 使用
 
@@ -178,7 +178,32 @@ agent/skills/                         ← 系统 skills（低优先级，/system
 
 ### 4.2 submission_criteria（Action 级门控）
 
-`submission_criteria` 独立于（未来的）粗粒度 RBAC：粗粒度答"谁能用 execute_action"，submission_criteria 答"给定 user+参数，这个 action 实例能否提交"。MVP 支持 `roles` 白名单 + `is`/`is_not` 条件。完整操作符（gte/matches/value_ref）留 v2。
+`submission_criteria` 独立于粗粒度 RBAC（§4.3）：粗粒度答"谁能用 execute_action"，submission_criteria 答"给定 user+参数，这个 action 实例能否提交"。现已支持 `roles` 白名单 + 操作符全集 `is`/`is_not`/`gte`/`lte`/`gt`/`lt`/`matches`/`includes`/`value_ref`（架构文档 §11.7）。🔜 嵌套 AND/OR 逻辑留 v2。
+
+### 4.3 认证与权限开发（v2，✅ 已落地）
+
+> 详见架构文档 §11 与 [`docs/superpowers/specs/2026-06-22-v2-auth-rbac-design.md`](../superpowers/specs/2026-06-22-v2-auth-rbac-design.md)。本节给开发者日常接入要点。
+
+**认证接入**：
+- JWT（HS256，access 2h + refresh 7d）+ bcrypt 密码 hash。端点 `/api/auth/{login,refresh,me,logout}`（API 契约见 `20-api-data-contract.md` §1.4）。
+- `auth_middleware`（`agent/main.py`）：验签 + token.ws 白名单含 `X-Workspace`（跨 ws 越权防护）→ `auth_ctx` contextvar。
+- **强制模式** `AUTH_REQUIRED=true`（默认）：无 token / 过期 / 跨 ws 越权 → 401；豁免 `/api/auth/login` + `/health`。开发兜底设 `=false`。
+- **新增 admin 端点鉴权**：用 `require_admin(actor)` 统一辅助（`agent/engine/admin_ontology_api.py`），`system_admin` 角色或 bootstrap 初始 `admin` 账号放行，其余 403。**禁止** 在各端点手写角色判断。
+
+**PermissionEvaluator 求值**（`agent/engine/permission.py`）：
+- 5 类资源：`can_use_tool` / `can_read_object`+`can_write_object` / `readable_properties`+`denied_properties`+`can_write_property` / `can_execute_action` / `can_traverse_link`。
+- 正反向语法 + `*` 通配；求值顺序：`system_admin` 短路 → PermissionGrant runtime override（deny 优先）→ TTL 元数据 → allow-by-default。
+- **Tool 接入**：5 个内核工具已全部接入（query/query_task 读 + 属性 mask；traverse_relation 遍历校验；execute_action/confirm_action tool+action 级；create/update_entity 写校验）。新增 Tool 时**必须** 在 `tool_manifest.yaml` 声明权限（见下）。
+
+**Tool 权限声明（tool_manifest.yaml）**：
+- Tool 不在 TTL，用 YAML 声明（替代"Tool 在 TTL"）。内核 8 工具默认声明在 `agent/tools/manifest.yaml`；各 workspace 专属工具声明在 `workspace/<pack>/tool_manifest.yaml`。
+- 未声明 = allow-by-default（开发友好，但生产前**应当** 显式声明受治理工具的 roles）。
+
+**actor 派生（信任修复，WP6）**：
+- actor 一律从 `shared._get_actor()` 派生：`auth_ctx` → `Employee.user_id` → role。**禁止** 让 LLM 自报 actor/role（`execute_action` 已删 `actor_role` 参数）。
+- 兜底：contextvar 缺失 / `AUTH_REQUIRED=false` + anonymous → `system_admin`（开发/测试）；生产强制时 anonymous 拒。
+
+**TTL 权限元数据**：建模侧（ObjectType 属性级 `:read_roles`/`:read_except`/`:write_*` + 嵌套 `:property[]`、Link 的 `:use_roles`/`:use_except`）的写法见 `40-ontology-modeling-spec.md` §12.3。
 
 ---
 
@@ -198,7 +223,27 @@ agent/skills/                         ← 系统 skills（低优先级，/system
 
 ### 5.2 Repository 层原子写入 + 文件锁
 
-已实现在 `agent/engine/repository.py`：`fcntl.flock` 文件锁（Unix）+ 临时文件 `os.replace` 原子替换 + 写入前 `.bak` 备份。v2 换 PG 后由数据库事务保证。
+- **JSON 后端**（`agent/engine/repository.py`）：`fcntl.flock` 文件锁（Unix）+ 临时文件 `os.replace` 原子替换 + 写入前 `.bak` 备份。
+- **PG 后端**（`agent/engine/pg_data_repo.py`）：由数据库事务保证原子性（已落地，见 §5.3 / roadmap §1）。后端选择由 `is_pg_enabled() and ping()` 决定，缺失回落 JSON。
+
+### 5.3 存储后端开发（v2，✅ 已落地）
+
+> 详见 roadmap §1。本节给开发者启用 / 切换后端的要点。
+
+**双后端架构**：
+- Repository 接口不变；实现二选一：`JSONFileRepository`（默认）或 `PgDataRepository` + `PgOntologyRepository`（PG）。
+- `workspace_bootstrap.py` 按 `is_pg_enabled() and ping()` 选实现；PG 加载失败回落 JSON 并打印告警（日志出现「回落 JSON」即未生效）。
+- `agent/engine/db.py`：psycopg 3 + psycopg-pool 单例连接池（4–8 连接/进程）；`transaction()` 上下文自动 commit/rollback；`DATABASE_URL` 缺失抛 `PGNotConfigured` 让上层回落。
+
+**启用 PG 步骤**：
+1. `.env` 加 `DATABASE_URL=postgresql://ontology:ontology@localhost:5433/ontology`。
+2. `docker compose up -d` 起 PG（compose 已含 pgvector 扩展）。
+3. 跑迁移：`python agent/scripts/import_to_pg.py`（TTL/YAML/JSON → PG 幂等 upsert；支持 `--workspace retail` / `--skip-data` / `--skip-schema` / `--dry-run`）。
+4. 重启后端，日志不再出现「回落 JSON」即生效。
+
+**多副本部署注意**：每进程一个连接池已就绪；进程内 `WorkspaceAgentInstance` 缓存经 `invalidate_workspace(ws)` 失效（admin 写后触发），但**跨进程缓存失效通知机制 defer**（roadmap §1）。单进程 uvicorn 部署够用。
+
+**Schema（`agent/sql/schema.sql`）**：`object_types` / `object_type_properties` / `link_type` / `action_types` / `entities` 五表；关系列存核心查询字段，JSONB 存复杂结构（parameters/side_effects/properties）；含 TenantContext 过滤索引（`workspace_name + org_unit_id`）+ JSONB GIN 索引 + `updated_at` 触发器。pgvector 扩展已建（embedding 列预留，本轮注释掉）。
 
 ---
 

@@ -388,7 +388,7 @@ CompositeBackend：系统 skills 经 `/system/<name>/` 路由，workspace skills
 
 ```
 前端 CopilotKit co-agent state (selected_store)
-    → route.ts 注入 HTTP header (X-Workspace)              [现状: 静态默认 header]
+    → route.ts 注入 HTTP header (X-Workspace)              [✅ 已落地: 前端 headers prop 动态注入]
     → 后端 middleware 读取 → contextvar (tenant_ctx)         [✅ 已实现]
     → shared._tc() / _workspace_name_from_ctx()              [✅ 已实现]
     → bootstrap_workspace(name) → WorkspaceAgentInstance     [✅ 已实现]
