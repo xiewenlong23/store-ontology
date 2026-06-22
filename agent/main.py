@@ -558,44 +558,38 @@ from engine.workspace_bootstrap import bootstrap_workspace
 
 @app.get("/api/admin/customers/{cid}/ontology/objects")
 async def admin_ontology_objects(request: Request, cid: str):
-    """该客户所有 Object Type 定义（只读浏览）。"""
+    """该客户所有 Object Type 定义（只读浏览）。
+
+    返回完整字段集（含 v2 权限元数据 read_roles/read_except/write_roles/write_except
+    及 property 级权限）——与 POST/PUT body 结构对称（spec §3.2 round-trip）。
+    前端 GET → 编辑 → PUT 原样回传不会丢字段。
+    """
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    objects = []
-    for ot in inst.registry.object_types.values():
-        objects.append({
-            "id": ot.id, "label": ot.label, "label_zh": ot.label_zh,
-            "comment": ot.comment, "storage_file": ot.storage_file,
-            "status": ot.status, "edits_only_via_actions": ot.edits_only_via_actions,
-            "properties": [{"name": p.name, "type": p.type} for p in ot.properties],
-        })
+    objects = [_ontology_to_dict(ot) for ot in inst.registry.object_types.values()]
     return {"objects": objects}
 
 
 @app.get("/api/admin/customers/{cid}/ontology/actions")
 async def admin_ontology_actions(request: Request, cid: str):
-    """该客户所有 Action Type 定义。"""
+    """该客户所有 Action Type 定义。
+
+    返回完整字段集（含 status / submission_criteria / side_effects），与 POST/PUT
+    body 对称（spec §3.2 round-trip）。
+    """
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    actions = []
-    for at in inst.registry.action_types.values():
-        actions.append({
-            "api_name": at.api_name, "display_name": at.display_name,
-            "description": at.description, "target_object_type": at.target_object_type,
-            "edits_object_types": at.edits_object_types,
-            "parameters": at.parameters, "locator_field": at.locator_field,
-        })
+    actions = [_action_to_dict(at) for at in inst.registry.action_types.values()]
     return {"actions": actions}
 
 
 @app.get("/api/admin/customers/{cid}/ontology/links")
 async def admin_ontology_links(request: Request, cid: str):
-    """该客户所有 Link Type 定义。"""
+    """该客户所有 Link Type 定义。
+
+    返回完整字段集（含 use_roles / use_except / comment / label_zh），与 POST/PUT
+    body 对称（spec §3.2 round-trip）。
+    """
     inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    links = []
-    for lt in inst.registry.link_types.values():
-        links.append({
-            "id": lt.id, "label": lt.label, "label_zh": lt.label_zh,
-            "domain": lt.domain, "range": lt.range, "via": lt.via,
-        })
+    links = [_link_to_dict(lt) for lt in inst.registry.link_types.values()]
     return {"links": links}
 
 
@@ -803,12 +797,13 @@ async def admin_data_browse(request: Request, cid: str, entity_type: str):
     entity_type 限制为 identity/organization/category/personnel 域的"管理类"对象，
     避免业务数据（Task/NearExpiryProduct 等）泄露（那些走各自的工具）。
     """
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
     ws_name = _resolve_workspace_name(request, cid)
+    inst = bootstrap_workspace(ws_name)
     # v2 权限：管理数据浏览允许 system_admin 或 username=='admin'（初始管理员），
     # 走统一 require_admin；非 admin 但 PermissionEvaluator 允许 read 的角色仍放行（保留旧语义）。
-    from agent.tools.shared import _get_actor as _ga, _get_evaluator
-    from fastapi.responses import JSONResponse
+    # _get_actor 从 admin_ontology_api 取（与 require_admin 同一 patch surface，便于测试）。
+    from engine.admin_ontology_api import _get_actor as _ga
+    from agent.tools.shared import _get_evaluator
     denied = require_admin(ws_name)
     if denied:
         actor = _ga()
@@ -817,7 +812,7 @@ async def admin_data_browse(request: Request, cid: str, entity_type: str):
         if not evaluator.can_read_object(role, entity_type).granted:
             return denied
     # 总部视角读全部（admin 数据不应受 org_unit 隔离）
-    tc = TenantContext(workspace_name=_resolve_workspace_name(request, cid), org_unit_id="*")
+    tc = TenantContext(workspace_name=ws_name, org_unit_id="*")
     rows = inst.repository.read(entity_type, tc)
     # 脱敏：User 表剥离 password_hash
     if entity_type == "User":

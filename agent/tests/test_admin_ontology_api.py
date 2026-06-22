@@ -272,6 +272,22 @@ class TestLinkActionEndpoints:
                           headers=HEADERS)
         assert d.status_code == 200
 
+    def test_link_put_updates_field(self, client, admin_ws):
+        """I2: Link PUT 路径主键覆盖 + _link_to_dict 响应。"""
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/links",
+                    json={"id": "lkp", "label": "orig", "domain": "A",
+                          "range": "B", "via": "v", "use_roles": "r1"},
+                    headers=HEADERS)
+        r = client.put(f"/api/admin/customers/{admin_ws}/ontology/links/lkp",
+                       json={"id": "lkp", "label": "changed", "domain": "A",
+                             "range": "C", "via": "v", "use_roles": "r2"},
+                       headers=HEADERS)
+        assert r.status_code == 200
+        assert r.json()["updated"]["range"] == "C"
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/links", headers=HEADERS)
+        got = next(l for l in g.json()["links"] if l["id"] == "lkp")
+        assert got["label"] == "changed" and got["range"] == "C" and got["use_roles"] == "r2"
+
     def test_action_crud(self, client, admin_ws):
         r = client.post(f"/api/admin/customers/{admin_ws}/ontology/actions",
                         json={"api_name": "do_x", "display_name": "Do X",
@@ -282,6 +298,39 @@ class TestLinkActionEndpoints:
         d = client.delete(f"/api/admin/customers/{admin_ws}/ontology/actions/do_x",
                           headers=HEADERS)
         assert d.status_code == 200
+
+    def test_action_put_updates_field(self, client, admin_ws):
+        """I2: Action PUT 路径主键覆盖 + _action_to_dict 响应。"""
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/actions",
+                    json={"api_name": "ap", "display_name": "orig",
+                          "target_object_type": "Task", "status": "active"},
+                    headers=HEADERS)
+        r = client.put(f"/api/admin/customers/{admin_ws}/ontology/actions/ap",
+                       json={"api_name": "ap", "display_name": "changed",
+                             "target_object_type": "Task", "status": "deprecated"},
+                       headers=HEADERS)
+        assert r.status_code == 200
+        assert r.json()["updated"]["status"] == "deprecated"
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/actions", headers=HEADERS)
+        got = next(a for a in g.json()["actions"] if a["api_name"] == "ap")
+        assert got["display_name"] == "changed" and got["status"] == "deprecated"
+
+
+class TestUpsertSemantics:
+    """spec §3.1: POST/PUT 仓储层都是 upsert（幂等），PUT 命中不存在主键时按创建处理。"""
+
+    def test_put_on_nonexistent_creates(self, client, admin_ws):
+        """PUT 一个未 POST 过的 object → 应创建（upsert 语义），而非 404。"""
+        r = client.put(f"/api/admin/customers/{admin_ws}/ontology/objects/NeverPosted",
+                       json={"id": "NeverPosted", "label": "Created via PUT", "properties": []},
+                       headers=HEADERS)
+        assert r.status_code == 200
+        assert r.json()["updated"]["id"] == "NeverPosted"
+        # GET 确认已存在
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/objects", headers=HEADERS)
+        ids = [o["id"] for o in g.json()["objects"]]
+        assert "NeverPosted" in ids
+
 
 
 class TestInvalidation:
@@ -299,5 +348,106 @@ class TestInvalidation:
         # 再取（端点内部应已 invalidate）
         inst_after = bootstrap_workspace(admin_ws)
         assert "Foo" in inst_after.registry.object_types
+
+
+class TestRoundTrip:
+    """spec §3.2 round-trip 契约：GET 返回的对象原样 PUT 回去，字段必须存活。
+
+    回归 C1：旧 GET 端点只返回部分字段，前端 GET→编辑→PUT 会把缺失的权限字段
+    （read_roles / property.write_roles 等）清空。本测试把 GET 输出原样 PUT 回去，
+    断言非空权限字段存活。
+    """
+
+    def test_object_roundtrip_preserves_permission_fields(self, client, admin_ws):
+        # POST 一个含非空权限字段 + property 级权限字段的对象
+        full = {
+            "id": "RT", "label": "RT (x)", "label_zh": "RT", "comment": "c",
+            "storage_file": "rts.json", "status": "active", "visibility": "hidden",
+            "edits_only_via_actions": True,
+            "read_roles": "store_manager", "read_except": "clerk",
+            "write_roles": "regional_mgr", "write_except": "",
+            "properties": [
+                {"name": "id", "type": "string",
+                 "read_roles": "", "read_except": "", "write_roles": "", "write_except": ""},
+                {"name": "salary", "type": "float",
+                 "read_roles": "store_manager", "read_except": "clerk",
+                 "write_roles": "regional_mgr", "write_except": ""},
+            ],
+        }
+        r = client.post(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                        json=full, headers=HEADERS)
+        assert r.status_code == 200, r.text
+        # GET 列表，找出该对象
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                       headers=HEADERS)
+        got = next(o for o in g.json()["objects"] if o["id"] == "RT")
+        # GET 应已返回完整字段（这是 C1 修复的核心断言）
+        assert got["read_roles"] == "store_manager", "GET 未返回 read_roles（C1 未修复）"
+        assert got["visibility"] == "hidden"
+        salary_prop = next(p for p in got["properties"] if p["name"] == "salary")
+        assert salary_prop["write_roles"] == "regional_mgr", \
+            "GET 未返回 property.write_roles（C1 未修复）"
+        # 原样 PUT 回去（模拟前端编辑 label 后保存）
+        got["label"] = "RT-edited"
+        r2 = client.put(f"/api/admin/customers/{admin_ws}/ontology/objects/RT",
+                        json=got, headers=HEADERS)
+        assert r2.status_code == 200, r2.text
+        # 再 GET，权限字段必须存活（不被清空）
+        g2 = client.get(f"/api/admin/customers/{admin_ws}/ontology/objects",
+                        headers=HEADERS)
+        got2 = next(o for o in g2.json()["objects"] if o["id"] == "RT")
+        assert got2["label"] == "RT-edited"
+        assert got2["read_roles"] == "store_manager", "PUT 后 read_roles 被清空（C1 回归）"
+        assert got2["read_except"] == "clerk"
+        assert got2["write_roles"] == "regional_mgr"
+        salary2 = next(p for p in got2["properties"] if p["name"] == "salary")
+        assert salary2["write_roles"] == "regional_mgr", \
+            "PUT 后 property.write_roles 被清空（C1 回归）"
+
+    def test_link_roundtrip_preserves_use_roles(self, client, admin_ws):
+        full = {
+            "id": "rt_lk", "label": "rt (lk)", "label_zh": "中",
+            "comment": "c", "domain": "A", "range": "B", "via": "v",
+            "use_roles": "store_manager", "use_except": "clerk",
+        }
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/links",
+                    json=full, headers=HEADERS)
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/links",
+                       headers=HEADERS)
+        got = next(l for l in g.json()["links"] if l["id"] == "rt_lk")
+        assert got["use_roles"] == "store_manager", "GET 未返回 link.use_roles（C1）"
+        assert got["use_except"] == "clerk"
+        # PUT 回去
+        client.put(f"/api/admin/customers/{admin_ws}/ontology/links/rt_lk",
+                   json=got, headers=HEADERS)
+        g2 = client.get(f"/api/admin/customers/{admin_ws}/ontology/links",
+                        headers=HEADERS)
+        got2 = next(l for l in g2.json()["links"] if l["id"] == "rt_lk")
+        assert got2["use_roles"] == "store_manager", "PUT 后 use_roles 被清空（C1）"
+
+    def test_action_roundtrip_preserves_status_and_submission(self, client, admin_ws):
+        full = {
+            "api_name": "rt_act", "display_name": "RT", "description": "d",
+            "status": "deprecated", "target_object_type": "Task",
+            "edits_object_types": ["Task"], "locator_field": "task_id",
+            "parameters": [{"name": "x", "type": "string"}],
+            "submission_criteria": {"require_approval_from": "store_manager"},
+            "side_effects": [{"kind": "audit_log"}],
+        }
+        client.post(f"/api/admin/customers/{admin_ws}/ontology/actions",
+                    json=full, headers=HEADERS)
+        g = client.get(f"/api/admin/customers/{admin_ws}/ontology/actions",
+                       headers=HEADERS)
+        got = next(a for a in g.json()["actions"] if a["api_name"] == "rt_act")
+        assert got["status"] == "deprecated", "GET 未返回 action.status（C1）"
+        assert got["submission_criteria"]["require_approval_from"] == "store_manager"
+        client.put(f"/api/admin/customers/{admin_ws}/ontology/actions/rt_act",
+                   json=got, headers=HEADERS)
+        g2 = client.get(f"/api/admin/customers/{admin_ws}/ontology/actions",
+                        headers=HEADERS)
+        got2 = next(a for a in g2.json()["actions"] if a["api_name"] == "rt_act")
+        assert got2["status"] == "deprecated", "PUT 后 status 被清空（C1）"
+        assert got2["submission_criteria"]["require_approval_from"] == "store_manager"
+
 
 
