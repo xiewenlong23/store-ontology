@@ -97,8 +97,10 @@ export default function DashboardPage() {
               fontSize: 14,
             }}
           >
-            {availableWorkspaces.map((ws) => (
-              <option key={ws} value={ws}>{ws}</option>
+            {availableWorkspaces.map((m) => (
+              <option key={m.workspace_name} value={m.workspace_name}>
+                {m.workspace_display_name || m.workspace_name}
+              </option>
             ))}
           </select>
         </div>
