@@ -5,7 +5,8 @@ import { CopilotKit } from '@copilotkit/react-core'
 import { CopilotChat } from '@copilotkit/react-ui'
 import '@copilotkit/react-ui/styles.css'
 import './globals.css'
-import { Fragment, ReactNode, useMemo, useEffect } from 'react'
+import { Fragment, ReactNode, useMemo, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { WorkspaceProvider, useWorkspace } from './workspace-context'
 import { AuthProvider, useAuth } from './auth-context'
 
@@ -41,15 +42,21 @@ function AppWithWorkspace({
 }) {
   const { selectedWorkspace, selectedStore } = useWorkspace()
   const { token, isAuthenticated } = useAuth()
+  const router = useRouter()
   // v2（WP7）：未登录跳 /login（login 页本身豁免此规则——它直接渲染表单）
+  // 用 useEffect + router.replace 避免在 hydration 期间触发整页刷新
+  // （window.location.replace 会让 React state 丢失，影响表单 submit）
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setHydrated(true) }, [])
   useEffect(() => {
-    // 检测当前 path 是否为 /login，避免循环重定向
+    if (!hydrated) return  // 等 hydration 完成
     if (typeof window === 'undefined') return
     const path = window.location.pathname
-    if (!isAuthenticated && path !== '/login') {
-      window.location.replace('/login')
+    // login 页（含子路径）豁免
+    if (!isAuthenticated && !path.startsWith('/login')) {
+      router.replace('/login')
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, hydrated, router])
   // 通用：从工具返回文本中提取 JSON 数据
   const extractData = (result: any) => {
     const str = typeof result === 'string' ? result : JSON.stringify(result);
