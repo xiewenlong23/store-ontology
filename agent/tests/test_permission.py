@@ -403,3 +403,66 @@ class TestBuildEvaluatorFromWorkspace:
                 mod_name = f"workspace.{ws_name}.workspace"
                 if mod_name in sys.modules:
                     importlib.reload(sys.modules[mod_name])
+
+
+class TestParserObjectVsPropertyScope:
+    """Regression: TTL :property [ ... ] 块内的 read_except 不应被误当 Object 顶层。
+
+    Bug 场景（曾出现）：User TTL 写
+      :read_roles "system_admin" ;
+      :property [ :name "password_hash" ; :read_except "*" ] .
+    parser 旧实现把 password_hash 的 read_except="*" 误解析为 User.read_except，
+    导致 system_admin 之外的角色被全局除外（误判）。
+    修复：顶层字段解析前剥离 :property [ ... ] 嵌套块。
+    """
+
+    def test_object_level_not_polluted_by_property_block(self, tmp_path):
+        from engine.parser import OntologyParser
+        ttl = tmp_path / "test.ttl"
+        ttl.write_text('''@prefix t: <http://example.org/t#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+t:User a rdfs:Class ;
+    rdfs:label "用户"@zh , "User"@en ;
+    t:properties "id:string,username:string,password_hash:string" ;
+    t:storage "users.json" ;
+    t:read_roles "system_admin" ;
+    t:property [
+        t:name "password_hash" ;
+        t:read_except "*"
+    ] .
+''', encoding="utf-8")
+        p = OntologyParser(ttl_path=str(ttl), data_dir=str(tmp_path))
+        u = p.registry.object_types["User"]
+        # User 顶层 read_roles 应是 system_admin，read_except 应是空（不被 property 块污染）
+        assert u.read_roles == "system_admin"
+        assert u.read_except == "", \
+            "User.read_except 不应被嵌套 :property 块里的 read_except 污染"
+        # password_hash 属性的 read_except 应是 "*"（嵌套解析正确）
+        prop_by_name = {pp.name: pp for pp in u.properties}
+        assert prop_by_name["password_hash"].read_except == "*"
+
+    def test_object_level_write_except_not_polluted(self, tmp_path):
+        """同样 regression：write_except 也可能被嵌套块污染。"""
+        from engine.parser import OntologyParser
+        ttl = tmp_path / "test.ttl"
+        ttl.write_text('''@prefix t: <http://example.org/t#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+t:Foo a rdfs:Class ;
+    rdfs:label "Foo"@zh , "Foo"@en ;
+    t:properties "id:string,secret:string" ;
+    t:storage "foos.json" ;
+    t:write_roles "manager" ;
+    t:property [
+        t:name "secret" ;
+        t:write_except "*"
+    ] .
+''', encoding="utf-8")
+        p = OntologyParser(ttl_path=str(ttl), data_dir=str(tmp_path))
+        obj = p.registry.object_types["Foo"]
+        assert obj.write_roles == "manager"
+        assert obj.write_except == "", \
+            "Foo.write_except 不应被嵌套 :property 块污染"
+        prop_by_name = {pp.name: pp for pp in obj.properties}
+        assert prop_by_name["secret"].write_except == "*"

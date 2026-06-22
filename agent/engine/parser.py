@@ -106,11 +106,13 @@ class OntologyParser:
             visibility = self._first(r'visibility\s+"([^"]*)"', body) or "normal"
             edits = _to_bool(
                 self._first(r'edits_only_via_actions\s+"([^"]*)"', body) or "false")
-            # v2 权限元数据（WP3）
-            read_roles = self._first(r'read_roles\s+"([^"]*)"', body) or ""
-            read_except = self._first(r'read_except\s+"([^"]*)"', body) or ""
-            write_roles = self._first(r'write_roles\s+"([^"]*)"', body) or ""
-            write_except = self._first(r'write_except\s+"([^"]*)"', body) or ""
+            # v2 权限元数据（WP3）：顶层字段解析前剥离 :property [ ... ] 嵌套块，
+            # 避免嵌套块里的 read_roles/read_except 等被误当 Object 顶层字段。
+            body_no_prop = re.sub(rf'{P}property\s*\[[^\]]*\]', '', body, flags=re.DOTALL)
+            read_roles = self._first(r'read_roles\s+"([^"]*)"', body_no_prop) or ""
+            read_except = self._first(r'read_except\s+"([^"]*)"', body_no_prop) or ""
+            write_roles = self._first(r'write_roles\s+"([^"]*)"', body_no_prop) or ""
+            write_except = self._first(r'write_except\s+"([^"]*)"', body_no_prop) or ""
             # 属性级权限元数据（嵌套 blank node）
             prop_perms = self._parse_property_permissions(body, P)
             props = self._parse_properties(props_str)
