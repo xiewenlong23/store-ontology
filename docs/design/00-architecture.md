@@ -186,7 +186,7 @@ Repository 接口（内核）—— agent/engine/repository.py
 **TenantContext 传递链路**：
 ```
 前端 CopilotKit co-agent state (selected_store)
-    → route.ts 注入 HTTP header (X-Workspace)              [现状: 静态默认 header]
+    → route.ts 注入 HTTP header (X-Workspace)              [✅ 已落地: 前端 headers prop 动态注入]
     → 后端 middleware 读取 → contextvar (tenant_ctx)         [✅ 已实现]
     → Repository 所有读写强制带 workspace_name 过滤           [✅ 已实现]
 ```
