@@ -310,19 +310,23 @@ class TestLogoutEndpoint:
 
 class TestRefreshEndpoint:
 
-    def test_refresh_returns_unsupported_in_mvp(self, app_client):
-        """MVP 阶段 refresh 端点要求重新 login。"""
+    def test_refresh_returns_501_in_mvp(self, app_client):
+        """MVP 阶段 refresh 能力未实现 → 501 Not Implemented。
+
+        P2：用 501（而非 200+success:false）区分「能力未实现」与「逻辑失败」，
+        让前端能正确区分这两种情况（200 的契约暗示能力存在但本次失败）。
+        """
         login = app_client.post("/api/auth/login", json={
             "username": "admin", "password": "admin123"}).json()
         r = app_client.post("/api/auth/refresh",
                             json={"refresh_token": login["refresh_token"]})
-        assert r.status_code == 200
-        # MVP 简化：refresh 失败，提示重新登录
+        assert r.status_code == 501
         body = r.json()
-        assert body["success"] is False
+        assert body["detail"] == "Not Implemented"
+        assert "v2.1" in body["reason"]
 
     def test_refresh_with_invalid_token(self, app_client):
+        """无效 token 也返回 501（能力未实现，不区分 token 有效性）。"""
         r = app_client.post("/api/auth/refresh",
                             json={"refresh_token": "invalid_xxx"})
-        assert r.status_code == 200
-        assert r.json()["success"] is False
+        assert r.status_code == 501

@@ -122,18 +122,10 @@ _STORE_CONTEXT = """
 
 # ============ per-workspace agent 构建 + 缓存 ============
 
-import contextvars
+# P5：contextvars 定义移到 agent.state（避免 routers 循环 import main）。
+# 此处 re-export 保持 ``main.tenant_ctx`` / ``main.auth_ctx`` 向后兼容（测试依赖）。
 from engine.tenant import TenantContext
-from engine.auth import AuthContext
-
-tenant_ctx: contextvars.ContextVar = contextvars.ContextVar(
-    "tenant_ctx", default=TenantContext.default())
-
-# v2 认证（设计文档 §5 WP2）：auth_ctx 承载当前请求的可信身份。
-# WP2 阶段 auth_middleware 只注入 auth_ctx 不强制（无 token 也通过，返回 anonymous）；
-# WP6 切换为强制——除豁免路径外，无 token → 401。
-auth_ctx: contextvars.ContextVar = contextvars.ContextVar(
-    "auth_ctx", default=AuthContext.anonymous())
+from agent.state import tenant_ctx, auth_ctx
 
 
 def _build_ws_tools(ws_name: str):
@@ -255,11 +247,37 @@ def get_or_build_ws_agent(ws_name: str) -> LangGraphAgent:
 
 # ============ FastAPI 应用 ============
 
+from engine.scheduler import AutomationScheduler
+from contextlib import asynccontextmanager
+
+_automation_scheduler = AutomationScheduler()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    """应用生命周期（P3：取代废弃的 @app.on_event）。
+
+    startup：注册各行业包的定时 job 并启动 scheduler。
+    shutdown：停止 scheduler。
+    """
+    try:
+        from workspace.retail.skills.clearance_workflow.automation import register_clearance_automation
+        register_clearance_automation(_automation_scheduler, interval_seconds=1800)
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] 注册 clearance 自动化失败: {e}")
+    _automation_scheduler.start()
+    try:
+        yield
+    finally:
+        _automation_scheduler.shutdown()
+
+
 _pack_names = ", ".join(p.name for p in __import__('engine.pack', fromlist=['all_workspace_dirs']).all_workspace_dirs()) or "无"
 app = FastAPI(
     title="OntologyAgent APaaS - 本体驱动 Agent",
     description=f"基于 CopilotKit + 本体语义 + Deep Agents 的 AI 助手（已加载 pack: {_pack_names}）",
     version="0.4.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -372,18 +390,9 @@ async def auth_middleware(request, call_next):
         auth_ctx.reset(token_set)
 
 
-def _resolve_workspace_name(request, url_cid: str = None) -> str:
-    """统一解析当前请求的 workspace 标识（架构 spec §3.4）。
-
-    优先级：X-Workspace header > URL {cid} 参数 > 默认 jjy。
-    URL {cid} 回退保证旧前端调用（admin/dashboard 路由）仍可用。
-    """
-    ws = getattr(request.state, "workspace_name", None)
-    if ws:
-        return ws
-    if url_cid:
-        return url_cid
-    return "jjy"
+# P5：_resolve_workspace_name 实现已移到 agent.routers._shared.resolve_workspace_name。
+# 此处 re-export 保持 ``main._resolve_workspace_name`` 向后兼容（测试 + main 内部 copilotkit 用）。
+from agent.routers._shared import resolve_workspace_name as _resolve_workspace_name
 
 
 # ============ AG-UI 网关 endpoint（per-workspace agent 路由）============
@@ -415,518 +424,16 @@ async def health():
     return {"status": "healthy"}
 
 
-# ============ v2 认证 endpoints（设计文档 §5 WP2）============
-# 4 个端点：login / refresh / me / logout
-# 身份数据存 workspace（设计文档 §1 边界），agent 层只做编排 + JWT 签发。
-
-from pydantic import BaseModel as _BM, Field as _Field
-
-
-class LoginRequest(_BM):
-    username: str = _Field(..., description="实名（工号/手机号），跨 workspace 一致")
-    password: str
-
-
-class RefreshRequest(_BM):
-    refresh_token: str
-
-
-@app.post("/api/auth/login")
-async def auth_login(req: LoginRequest, request: Request):
-    """登录：扫描所有 workspace 验证 → 签发 JWT。
-
-    设计文档 §2.2：username 实名一致，password_hash 各 workspace 独立；
-    返回 memberships（认成功的 workspace 列表）+ access/refresh token。
-    """
-    from engine.identity import list_user_workspaces
-    from engine.auth import issue_session_tokens
-    from engine.auth_audit import log_auth_event
-
-    client_ip = request.client.host if request.client else None
-    memberships = list_user_workspaces(req.username, req.password)
-    if not memberships:
-        log_auth_event("login", username=req.username, outcome="failed",
-                       detail="无匹配 workspace 或密码错", client_ip=client_ip)
-        return {"success": False, "error": "用户名或密码错误"}
-
-    ws_names = [m["workspace_name"] for m in memberships]
-    user_id = memberships[0]["user_id"]
-    tokens = issue_session_tokens(user_id=user_id, workspace_names=ws_names)
-    log_auth_event("login", username=req.username, user_id=user_id,
-                   outcome="success", detail=f"workspaces={ws_names}", client_ip=client_ip)
-    return {
-        "success": True,
-        "token": tokens["access_token"],
-        "refresh_token": tokens["refresh_token"],
-        "session_id": tokens["session_id"],
-        "expires_in": tokens["expires_in"],
-        "memberships": memberships,
-    }
-
-
-@app.post("/api/auth/refresh")
-async def auth_refresh(req: RefreshRequest, request: Request):
-    """用 refresh token 换新的 access token。
-
-    refresh token 不含 ws 白名单；需重新调 list_user_workspaces 重新求值
-    （因为 workspace 列表可能变化）。MVP 简化：用原 token 的 sub（user_id）
-    作为 username 索引无效——refresh 流程要求 client 重新登录（WP2 简化）。
-    """
-    from engine.auth import decode_token, TokenError, issue_session_tokens
-    from engine.auth_audit import log_auth_event
-
-    client_ip = request.client.host if request.client else None
-    try:
-        payload = decode_token(req.refresh_token, expected_typ="refresh")
-    except TokenError as e:
-        log_auth_event("refresh", outcome="failed", detail=str(e), client_ip=client_ip)
-        return {"success": False, "error": f"refresh token 无效: {e}"}
-    # MVP：refresh 仅返回新的 access token（同 user + session），ws 白名单沿用原 token。
-    # 完整实现（重新求值 memberships）留 v2.1。
-    from engine.auth import create_access_token
-    user_id = payload.get("sub", "")
-    session_id = payload.get("sid", "")
-    # ws 白名单不在 refresh token 里——这里无法恢复，返回 401 要求重新登录。
-    log_auth_event("refresh", user_id=user_id, outcome="failed",
-                   detail="MVP 不支持 refresh，请重新 login", client_ip=client_ip)
-    return {"success": False, "error": "MVP 阶段请重新登录（refresh 完整支持留 v2.1）"}
-
-
-@app.get("/api/auth/me")
-async def auth_me(request: Request):
-    """返回当前认证身份 + memberships + visible_tools（设计文档 §5 WP7 前端用）。
-
-    可信身份来自 auth_ctx contextvar（auth_middleware 注入）。
-    visible_tools 由 PermissionEvaluator 求值：列出当前 role 可用的工具。
-    """
-    auth = auth_ctx.get()
-    if not auth.is_authenticated():
-        return {"authenticated": False}
-
-    # 求当前 role 的可见工具清单
-    visible_tools = []
-    try:
-        from agent.tools.shared import _get_actor, _get_evaluator
-        actor = _get_actor()
-        evaluator = _get_evaluator()
-        role = actor.get("role", "")
-        # 内核 8 工具 + 该 workspace 的专属工具
-        from agent.tools import (
-            query_entity, create_entity, update_entity, traverse_relation,
-            execute_action, confirm_action, query_task, update_task)
-        kernel_tools = [query_entity, create_entity, update_entity, traverse_relation,
-                        execute_action, confirm_action, query_task, update_task]
-        for t in kernel_tools:
-            name = getattr(t, "name", "")
-            if name and evaluator.can_use_tool(role, name).granted:
-                visible_tools.append(name)
-        # workspace 专属工具
-        from engine.pack import get_workspace_dir
-        import importlib
-        ws = get_workspace_dir(_resolve_workspace_name(request))
-        if ws:
-            for proc in ws.processes:
-                if not proc.tools_module:
-                    continue
-                try:
-                    mod = importlib.import_module(proc.tools_module)
-                    for t in getattr(mod, "TOOLS", []):
-                        name = getattr(t, "name", "")
-                        if name and evaluator.can_use_tool(role, name).granted:
-                            visible_tools.append(name)
-                except Exception:  # noqa: BLE001
-                    pass
-    except Exception:  # noqa: BLE001
-        pass
-
-    return {
-        "authenticated": True,
-        "user_id": auth.user_id,
-        "session_id": auth.session_id,
-        "workspace_names": list(auth.workspace_names),
-        "visible_tools": visible_tools,
-    }
-
-
-@app.post("/api/auth/logout")
-async def auth_logout(request: Request):
-    """登出（MVP：客户端清 token；服务端 token 撤销列表留 v2.1）。"""
-    from engine.auth_audit import log_auth_event
-    auth = auth_ctx.get()
-    client_ip = request.client.host if request.client else None
-    log_auth_event("logout", user_id=auth.user_id or None,
-                   outcome="success", client_ip=client_ip)
-    return {"success": True, "detail": "客户端请清除本地 token"}
-
-
-# ============ 本体管理 API（P4 §4.5，只读浏览）============
-
-from engine.workspace_bootstrap import bootstrap_workspace
-
-
-@app.get("/api/admin/customers/{cid}/ontology/objects")
-async def admin_ontology_objects(request: Request, cid: str):
-    """该客户所有 Object Type 定义（只读浏览）。
-
-    返回完整字段集（含 v2 权限元数据 read_roles/read_except/write_roles/write_except
-    及 property 级权限）——与 POST/PUT body 结构对称（spec §3.2 round-trip）。
-    前端 GET → 编辑 → PUT 原样回传不会丢字段。
-    """
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    objects = [_ontology_to_dict(ot) for ot in inst.registry.object_types.values()]
-    return {"objects": objects}
-
-
-@app.get("/api/admin/customers/{cid}/ontology/actions")
-async def admin_ontology_actions(request: Request, cid: str):
-    """该客户所有 Action Type 定义。
-
-    返回完整字段集（含 status / submission_criteria / side_effects），与 POST/PUT
-    body 对称（spec §3.2 round-trip）。
-    """
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    actions = [_action_to_dict(at) for at in inst.registry.action_types.values()]
-    return {"actions": actions}
-
-
-@app.get("/api/admin/customers/{cid}/ontology/links")
-async def admin_ontology_links(request: Request, cid: str):
-    """该客户所有 Link Type 定义。
-
-    返回完整字段集（含 use_roles / use_except / comment / label_zh），与 POST/PUT
-    body 对称（spec §3.2 round-trip）。
-    """
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    links = [_link_to_dict(lt) for lt in inst.registry.link_types.values()]
-    return {"links": links}
-
-
-# ============ v2 本体 CRUD 写端点（WP7 + WP8 失效，spec §3/§4）============
-
-from fastapi.responses import JSONResponse
-from engine.admin_ontology_api import (
-    json_to_object_type, json_to_link_type, json_to_action_def,
-    require_admin,
-)
-from engine.workspace_bootstrap import invalidate_workspace
-from engine import pg_ontology_repo as _ont_repo
-
-
-def _ontology_to_dict(ot) -> dict:
-    """ObjectType → dict（与 list_object_types 输出对称，用于响应 body）。"""
-    return {
-        "id": ot.id, "label": ot.label, "label_zh": ot.label_zh,
-        "comment": ot.comment, "storage_file": ot.storage_file,
-        "status": ot.status, "visibility": ot.visibility,
-        "edits_only_via_actions": ot.edits_only_via_actions,
-        "read_roles": ot.read_roles, "read_except": ot.read_except,
-        "write_roles": ot.write_roles, "write_except": ot.write_except,
-        "properties": [{"name": p.name, "type": p.type,
-                        "read_roles": p.read_roles, "read_except": p.read_except,
-                        "write_roles": p.write_roles, "write_except": p.write_except}
-                       for p in ot.properties],
-    }
-
-
-def _link_to_dict(lt) -> dict:
-    return {
-        "id": lt.id, "label": lt.label, "label_zh": lt.label_zh,
-        "comment": lt.comment, "domain": lt.domain, "range": lt.range,
-        "via": lt.via, "use_roles": lt.use_roles, "use_except": lt.use_except,
-    }
-
-
-def _action_to_dict(ad) -> dict:
-    return {
-        "api_name": ad.api_name, "display_name": ad.display_name,
-        "description": ad.description, "status": ad.status,
-        "target_object_type": ad.target_object_type,
-        "edits_object_types": list(ad.edits_object_types or []),
-        "locator_field": ad.locator_field,
-        "parameters": list(ad.parameters or []),
-        "submission_criteria": dict(ad.submission_criteria or {}),
-        "side_effects": list(ad.side_effects or []),
-    }
-
-
-# ----- Object Types -----
-
-@app.post("/api/admin/customers/{cid}/ontology/objects")
-async def admin_create_object(request: Request, cid: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    try:
-        ot = json_to_object_type(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_object_type(ws_name, ot)
-    invalidate_workspace(ws_name)
-    return {"created": _ontology_to_dict(ot)}
-
-
-@app.put("/api/admin/customers/{cid}/ontology/objects/{name}")
-async def admin_update_object(request: Request, cid: str, name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    body["id"] = name  # 路径主键覆盖 body（spec §3.1）
-    try:
-        ot = json_to_object_type(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_object_type(ws_name, ot)
-    invalidate_workspace(ws_name)
-    return {"updated": _ontology_to_dict(ot)}
-
-
-@app.delete("/api/admin/customers/{cid}/ontology/objects/{name}")
-async def admin_delete_object(request: Request, cid: str, name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    ok = _ont_repo.delete_object_type(ws_name, name)
-    if not ok:
-        return JSONResponse(status_code=404, content={"detail": f"{name} 不存在"})
-    invalidate_workspace(ws_name)
-    return {"deleted": True}
-
-
-# ----- Link Types -----
-
-@app.post("/api/admin/customers/{cid}/ontology/links")
-async def admin_create_link(request: Request, cid: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    try:
-        lt = json_to_link_type(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_link_type(ws_name, lt)
-    invalidate_workspace(ws_name)
-    return {"created": _link_to_dict(lt)}
-
-
-@app.put("/api/admin/customers/{cid}/ontology/links/{name}")
-async def admin_update_link(request: Request, cid: str, name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    body["id"] = name
-    try:
-        lt = json_to_link_type(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_link_type(ws_name, lt)
-    invalidate_workspace(ws_name)
-    return {"updated": _link_to_dict(lt)}
-
-
-@app.delete("/api/admin/customers/{cid}/ontology/links/{name}")
-async def admin_delete_link(request: Request, cid: str, name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    ok = _ont_repo.delete_link_type(ws_name, name)
-    if not ok:
-        return JSONResponse(status_code=404, content={"detail": f"{name} 不存在"})
-    invalidate_workspace(ws_name)
-    return {"deleted": True}
-
-
-# ----- Action Types -----
-
-@app.post("/api/admin/customers/{cid}/ontology/actions")
-async def admin_create_action(request: Request, cid: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    try:
-        ad = json_to_action_def(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_action_type(ws_name, ad)
-    invalidate_workspace(ws_name)
-    return {"created": _action_to_dict(ad)}
-
-
-@app.put("/api/admin/customers/{cid}/ontology/actions/{api_name}")
-async def admin_update_action(request: Request, cid: str, api_name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    body = await request.json()
-    body["api_name"] = api_name
-    try:
-        ad = json_to_action_def(body)
-    except ValueError as e:
-        return JSONResponse(status_code=422, content={"detail": str(e)})
-    _ont_repo.upsert_action_type(ws_name, ad)
-    invalidate_workspace(ws_name)
-    return {"updated": _action_to_dict(ad)}
-
-
-@app.delete("/api/admin/customers/{cid}/ontology/actions/{api_name}")
-async def admin_delete_action(request: Request, cid: str, api_name: str):
-    ws_name = _resolve_workspace_name(request, cid)
-    denied = require_admin(ws_name)
-    if denied:
-        return denied
-    ok = _ont_repo.delete_action_type(ws_name, api_name)
-    if not ok:
-        return JSONResponse(status_code=404, content={"detail": f"{api_name} 不存在"})
-    invalidate_workspace(ws_name)
-    return {"deleted": True}
-
-
-# ============ v2 管理数据浏览 API（WP7 配套）============
-
-@app.get("/api/admin/customers/{cid}/data/{entity_type}")
-async def admin_data_browse(request: Request, cid: str, entity_type: str):
-    """管理员数据浏览（只读）：列出指定 entity_type 的全部记录。
-
-    用途：admin UI 展示 User/Role/PermissionGrant/OrgUnit/Category 等数据。
-    权限：需要 system_admin 角色（PermissionEvaluator 校验）。其他角色 → 403。
-
-    entity_type 限制为 identity/organization/category/personnel 域的"管理类"对象，
-    避免业务数据（Task/NearExpiryProduct 等）泄露（那些走各自的工具）。
-    """
-    ws_name = _resolve_workspace_name(request, cid)
-    inst = bootstrap_workspace(ws_name)
-    # v2 权限：管理数据浏览允许 system_admin 或 username=='admin'（初始管理员），
-    # 走统一 require_admin；非 admin 但 PermissionEvaluator 允许 read 的角色仍放行（保留旧语义）。
-    # _get_actor 从 admin_ontology_api 取（与 require_admin 同一 patch surface，便于测试）。
-    from engine.admin_ontology_api import _get_actor as _ga
-    from agent.tools.shared import _get_evaluator
-    denied = require_admin(ws_name)
-    if denied:
-        actor = _ga()
-        role = actor.get("role", "")
-        evaluator = _get_evaluator()
-        if not evaluator.can_read_object(role, entity_type).granted:
-            return denied
-    # 总部视角读全部（admin 数据不应受 org_unit 隔离）
-    tc = TenantContext(workspace_name=ws_name, org_unit_id="*")
-    rows = inst.repository.read(entity_type, tc)
-    # 脱敏：User 表剥离 password_hash
-    if entity_type == "User":
-        rows = [{k: v for k, v in r.items() if k != "password_hash"} for r in rows]
-    return {"entity_type": entity_type, "total": len(rows), "items": rows}
-
-
-# ============ 运营看板 API（P4 §4.4）============
-
-@app.get("/api/dashboard/{cid}/metrics")
-async def dashboard_metrics(request: Request, cid: str):
-    """跨域 KPI 指标卡。"""
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    # v2（WP6）：用请求级 tenant_ctx（反映 X-Org-Unit-ID header），
-    # 不再用 inst.tenant_context（硬编码 org_unit_id="*" 的总部视角，越权）。
-    tc = tenant_ctx.get()
-
-    # Task 按 status 分组计数
-    tasks = inst.repository.read("Task", tc)
-    task_counts = {}
-    for t in tasks:
-        s = t.get("status", "unknown")
-        task_counts[s] = task_counts.get(s, 0) + 1
-
-    # NearExpiryProduct 按 status 分组计数
-    neps = inst.repository.read("NearExpiryProduct", tc)
-    nep_counts = {}
-    for n in neps:
-        s = n.get("status", "unknown")
-        nep_counts[s] = nep_counts.get(s, 0) + 1
-
-    return {
-        "tasks": {"total": len(tasks), "by_status": task_counts},
-        "near_expiry": {"total": len(neps), "by_status": nep_counts},
-    }
-
-
-@app.get("/api/dashboard/{cid}/todos")
-async def dashboard_todos(request: Request, cid: str):
-    """待办列表：非终态的 Task（需人介入）。"""
-    inst = bootstrap_workspace(_resolve_workspace_name(request, cid))
-    tc = tenant_ctx.get()   # v2（WP6）：请求级，非 inst.tenant_context
-    tasks = inst.repository.read("Task", tc)
-    active_statuses = {"created", "pending_approval", "approved", "accepted", "in_progress"}
-    todos = [t for t in tasks if t.get("status") in active_statuses]
-    return {"todos": todos}
-
-
-# ============ 后端自动化：scheduler 生命周期 + webhook 路由 ============
-
-from engine.scheduler import AutomationScheduler
-
-_automation_scheduler = AutomationScheduler()
-
-
-@app.on_event("startup")
-async def _start_automation():
-    """启动时注册各行业包的定时 job 并启动 scheduler。"""
-    try:
-        from workspace.retail.skills.clearance_workflow.automation import register_clearance_automation
-        register_clearance_automation(_automation_scheduler, interval_seconds=1800)
-    except Exception as e:  # noqa: BLE001
-        print(f"[startup] 注册 clearance 自动化失败: {e}")
-    _automation_scheduler.start()
-
-
-@app.on_event("shutdown")
-async def _stop_automation():
-    _automation_scheduler.shutdown()
-
-
-@app.post("/api/webhooks/approval")
-async def webhook_approval(body: dict):
-    """审批回调（模拟端点）→ approve_clearance。
-
-    body: {task_id, approver_id, approved: bool}
-    真实审批系统集成留 v2。
-    """
-    from agent.tools.shared import _get_executor
-    from workspace.retail.skills.clearance_workflow.automation import handle_approval
-    ex = _get_executor(process_name="clearance")
-    try:
-        result = handle_approval(ex, task_id=body["task_id"],
-                                 approver_id=body["approver_id"],
-                                 approved=body.get("approved", True))
-        return result
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": str(e)}
-
-
-@app.post("/api/webhooks/pos")
-async def webhook_pos(body: dict):
-    """POS 扫码事件（模拟端点）→ deduct_stock。
-
-    body: {target_id, task_id, quantity}
-    真实 POS 系统集成留 v2。
-    """
-    from agent.tools.shared import _get_executor
-    from workspace.retail.skills.clearance_workflow.automation import handle_pos_scan
-    ex = _get_executor(process_name="clearance")
-    try:
-        result = handle_pos_scan(ex, target_id=body["target_id"],
-                                 task_id=body["task_id"], quantity=body["quantity"])
-        return result
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": str(e)}
+# ============ 路由注册（P5：从 main.py 拆出到 agent/routers/）============
+# 各 router（auth / admin / dashboard / webhooks）实现见 agent/routers/*.py。
+# 共享状态（tenant_ctx / auth_ctx）在 agent.state；共享 helper 在 agent.routers._shared。
+
+from agent.routers import auth_router, admin_router, dashboard_router, webhooks_router
+
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(dashboard_router)
+app.include_router(webhooks_router)
 
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")

@@ -211,8 +211,9 @@ class TestDashboardTenantContext:
         用 AST 解析（避免注释里的字样误伤）。
         """
         import ast
-        main_path = BACKEND_DIR / "main.py"
-        tree = ast.parse(main_path.read_text(encoding="utf-8"))
+        # P5：dashboard 端点已从 main.py 拆到 agent/routers/dashboard.py。
+        dashboard_path = BACKEND_DIR / "routers" / "dashboard.py"
+        tree = ast.parse(dashboard_path.read_text(encoding="utf-8"))
 
         # 找所有 dashboard_xxx 函数定义（含 async）
         dashboard_funcs = [
@@ -233,6 +234,6 @@ class TestDashboardTenantContext:
                             f"dashboard 端点 {fn.name} 仍用 inst.tenant_context "
                             f"（应改用 tenant_ctx.get() 反映请求级 org_unit）")
             # 确认至少调用了 tenant_ctx.get()
-            src_seg = ast.get_source_segment(main_path.read_text(encoding="utf-8"), fn)
+            src_seg = ast.get_source_segment(dashboard_path.read_text(encoding="utf-8"), fn)
             assert "tenant_ctx.get()" in src_seg, \
                 f"dashboard 端点 {fn.name} 应调用 tenant_ctx.get()"

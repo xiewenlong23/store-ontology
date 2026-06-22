@@ -90,10 +90,13 @@ def test_pos_webhook_deducts_stock(webhook_client):
 
 
 def test_webhook_handlers_no_longer_use_vertical_keyword():
-    """webhook handler 应改用 process_name=（不再用 vertical=），spec §5.3。"""
+    """webhook handler 应改用 process_name=（不再用 vertical=），spec §5.3。
+
+    P5：webhook 端点已从 main.py 拆到 agent.routers.webhooks。
+    """
     import inspect
-    import main
+    from agent.routers import webhooks as webhooks_router
     for fn_name in ("webhook_approval", "webhook_pos"):
-        src = inspect.getsource(getattr(main, fn_name))
+        src = inspect.getsource(getattr(webhooks_router, fn_name))
         assert "vertical=" not in src, f"{fn_name} 不应再用 vertical="
         assert "process_name=" in src, f"{fn_name} 应改用 process_name="
