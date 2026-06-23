@@ -43,6 +43,8 @@
 | 资料 | 路径 | 说明 |
 |------|------|------|
 | **Palantir Foundry Ontology 精读** | [`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/) | 本平台本体设计的主要参考来源（只读） |
+| **Palantir 功能需求清单** | [`palantir-ontology-functional-requirements.md`](./palantir-ontology-functional-requirements.md) | 从 Palantir 资料提炼的功能需求清单（36 节、~350 条 F-XX-NN），只描述 Palantir 侧能力 |
+| **Palantir 功能需求实现识别** | [`palantir-implementation-assessment.md`](./palantir-implementation-assessment.md) | 对需求清单的项目侧实现识别（四档判定：完全/部分/转换/不建议），含优先级建议 |
 
 ### 归档（🗄 历史）
 
