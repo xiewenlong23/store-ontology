@@ -623,6 +623,61 @@ LLM agent 实例（只读消费身份）
 
 ---
 
+## 12. agent 治理与运维（v2 评估回填，🔜 规划中）
+
+> 来源：[`palantir-implementation-assessment.md`](./palantir-implementation-assessment.md) v2 评审引入的**第四评估轴——agent 治理/运维**。该轴的核心命题：**agent 替人做决策，谁来管 agent？agent 跑起来，怎么知道它健康、怎么管它的成本、出事怎么救？** 本章节把该轴的 P0/P1 结论形式化为架构待办，与 §11 的"权限"轴并列。优先级与落地序列见该评估文档 §37。
+
+治理与运维是两条相关但不同的线：**治理**回答"agent 能不能做、做了可不可追溯"，**运维**回答"agent 做得好不好、成本与稳定性如何"。MVP 已落地权限治理（§11），但决策追溯、成本治理、可观测性、自治分级四块缺口需补齐。
+
+### 12.1 agent 身份与服务账号（F-PM-18，🔜 P1）
+
+**问题**：当前 actor 仅从用户 JWT（`auth_ctx`）推导（§11.6），agent 自己没有独立身份。企业场景下，**agent 自动触发的 Action**（经 `automation.py` / scheduler / webhook）与**用户触发的 Action** 无法在审计层面区分——出问题时分不清"是用户授意的还是 agent 自主做的"。
+
+**目标**：agent 作为一等主体（服务账号）被授权 / 审计 / 限流。
+- 引入 `agent` 这一 actor 类型（与 `user` 并列），`automation.py` / scheduler / webhook 触发的 Action 标注 actor=`agent:<source>`。
+- PermissionEvaluator 对 agent 身份独立求值（agent 可被授予比人类更窄的权限子集）。
+- §12.2 的 Decision Lineage 记录 actor 类型，便于事后区分决策来源。
+
+**边界**：不引入完整的 agent 身份管理体系（多 agent 实例 / agent 间授权），仅区分"人 vs agent"两类 actor + 服务账号级权限。多 agent 身份随 §5 subagent 一并设计。
+
+### 12.2 Decision Lineage 与审计闭环（F-XC-01 / F-AT-36 / F-XC-09，🔜 P0）
+
+**问题**：治理第一问——"agent 凭什么改了这条数据？" 当前 `auth_audit.py` 仅记录 auth 事件（登录 / 登出 / token 失败），**Action 级审计完全缺失**。`executor.execute` 成功/失败不留结构化记录，生产环境 agent 是黑箱。
+
+**目标**：端到端决策谱系——每笔 Action 物化为可查询的审计记录（决策即数据，类比 Palantir `[LOG]`-前缀 object），至少捕获：
+- **Action 上下文**：action RID / api_name / 版本 / 时间戳 / actor（类型 + ID，含 §12.1 的 agent 身份）/ tenant
+- **被编辑对象**：edits_object_types + 各对象的 PK
+- **决策谱系**：触发来源（user 会话 / agent 自动 / scheduler job / webhook）+ 若经 LLM，记录 LLM 版本 / 对应 Skill / 关键输入摘要 / 会话 ID
+- **结果**：success / failure + 失败分类（invalid param / permission denied / side effect error / ...）
+
+**复用**：`auth_audit.py` 的 rolling-file 模式可作起点，但 Action Log 应物化为**可查询的 ontology 数据**（独立 `audit_logs` 表或 `[LOG]`-前缀 Object Type），自动 link 到被编辑对象，支持 admin 审计查询 UI + Tool 查询。与 §12.4 的 Action Metrics 同源（Metrics 从 Log 聚合）。
+
+**依赖链**：Action Log（P0）→ Action Revert/Undo（P1，依赖 Log 回滚）+ Action Metrics（P0，从 Log 聚合）+ Decision Lineage 全貌（本节）。
+
+### 12.3 渐进自治与 Preview→Confirm 的位置（F-XC-08，🔜 P2）
+
+**问题**：企业引入 agent 的信任构建路径是**渐进自治**：只读 → 受限写（Preview→Confirm）→ 自主写 → 自主多步。当前 Preview→Confirm（§2.5）是中间档（人确认每一笔），但**无法按角色/场景配置自治级别**——要么全走 Preview→Confirm（高效场景被拖慢），要么走 CRUD（但被 edits-only 挡住）。
+
+**目标**：自治级别可声明、可按角色/场景差异化。
+- 低风险 Action（如 `update_task_notes`）可配置为"agent 自主执行，事后审计"（仍记 Action Log）。
+- 高风险 Action（如 `create_loss_report` 报损）强制 Preview→Confirm。
+- 自治级别声明在 Action Type YAML（新增 `autonomy_level` 字段）或 submission_criteria，由 PermissionEvaluator + executor 共同执行。
+
+**边界**：不做 Palantir 式的信任评分动态调整，仅支持静态声明的自治级别 + 角色 override。动态信任随 §5 subagent / 长期记忆（F-XC-07）远期评估。
+
+### 12.4 agent 可观测性（F-AT-40/41 / F-OM-08 / §24 Usage-Limits，🔜 P0/P1）
+
+**问题（运维轴）**：agent 上生产后，三件事无着落——(a) Action 健康度（成功率 / 失败分类 / P95 时延）；(b) LLM 成本（token 消耗 / 异常调用）；(c) agent 行为异常（异常时间批量改数据 / 连续失败）。当前 dashboard 只有业务 KPI（Task/NEP 计数），无 agent 运维视图。
+
+**目标（三件套，协同落地）**：
+- **Action Metrics**（F-AT-40/41，**P0**）：从 Action Log 聚合，近实时（30 天）成功率 / 失败分类 / P95 时延，per-action-type + per-workspace 维度。失败分类对齐 Palantir（invalid param / scale / auth / side effect / conflict / ...）。
+- **Usage / Limits**（§24，**P1**）：LLM 成本治理——token 成本追踪（per workspace / per user / per session）+ 速率限制 + 配额 + 异常调用熔断。**LLM 成本是企业上 agent 的第一道门槛**，非 SaaS 计费才需要。
+- **agent ops 仪表盘**（F-OM-08，**P1**）：condition→检测→告警→Action 模式（Palantir Object Monitors 已 Sunset，但模式本身是 agent 行为监控的正解）——agent 有没有在异常时间改数据？有没有批量失败？token 有没有突增？投影为运维仪表盘 + 告警规则，与 §9 side effects 的 notification 投递（P0）协同——异常即通知到人。
+
+**边界**：不建 Palantir Vertex/Machinery 那类重型可视化前端；仪表盘是 admin 控制台的扩展页（与 §11.9 admin CRUD 同入口），数据来自 Action Log + Usage 记录。
+
+---
+
 ## 附录 A：错误处理（MVP）
 
 ### Tool 调用失败
@@ -635,14 +690,14 @@ LLM agent 实例（只读消费身份）
 ### 数据一致性
 | 场景 | 策略 |
 |------|------|
-| JSON 文件并发写入损坏 | JSON 后端：Repository 层 `fcntl.flock` 文件锁（Unix）+ 原子写；PG 后端：由数据库事务保证（已落地，roadmap §1） |
-| `confirm_action` 执行到一半失败 | 原子写入：临时文件 → `os.rename` 覆盖；写入前 `.bak` 备份 |
+| JSON 文件并发写入损坏 | JSON 后端：Repository 层 `fcntl.flock` 文件锁（Unix）+ 原子写；PG 后端：行锁 + 单语句事务防单行损坏（跨 Object 全事务见下一行） |
+| `confirm_action` 执行到一半失败 | **单文件/单语句级原子**：JSON 后端每个 Object Type 文件用 `tempfile.mkstemp` → `os.replace` 原子覆盖（`repository.py:_dump`，失败时清理 tmp 残留）；PG 后端每条 upsert 经 `execute()` 独立 commit（语句级原子）。⚠️ **跨 Object 全事务性两种后端均未实现**——一个 Action 跨多个 Object Type（如 `create_clearance_task` 写 NearExpiryProduct + Task）是多次独立原子写，中途失败不回滚已写的前序文件/行。PG 已有 `transaction()` 上下文（`db.py`），把 `_run_side_effects` 包进单事务即可实现真原子，列为 v2 TODO。 |
 | preview 与 confirm 状态不一致 | preview_id 缓存 TTL 机制（过期失效，LLM 必须重新 preview） |
 
 ### 数据文件损坏恢复
 | 场景 | 策略 |
 |------|------|
-| JSON 解析失败 | `_load_json` 捕获 `JSONDecodeError`，返回空数据 + 结构化警告日志（不自动恢复，运维从 `.bak` 恢复） |
+| JSON 解析失败 | `_load_json` 捕获 `JSONDecodeError`，返回空数据 + 结构化警告日志（不自动恢复）。⚠️ 代码无运行时 `.bak` 备份机制——原子写（`tempfile`+`os.replace`）保证写入不会半损坏，故解析失败通常是外部原因（手动编辑/磁盘问题）；恢复靠 git 源码侧的 seed JSON 或 PG 后端数据 |
 | 数据文件缺失 | Repository 初始化为空 `[]` + 写日志；首次启动自动创建缺失目录和空文件 |
 
 ---

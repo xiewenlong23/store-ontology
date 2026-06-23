@@ -128,6 +128,49 @@
 
 ---
 
+## 10. v2-agent 治理与运维（🔜 规划中，评估回填）
+
+> 来源：[`palantir-implementation-assessment.md`](./palantir-implementation-assessment.md) v2 评审引入的"agent 治理/运维"第四评估轴。架构落地形态见 [`00-architecture.md`](./00-architecture.md) §12。这一轴当前 roadmap 完全缺失，是企业上 agent 的前提。
+
+**当前实现**：权限治理已落地（§2 RBAC×ABAC + RLS + 列级）；auth 事件审计已落地（`auth_audit.py`）。但 **Action 级审计 / 决策追溯 / LLM 成本治理 / agent 行为监控 / 自治分级**五块全缺。
+
+**🔜 P0（治理+运维闭环，必须优先）**：
+- **Action Log**（F-AT-36）：每笔 Action 物化为可查询审计记录（决策即数据）。`auth_audit.py` 的 rolling-file 模式可参考，但 Action Log 要可查询、可 link 到被编辑对象。
+- **Auditability 补齐**（F-XC-09）：随 Action Log 一并闭环。
+- **Decision Lineage**（F-XC-01）：端到端谱系——LLM 版本 / Skill / 输入摘要 / 会话 ID / actor 类型（人 vs agent）。是 agent 上线的合规前提。
+- **Action Metrics**（F-AT-40/41）：从 Action Log 聚合，成功率 / 失败分类 / P95 时延，per-action-type + per-workspace。agent 运维可观测性核心。
+- **notification 投递**（§9 side effects）：当前 `notification` 副作用声明了但投递 no-op。agent 做关键操作必须通知到人——人机协同底线，当前 no-op 是真实风险。
+
+**🔜 P1（V1 增强）**：
+- **agent 身份**（F-PM-18）：agent 作为服务账号被授权 / 审计 / 限流，区分"人触发 vs agent 自动触发"。
+- **安全变更机制**（F-BR-06 / F-CM-02）：生产本体演进——变更前校验下游引用 + 灰度 + 回滚。轻量版，非完整 Git 分支。
+- **Usage / Limits**（§24）：LLM 成本治理——token 追踪 + 速率 + 配额 + 熔断。企业上 agent 第一道门槛。
+- **agent ops 仪表盘**（F-OM-08）：agent 行为监控 + 异常告警（异常时间改数据 / 批量失败 / token 突增），与 notification 投递协同。
+- **人用操作台**（§11/§14）：店长 / 区经理 / 运营的看板 / 数据探索 / 报表 / 实体详情页（非 agent 对话面）——当前 dashboard 只读 + admin 只读浏览，远不够零售运营。
+- **Writeback Connectors**（F-XC-05）：ERP / WMS / POS / OMS 真实集成，替代 mock webhook。企业零售第一天刚需。
+- **批量声明式规则层**（§19）：无 LLM 在环的确定性规则（补货点扫描 / 合规扫描 / 临期预警），区别于 submission_criteria。
+
+**🔜 P2（V2 方向）**：渐进自治（F-XC-08，自治级别可声明）、多跳遍历（供应链穿透）、地理数据建模（门店网络）、时间分配原语（排班 / 补货周期 / 档期）、Semantic Search / RAG、Cardinality 显式声明、Interface / Shared Property、Git 式 Branching、Object Edit History、Permission 管理 UI。
+
+---
+
+## 11. Palantir 对标（参照系，📊 持续维护）
+
+> 本平台本体设计的主要参考是 Palantir Foundry Ontology（[`reference/palantir-ontology-docs/`](./reference/palantir-ontology-docs/)）。两份对标文档构成"参照系 ↔ 项目侧"的完整映射，roadmap 的优先级判定应与之对照：
+
+- [`palantir-ontology-functional-requirements.md`](./palantir-ontology-functional-requirements.md) — 从 Palantir 资料提炼的功能需求清单（36 节、~350 条 F-XX-NN），**只描述 Palantir 侧**。
+- [`palantir-implementation-assessment.md`](./palantir-implementation-assessment.md) — 对需求清单的项目侧实现识别（四档判定 + **四轴方法论**）。
+
+**四轴评估方法论**（每条"要不要做 X 能力"过这四轴）：
+1. **架构轴**：Palantir 抽象按"描述世界（KEEP）/ 执行计算展示（DEMOTE→转换）/ 专有前端或重型治理（DROP）"分档。
+2. **场景轴**：按**零售企业平台最小能力集**判，不按 clearance 单场景判。
+3. **建模-可视化分离轴**：Palantir 耦合销售的数据建模（轻）和 UI（重）要拆分判——建模部分常 🟡，可视化前端常 ⛔。
+4. **agent 治理/运维轴**：每个"⛔"过一遍"agent 上生产后是否治理/运维刚需"。
+
+**当前判定统计**（v2，34 节）：完全 2 / 部分 15 / 转换 11 / 不建议 6。v1→v2 把 16 处保守判定上浮（不建议 12→6），反映"企业零售 + agent 治理/运维"视角下平台需要的能力面更宽。本 roadmap 的 §10 即该方法论在"治理/运维轴"的落地。
+
+---
+
 ## 阶段总览
 
 | 阶段 | 目标 | 状态 |
@@ -143,3 +186,4 @@
 | 🔜 v2-Agent | 单 Agent → subagent/多 Agent | 架构预留 |
 | 🔜 v2-UI | A2UI + 多工作目录切换 UI + 图表 + 审计 UI | 登录页 + 动态 workspace 选择器已实现；其余未开始 |
 | 🔜 v2-长流程 | 后端自动化 → 可选 BPM 引擎增强 | 未开始 |
+| 🔜 **v2-agent 治理与运维** | Action Log + Decision Lineage + Action Metrics + notification 投递（P0）/ agent 身份 + 安全变更 + Usage-Limits + agent ops 仪表盘 + 人用操作台 + Writeback Connectors + 批量规则（P1） | 规划中（评估回填，见 §10、架构 §12） |
