@@ -104,7 +104,7 @@ def _get_executor(vertical: str = None, process_name: str = None) -> ActionExecu
         if proc.name == process_name:
             return ActionExecutor(
                 repository=inst.repository, actions=inst.registry.action_types,
-                registry=inst.registry, config=proc)
+                registry=inst.registry, config=proc, log_repo=inst.log_repo)
     warnings.warn(
         f"process_name='{process_name}' 在工作目录 '{ws.name}' 的 processes "
         f"{[p.name for p in ws.processes]} 中未找到，回退默认 executor。",

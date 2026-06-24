@@ -138,6 +138,8 @@ class ActionExecutor:
             action = self.actions.get(action_type)
             if not action:
                 raise ValidationError(f"未知 Action Type: {action_type}")
+            # 填充 Action 声明的 edits_object_types（spec §3.1；revert/Metrics 索引用）
+            entry.edits_object_types = list(getattr(action, "edits_object_types", []) or [])
             params = self._validate_params(action, params)
             target = self._load_target(action, params, tenant_id)
             self._check_submission(action, actor, target, params, tenant_id)

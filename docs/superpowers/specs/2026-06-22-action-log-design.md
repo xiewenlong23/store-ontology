@@ -235,7 +235,7 @@ class ActionLogEntry:
 
 ### 7.1 params 敏感数据
 
-`params` 可能含敏感字段（如 password）。**MVP 策略**：全量记录（审计完整性优先），但 admin API 返回时对已知敏感字段名（`password` / `password_hash` / `token` / `secret`）做掩码（显示 `***`）。敏感字段名集合可配置，默认硬编码。
+`params` 可能含敏感字段（如 password）。**MVP 策略（v2 修订）**：在**写入存储时**对已知敏感字段名（`password` / `password_hash` / `token` / `secret`）做掩码（替换为 `***`），原始值不落盘。这是相对"全量记录 + 读取时掩码"的更安全选择——避免敏感值经 DB dump / 备份 / 日志文件泄露；代价是审计无法回溯原始敏感值（可接受，敏感值本就不应留痕）。敏感字段名集合可配置，默认硬编码。实现见 `action_log_repo.write()`（JSON + PG 两条路径均在 write 调用 `mask_sensitive_params`）。
 
 ### 7.2 租户隔离
 

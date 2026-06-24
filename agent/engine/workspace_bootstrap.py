@@ -133,6 +133,9 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
         executor.log_repo = log_repo
     except Exception as e:  # noqa: BLE001
         print(f"[bootstrap] action_log_repo 构造失败（日志将不写入）: {e}")
+    if log_repo is None:
+        # 操作员可见的失效信号（spec §12.4 运维可观测性；M5 review 建议）
+        print(f"[bootstrap] ⚠️ workspace '{workspace_name}' 未启用 Action Log（log_repo=None）")
 
     inst = WorkspaceAgentInstance(
         workspace_name=workspace_name, config=cfg,

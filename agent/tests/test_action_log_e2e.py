@@ -90,3 +90,39 @@ def test_count_after_actions(setup):
     assert log_repo.count("jjy") == 1
     assert log_repo.count("jjy", outcome="success") == 1
     assert log_repo.count("jjy", outcome="failure") == 0
+
+
+def test_edits_object_types_populated_from_action(setup):
+    """entry.edits_object_types 来自 Action 声明（spec §3.1；review I1 回归）。"""
+    ex, repo, log_repo = setup
+    ex.execute("create_clearance_task", {
+        "target_id": "ne_001", "store_id": "store_001", "assignee_id": "emp_001",
+        "discount_percent": 30, "planned_quantity": 50,
+    }, actor={"role": "store_manager"}, tenant_id="jjy")
+    e = log_repo.query("jjy", action_type="create_clearance_task")[0]
+    # create_clearance_task 声明 edits NearExpiryProduct + Task
+    assert "NearExpiryProduct" in e.edits_object_types
+    assert "Task" in e.edits_object_types
+
+
+def test_get_executor_by_process_name_injects_log_repo(clearance_data_dir, monkeypatch):
+    """C1 回归：_get_executor(process_name=...) 构造的 executor 必须带 log_repo。
+
+    否则 automation/webhook 路径（spec D2 要求覆盖的核心场景）不记日志。
+    通过真实 bootstrap_workspace 路径验证，不 monkeypatch _get_executor。
+    """
+    from engine.workspace_bootstrap import bootstrap_workspace, invalidate_workspace
+    from agent.tools import shared
+
+    # 用真实 jjy workspace（已 bootstrap，log_repo 已注入 inst）
+    invalidate_workspace("jjy")
+    inst = bootstrap_workspace("jjy")
+    assert inst.log_repo is not None, "bootstrap 应注入 log_repo"
+
+    # 模拟 automation 经 _get_executor(process_name="clearance") 拿 executor
+    monkeypatch.setattr(shared, "_parser", lambda: None)  # 避免 parser 重建
+    # _get_executor 内部调 bootstrap_workspace + 取 process executor
+    ex = shared._get_executor(process_name="clearance")
+    assert ex.log_repo is not None, (
+        "_get_executor(process_name=...) 构造的 executor 必须继承 inst.log_repo（C1）"
+    )
