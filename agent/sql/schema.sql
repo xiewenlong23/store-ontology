@@ -113,6 +113,42 @@ CREATE INDEX IF NOT EXISTS idx_link_types_workspace
 CREATE INDEX IF NOT EXISTS idx_action_types_workspace
     ON action_types (workspace_name);
 
+-- ============ Action Log（决策即数据，spec §3.1）============
+-- 独立于 entities，治理数据与业务数据分离；永久保留（MVP，spec D6）
+
+CREATE TABLE IF NOT EXISTS action_logs (
+    log_id              text NOT NULL,             -- uuid hex，主键
+    workspace_name      text NOT NULL,             -- 租户隔离（与 entities 一致）
+    timestamp           timestamptz NOT NULL DEFAULT now(),
+    action_type         text NOT NULL,
+    outcome             text NOT NULL,             -- success / failure
+    failure_type        text,                      -- failure 时填（8 类枚举，spec §3.3）；success 为 NULL
+    error_message       text,
+    -- actor（D3 轻量）
+    actor_id            text,                      -- user_id 或 agent:<source>
+    actor_role          text,
+    actor_type          text NOT NULL,             -- user / agent
+    trigger_source      text NOT NULL,             -- llm_session / automation / webhook / admin_api
+    -- 影响对象
+    edits_object_types  text[] NOT NULL DEFAULT '{}',  -- Action 声明的 edits_object_types
+    affected_objects    jsonb NOT NULL DEFAULT '{}',   -- {object_type: [pk, ...]}
+    -- Action 上下文
+    params              jsonb,                     -- 校验后参数（敏感字段已掩码，spec §7.1）
+    duration_ms         integer,                   -- execute() 耗时（为 Metrics 预留）
+    -- agent 运行时上下文（D3 P1 预留，P0 不填）
+    llm_model           text,
+    skill_id            text,
+    session_id          text,
+    PRIMARY KEY (log_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_logs_ws_time
+    ON action_logs (workspace_name, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_action_logs_ws_action
+    ON action_logs (workspace_name, action_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_action_logs_ws_actor
+    ON action_logs (workspace_name, actor_id, timestamp DESC);
+
 -- ============ updated_at 自动更新触发器 ============
 
 CREATE OR REPLACE FUNCTION touch_updated_at()
