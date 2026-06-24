@@ -8,6 +8,7 @@ from agent.routers.admin import router as admin_router
 from agent.routers.dashboard import router as dashboard_router
 from agent.routers.webhooks import router as webhooks_router
 from agent.routers.action_logs import router as action_logs_router
+from agent.routers.action_metrics import router as action_metrics_router
 
 __all__ = ["auth_router", "admin_router", "dashboard_router",
-           "webhooks_router", "action_logs_router"]
+           "webhooks_router", "action_logs_router", "action_metrics_router"]

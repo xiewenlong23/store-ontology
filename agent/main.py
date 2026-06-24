@@ -430,7 +430,7 @@ async def health():
 
 from agent.routers import (
     auth_router, admin_router, dashboard_router, webhooks_router,
-    action_logs_router,
+    action_logs_router, action_metrics_router,
 )
 
 app.include_router(auth_router)
@@ -438,6 +438,7 @@ app.include_router(admin_router)
 app.include_router(dashboard_router)
 app.include_router(webhooks_router)
 app.include_router(action_logs_router)
+app.include_router(action_metrics_router)
 
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
