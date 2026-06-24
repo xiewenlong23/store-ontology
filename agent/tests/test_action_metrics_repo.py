@@ -107,3 +107,75 @@ def test_aggregate_window_in_response(tmp_path):
     m = repo.aggregate("ws", since="2026-06-01T00:00:00", until="2026-06-30T00:00:00")
     assert m["window"]["since"] == "2026-06-01T00:00:00"
     assert m["window"]["until"] == "2026-06-30T00:00:00"
+
+
+# ============ PG 后端（PG 不可用时 skip）============
+
+def _pg_available():
+    from engine.db import is_pg_enabled, ping
+    return is_pg_enabled() and ping()
+
+
+@pytest.fixture
+def pg_repo(monkeypatch):
+    from engine import db
+    import os
+    dburl = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
+    if not dburl:
+        pytest.skip("无 TEST_DATABASE_URL/DATABASE_URL，跳过 PG metrics 测试")
+    monkeypatch.setenv("DATABASE_URL", dburl)
+    db._reset_pg_state()
+    if not (db.is_pg_enabled() and db.ping()):
+        pytest.skip("PG 不可用")
+    db.migrate()
+    db.execute("DELETE FROM action_logs WHERE workspace_name = %s", ("ws_pg",))
+    from engine.action_log_repo import PgActionLogRepository
+    yield PgActionLogRepository("ws_pg")
+    db.execute("DELETE FROM action_logs WHERE workspace_name = %s", ("ws_pg",))
+
+
+def _pg_entry(repo, action_type, outcome, duration_ms=None, failure_type=None):
+    from engine.action_log import ActionLogEntry
+    e = ActionLogEntry.init(action_type, {"user_id": "u1", "role": "r"},
+                            "ws_pg", "llm_session")
+    e.outcome = outcome
+    e.duration_ms = duration_ms
+    e.failure_type = failure_type
+    repo.write(e)
+
+
+def test_pg_aggregate_overall(pg_repo):
+    _pg_entry(pg_repo, "a", "success", duration_ms=10)
+    _pg_entry(pg_repo, "a", "success", duration_ms=20)
+    _pg_entry(pg_repo, "a", "failure", duration_ms=5, failure_type="invalid_param")
+    m = pg_repo.aggregate("ws_pg")
+    assert m["overall"]["total"] == 3
+    assert m["overall"]["success"] == 2
+    assert m["overall"]["failure"] == 1
+
+
+def test_pg_aggregate_p95(pg_repo):
+    for d in (10, 20, 30, 40, 100):
+        _pg_entry(pg_repo, "a", "success", duration_ms=d)
+    m = pg_repo.aggregate("ws_pg")
+    assert m["overall"]["p95_duration_ms"] == 100
+
+
+def test_pg_aggregate_by_action_type(pg_repo):
+    _pg_entry(pg_repo, "create", "success", duration_ms=100)
+    _pg_entry(pg_repo, "create", "failure", duration_ms=5, failure_type="invalid_param")
+    _pg_entry(pg_repo, "deduct", "success", duration_ms=15)
+    m = pg_repo.aggregate("ws_pg")
+    assert set(m["by_action_type"].keys()) == {"create", "deduct"}
+    assert m["by_action_type"]["create"]["total"] == 2
+
+
+def test_pg_aggregate_window_filter(pg_repo):
+    """写入一条 + 手动改 timestamp 为窗外，验证 since 过滤。"""
+    from engine.db import execute
+    _pg_entry(pg_repo, "a", "success", duration_ms=10)
+    # 改 timestamp 到窗外（PG write 用 now()，无法直接控制，改库模拟）
+    execute("UPDATE action_logs SET timestamp = '2026-05-01' "
+            "WHERE workspace_name = %s", ("ws_pg",))
+    m = pg_repo.aggregate("ws_pg", since="2026-06-01")
+    assert m["overall"]["total"] == 0

@@ -261,6 +261,80 @@ class PgActionLogRepository(ActionLogRepository):
         row = query_one(sql, tuple(params))
         return int(row["n"]) if row else 0
 
+    def aggregate(self, ws_name: str, *, since=None, until=None,
+                  action_type=None, trigger_source=None) -> dict:
+        """PG 后端聚合（spec §4.1）：percentile_cont + FILTER 聚合。"""
+        from engine.db import query as db_query, query_one
+        # 公共 WHERE 子句 + 参数
+        clauses = ["workspace_name = %s"]
+        params: list = [ws_name]
+        if since:
+            clauses.append("timestamp >= %s"); params.append(since)
+        if until:
+            clauses.append("timestamp <= %s"); params.append(until)
+        if action_type:
+            clauses.append("action_type = %s"); params.append(action_type)
+        if trigger_source:
+            clauses.append("trigger_source = %s"); params.append(trigger_source)
+        where = " AND ".join(clauses)
+        base_params = tuple(params)
+
+        # overall（单行）
+        overall_row = query_one(f"""
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE outcome='success') AS success,
+                   COUNT(*) FILTER (WHERE outcome='failure') AS failure,
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
+            FROM action_logs WHERE {where}
+        """, base_params) or {}
+        total = int(overall_row.get("total") or 0)
+        succ = int(overall_row.get("success") or 0)
+        fail = int(overall_row.get("failure") or 0)
+        # percentile_cont 对空集返回 NULL；total=0 时 p95 置 None
+        p95 = int(overall_row["p95"]) if total and overall_row.get("p95") is not None else None
+        overall = {
+            "total": total, "success": succ, "failure": fail,
+            "success_rate": round(succ / total, 3) if total else None,
+            "p95_duration_ms": p95,
+        }
+
+        # by_action_type
+        by_action_rows = db_query(f"""
+            SELECT action_type,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE outcome='success') AS success,
+                   COUNT(*) FILTER (WHERE outcome='failure') AS failure,
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
+            FROM action_logs WHERE {where}
+            GROUP BY action_type
+        """, base_params)
+        by_action = {}
+        for r in by_action_rows:
+            t = int(r["total"]); s = int(r["success"]); f = int(r["failure"])
+            by_action[r["action_type"]] = {
+                "total": t, "success": s, "failure": f,
+                "success_rate": round(s / t, 3) if t else None,
+                "p95_duration_ms": int(r["p95"]) if t and r.get("p95") is not None else None,
+            }
+
+        # by_failure_type（8 类补 0；仅 failure 行）
+        ft_rows = db_query(f"""
+            SELECT failure_type, COUNT(*) AS n
+            FROM action_logs
+            WHERE {where} AND outcome='failure' AND failure_type IS NOT NULL
+            GROUP BY failure_type
+        """, base_params)
+        ft_map = {r["failure_type"]: int(r["n"]) for r in ft_rows}
+        by_failure = {ft: ft_map.get(ft, 0) for ft in _FAILURE_TYPES}
+
+        return {
+            "window": {"since": since, "until": until},
+            "filters": {"action_type": action_type, "trigger_source": trigger_source},
+            "overall": overall,
+            "by_action_type": by_action,
+            "by_failure_type": by_failure,
+        }
+
 
 # ============ 辅助 ============
 
