@@ -88,13 +88,20 @@ def test_metrics_passes_query_params(client, monkeypatch):
 
 
 def test_metrics_default_window_30_days(client, monkeypatch):
-    """不传 since 时默认 30 天前（spec M2）。"""
+    """不传 since 时默认 30 天前（spec M2）；精确断言 ~30 天差，防回归成 7 天。"""
+    from datetime import datetime, timedelta
     cap = CaptureRepo()
     monkeypatch.setattr("agent.routers.action_metrics._get_log_repo", lambda ws: cap)
+    now_before = datetime.now()
     r = client.get("/api/admin/customers/jjy/action-metrics")
     assert r.status_code == 200
-    assert cap.captured["since"] is not None  # 默认填了 30 天前
-    assert cap.captured["until"] is not None
+    until_dt = datetime.fromisoformat(cap.captured["until"])
+    since_dt = datetime.fromisoformat(cap.captured["since"])
+    # until ≈ now（请求时刻）
+    assert abs((until_dt - now_before).total_seconds()) < 5
+    # since ≈ now - 30 天（容差 5 秒）
+    expected_since = now_before - timedelta(days=30)
+    assert abs((since_dt - expected_since).total_seconds()) < 5
 
 
 def test_metrics_non_admin_denied(monkeypatch):

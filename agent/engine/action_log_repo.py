@@ -161,9 +161,11 @@ class JSONFileActionLogRepository(ActionLogRepository):
                                        b["durations"])
                            for at, b in by_action.items()}
 
-        # by_failure_type（仅 failure 行，全 8 类补 0）
-        ft_counter = Counter(r.get("failure_type") for r in out
-                             if r.get("outcome") == "failure" and r.get("failure_type"))
+        # by_failure_type（仅 failure 行，全 8 类补 0；NULL 归 unclassified，I2）
+        ft_counter = Counter(
+            r.get("failure_type") or "unclassified"
+            for r in out if r.get("outcome") == "failure"
+        )
         by_failure = {ft: ft_counter.get(ft, 0) for ft in _FAILURE_TYPES}
 
         return {
@@ -280,11 +282,12 @@ class PgActionLogRepository(ActionLogRepository):
         base_params = tuple(params)
 
         # overall（单行）
+        # percentile_disc（离散）与 JSON _p95 nearest-rank 语义一致（spec M3 跨后端等价）
         overall_row = query_one(f"""
             SELECT COUNT(*) AS total,
                    COUNT(*) FILTER (WHERE outcome='success') AS success,
                    COUNT(*) FILTER (WHERE outcome='failure') AS failure,
-                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
+                   percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
             FROM action_logs WHERE {where}
         """, base_params) or {}
         total = int(overall_row.get("total") or 0)
@@ -304,7 +307,7 @@ class PgActionLogRepository(ActionLogRepository):
                    COUNT(*) AS total,
                    COUNT(*) FILTER (WHERE outcome='success') AS success,
                    COUNT(*) FILTER (WHERE outcome='failure') AS failure,
-                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
+                   percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
             FROM action_logs WHERE {where}
             GROUP BY action_type
         """, base_params)
@@ -317,12 +320,12 @@ class PgActionLogRepository(ActionLogRepository):
                 "p95_duration_ms": int(r["p95"]) if t and r.get("p95") is not None else None,
             }
 
-        # by_failure_type（8 类补 0；仅 failure 行）
+        # by_failure_type（8 类补 0；仅 failure 行；NULL failure_type 归 unclassified，I2）
         ft_rows = db_query(f"""
-            SELECT failure_type, COUNT(*) AS n
+            SELECT COALESCE(failure_type, 'unclassified') AS failure_type, COUNT(*) AS n
             FROM action_logs
-            WHERE {where} AND outcome='failure' AND failure_type IS NOT NULL
-            GROUP BY failure_type
+            WHERE {where} AND outcome='failure'
+            GROUP BY COALESCE(failure_type, 'unclassified')
         """, base_params)
         ft_map = {r["failure_type"]: int(r["n"]) for r in ft_rows}
         by_failure = {ft: ft_map.get(ft, 0) for ft in _FAILURE_TYPES}

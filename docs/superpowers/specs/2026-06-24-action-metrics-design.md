@@ -48,7 +48,7 @@ GET /api/admin/customers/{cid}/action-metrics
 **Query params**（全部可选）：
 - `since`（ISO timestamp）：窗口起点，默认 30 天前
 - `until`（ISO timestamp）：窗口终点，默认 now
-- `action_type`（string）：过滤特定 action（overall 仍含全部，by_action_type 只剩该 action；通常不传，看全貌）
+- `action_type`（string）：过滤特定 action——**overall 与 by_action_type 都只统计该 action**（聚焦看单一 action 健康度时用）。通常不传，看全貌。
 - `trigger_source`（string）：可选过滤（`llm_session`/`automation`/`webhook`/`admin_api`），默认不过滤
 
 **鉴权**：`require_admin(ws)`（与 Action Log admin API、admin.py 一致）。
