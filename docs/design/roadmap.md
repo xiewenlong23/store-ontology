@@ -138,7 +138,7 @@
 - **Action Log**（F-AT-36）：✅ 已落地（feat/action-log 分支）— 每笔 Action 物化为 `action_logs`（PG 表 / JSON 文件），executor 内部日志点覆盖所有触发来源，8 类 failure_type，admin 查询 API（list + detail）。见 [spec](superpowers/specs/2026-06-22-action-log-design.md) / [plan](superpowers/plans/2026-06-24-action-log.md)。
 - **Auditability 补齐**（F-XC-09）：✅ 部分落地 — Action 级审计可查（随 Action Log）；完整谱系（agent 上下文）待 Decision Lineage 升级。
 - **Decision Lineage**（F-XC-01）：🔜 — actor 类型（人 vs agent）+ trigger_source 已随 Action Log 落地；端到端谱系（LLM 版本 / Skill / 会话 ID）待 P1 注入 agent contextvar（schema 字段已预留）。
-- **Action Metrics**（F-AT-40/41）：从 Action Log 聚合，成功率 / 失败分类 / P95 时延，per-action-type + per-workspace。agent 运维可观测性核心。
+- **Action Metrics**（F-AT-40/41）：✅ 已落地（feat/action-metrics 分支）— 从 action_logs 按需聚合（无物化表，spec M1），overall + per-action_type + per-failure_type 8 类计数 + P95 时延（PG percentile_cont / JSON 排序取 idx），admin API `GET /action-metrics`（默认 30 天窗）。见 [spec](superpowers/specs/2026-06-24-action-metrics-design.md)。
 - **notification 投递**（§9 side effects）：当前 `notification` 副作用声明了但投递 no-op。agent 做关键操作必须通知到人——人机协同底线，当前 no-op 是真实风险。
 
 **🔜 P1（V1 增强）**：
