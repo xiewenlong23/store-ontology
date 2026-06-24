@@ -99,7 +99,8 @@ def confirm_action(preview_id: str) -> str:
         result = shared._get_executor().execute(
             preview["action_type"], preview["params"],
             actor=preview["actor"],
-            tenant_id=preview["tenant_id"])
+            tenant_id=preview["tenant_id"],
+            trigger_source="llm_session")
         return shared._wrap({"type": "action_result", "success": True, **result},
                             f"操作完成: {preview['action_type']}")
     except OntologyError as e:

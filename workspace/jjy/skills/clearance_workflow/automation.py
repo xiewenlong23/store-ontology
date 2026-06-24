@@ -40,7 +40,8 @@ def expiry_check_job(executor, tenant_id: str = "tenant_default") -> int:
                 "loss_quantity": loss_qty,
                 "loss_value": loss_value,
                 "loss_reason": f"到期未售罄自动报损（剩余{ne.get('days_left')}天）",
-            }, actor={"role": "system_scheduler"}, tenant_id=tenant_id)
+            }, actor={"role": "system_scheduler"}, tenant_id=tenant_id,
+               trigger_source="automation")
             count += 1
         except OntologyError:
             continue  # 单个失败不阻塞其它
@@ -58,7 +59,8 @@ def inventory_check_job(executor, tenant_id: str = "tenant_default") -> int:
             executor.execute("complete_task", {
                 "task_id": task["id"],
                 "target_id": task["target_id"],
-            }, actor={"role": "system_inventory"}, tenant_id=tenant_id)
+            }, actor={"role": "system_inventory"}, tenant_id=tenant_id,
+               trigger_source="automation")
             count += 1
         except OntologyError:
             continue
@@ -75,7 +77,8 @@ def handle_approval(executor, task_id: str, approver_id: str, approved: bool,
         return {"ok": False, "error": "拒绝路径未实现（reject_clearance 待建模）"}
     return executor.execute("approve_clearance", {
         "task_id": task_id, "approver_id": approver_id,
-    }, actor={"role": "region_cat_mgr"}, tenant_id=tenant_id)
+    }, actor={"role": "region_cat_mgr"}, tenant_id=tenant_id,
+       trigger_source="webhook")
 
 
 def handle_pos_scan(executor, target_id: str, task_id: str, quantity: int,
@@ -83,7 +86,8 @@ def handle_pos_scan(executor, target_id: str, task_id: str, quantity: int,
     """POS 扫码 webhook → deduct_stock。"""
     return executor.execute("deduct_stock", {
         "target_id": target_id, "task_id": task_id, "quantity": quantity,
-    }, actor={"role": "system_pos"}, tenant_id=tenant_id)
+    }, actor={"role": "system_pos"}, tenant_id=tenant_id,
+       trigger_source="webhook")
 
 
 def register_clearance_automation(scheduler, interval_seconds: int = 1800) -> None:

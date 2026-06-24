@@ -119,7 +119,8 @@ def update_task(task_id: str, notes: str = None, priority: str = None,
         result = shared._get_executor().execute(
             "update_task_notes", params,
             actor=actor,
-            tenant_id=tc)
+            tenant_id=tc,
+            trigger_source="llm_session")
         return shared._wrap({"type": "update_task_result", "success": True, **result},
                             "已更新任务。")
     except OntologyError as e:
