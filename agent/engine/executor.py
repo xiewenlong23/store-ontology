@@ -103,11 +103,13 @@ def _match_constraint(value, constraint: str) -> bool:
 
 
 class ActionExecutor:
-    def __init__(self, repository, actions: Dict[str, object], registry, config=None):
+    def __init__(self, repository, actions: Dict[str, object], registry, config=None,
+                 log_repo=None):
         self.repo = repository
         self.actions = actions
         self.registry = registry
         self.config = config  # 价值链流程上下文（提供状态机表与工作流对象类型）
+        self.log_repo = log_repo  # ActionLogRepository（spec §3.2）；None 则静默跳过
 
     # ---------- 公共入口 ----------
     def validate(self, action_type: str, params: dict) -> dict:
@@ -118,16 +120,41 @@ class ActionExecutor:
             raise ValidationError(f"未知 Action Type: {action_type}")
         return self._validate_params(action, params)
 
-    def execute(self, action_type: str, params: dict, *, actor: dict, tenant_id: str) -> dict:
-        action = self.actions.get(action_type)
-        if not action:
-            raise ValidationError(f"未知 Action Type: {action_type}")
-        params = self._validate_params(action, params)
-        target = self._load_target(action, params, tenant_id)
-        self._check_submission(action, actor, target, params, tenant_id)
-        changes = self._run_side_effects(action, params, tenant_id)
-        return {"ok": True, "action": action_type, "created": changes["created"],
-                "updated": changes["updated"]}
+    def execute(self, action_type: str, params: dict, *, actor: dict,
+                tenant_id, trigger_source: str = "llm_session") -> dict:
+        """执行 Action（原子副作用）+ 写 Action Log（spec §3.2）。
+
+        trigger_source: llm_session / automation / webhook / admin_api（Decision Lineage）。
+        日志写入失败不阻断请求（spec §7.3）；execute 本身的异常正常重抛（日志先记 failure）。
+        """
+        import time
+        from engine.action_log import ActionLogEntry, classify_failure
+
+        # tenant_id 可能是 TenantContext 或字符串；取 workspace_name 用于日志
+        ws_name = getattr(tenant_id, "workspace_name", tenant_id)
+        entry = ActionLogEntry.init(action_type, actor, ws_name, trigger_source)
+        t0 = time.monotonic()
+        try:
+            action = self.actions.get(action_type)
+            if not action:
+                raise ValidationError(f"未知 Action Type: {action_type}")
+            params = self._validate_params(action, params)
+            target = self._load_target(action, params, tenant_id)
+            self._check_submission(action, actor, target, params, tenant_id)
+            changes = self._run_side_effects(action, params, tenant_id)
+            entry.update_success(changes)
+            return {"ok": True, "action": action_type, "created": changes["created"],
+                    "updated": changes["updated"]}
+        except Exception as e:
+            entry.update_failure(classify_failure(e), str(e))
+            raise
+        finally:
+            entry.duration_ms = int((time.monotonic() - t0) * 1000)
+            if self.log_repo is not None:
+                try:
+                    self.log_repo.write(entry)
+                except Exception as e:  # noqa: BLE001 - 审计写入失败不阻断（spec §7.3）
+                    print(f"[action_log] 写入失败（不影响请求）: {e}")
 
     # ---------- 校验 ----------
     def _validate_params(self, action, params):
