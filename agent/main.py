@@ -428,12 +428,16 @@ async def health():
 # 各 router（auth / admin / dashboard / webhooks）实现见 agent/routers/*.py。
 # 共享状态（tenant_ctx / auth_ctx）在 agent.state；共享 helper 在 agent.routers._shared。
 
-from agent.routers import auth_router, admin_router, dashboard_router, webhooks_router
+from agent.routers import (
+    auth_router, admin_router, dashboard_router, webhooks_router,
+    action_logs_router,
+)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(dashboard_router)
 app.include_router(webhooks_router)
+app.include_router(action_logs_router)
 
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
