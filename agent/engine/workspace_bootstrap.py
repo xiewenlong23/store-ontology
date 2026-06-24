@@ -19,6 +19,7 @@ class WorkspaceAgentInstance:
     registry: object  # EntityRegistry
     repository: object  # Repository
     executor: object  # ActionExecutor（config 取自 source_pack 的价值链流程）
+    log_repo: object = None  # ActionLogRepository（spec §4.1）；None 表示未启用 Action Log
 
     @property
     def tenant_context(self) -> TenantContext:
@@ -124,9 +125,18 @@ def bootstrap_workspace(workspace_name: str) -> WorkspaceAgentInstance:
         repository=repo, actions=registry.action_types,
         registry=registry, config=process_config)
 
+    # Action Log repo（spec §4.1）：PG 或 JSON 双后端；构造失败不应阻断 workspace 启动
+    log_repo = None
+    try:
+        from engine.action_log_repo import build_action_log_repo
+        log_repo = build_action_log_repo(workspace_name=workspace_name, data_dir=data_dir)
+        executor.log_repo = log_repo
+    except Exception as e:  # noqa: BLE001
+        print(f"[bootstrap] action_log_repo 构造失败（日志将不写入）: {e}")
+
     inst = WorkspaceAgentInstance(
         workspace_name=workspace_name, config=cfg,
-        registry=registry, repository=repo, executor=executor)
+        registry=registry, repository=repo, executor=executor, log_repo=log_repo)
     _instances[workspace_name] = inst
     return inst
 
